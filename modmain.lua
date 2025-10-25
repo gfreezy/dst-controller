@@ -16,16 +16,9 @@ setmetatable(env,
 -- Configuration
 -- ============================================================================
 
--- Get button combination action configurations
-local LB_A_ACTION = GetModConfigData("lb_a_action") or "none"
-local LB_B_ACTION = GetModConfigData("lb_b_action") or "none"
-local LB_X_ACTION = GetModConfigData("lb_x_action") or "none"
-local LB_Y_ACTION = GetModConfigData("lb_y_action") or "none"
-
-local RB_A_ACTION = GetModConfigData("rb_a_action") or "none"
-local RB_B_ACTION = GetModConfigData("rb_b_action") or "none"
-local RB_X_ACTION = GetModConfigData("rb_x_action") or "none"
-local RB_Y_ACTION = GetModConfigData("rb_y_action") or "none"
+-- Load action and task definitions from external files
+local ACTIONS = require("ec-actions")
+local TASKS = require("ec-tasks")
 
 -- ============================================================================
 -- Controller Button Mapping
@@ -35,42 +28,42 @@ local RB_Y_ACTION = GetModConfigData("rb_y_action") or "none"
 -- This allows supporting different control schemes and configurations
 local BUTTON_MAPPINGS = {
     LB = {
-        GLOBAL.CONTROL_CAM_AND_INV_MODIFIER,
+        CONTROL_CAM_AND_INV_MODIFIER,
     },
     RB = {
-        GLOBAL.CONTROL_CHARACTER_COMMAND_WHEEL,
+        CONTROL_CHARACTER_COMMAND_WHEEL,
     },
     A = {
-        GLOBAL.CONTROL_ACCEPT,
-        GLOBAL.CONTROL_CONTROLLER_ACTION,
+        CONTROL_ACCEPT,
+        CONTROL_CONTROLLER_ACTION,
     },
     B = {
-        GLOBAL.CONTROL_CANCEL,
-        GLOBAL.CONTROL_CONTROLLER_ALTACTION,
+        CONTROL_CANCEL,
+        CONTROL_CONTROLLER_ALTACTION,
     },
     X = {
-        GLOBAL.CONTROL_CONTROLLER_ATTACK,
-        GLOBAL.CONTROL_PUTSTACK,
-        GLOBAL.CONTROL_MENU_MISC_1
+        CONTROL_CONTROLLER_ATTACK,
+        CONTROL_PUTSTACK,
+        CONTROL_MENU_MISC_1
 
     },
     Y = {
-        GLOBAL.CONTROL_INSPECT,
-        GLOBAL.CONTROL_TARGET_CYCLE,
-        GLOBAL.CONTROL_USE_ITEM_ON_ITEM,
-        GLOBAL.CONTROL_MENU_MISC_2,
-        GLOBAL.CONTROL_AXISALIGNEDPLACEMENT_CYCLEGRID,
+        CONTROL_INSPECT,
+        CONTROL_TARGET_CYCLE,
+        CONTROL_USE_ITEM_ON_ITEM,
+        CONTROL_MENU_MISC_2,
+        CONTROL_AXISALIGNEDPLACEMENT_CYCLEGRID,
     },
     LT = {
-        GLOBAL.CONTROL_OPEN_CRAFTING,
-        GLOBAL.CONTROL_MENU_L2,
-        GLOBAL.CONTROL_MAP_ZOOM_IN,
+        CONTROL_OPEN_CRAFTING,
+        CONTROL_MENU_L2,
+        CONTROL_MAP_ZOOM_IN,
 
     },
     RT = {
-        GLOBAL.CONTROL_OPEN_INVENTORY,
-        GLOBAL.CONTROL_MAP_ZOOM_OUT,
-        GLOBAL.CONTROL_MENU_R2,
+        CONTROL_OPEN_INVENTORY,
+        CONTROL_MAP_ZOOM_OUT,
+        CONTROL_MENU_R2,
     },
 }
 
@@ -98,7 +91,7 @@ local function IsButtonPressed(button_name)
     if not mappings then return false end
 
     for _, control in ipairs(mappings) do
-        if GLOBAL.TheInput:IsControlPressed(control) then
+        if TheInput:IsControlPressed(control) then
             return true
         end
     end
@@ -146,47 +139,40 @@ end
 -- Action Execution
 -- ============================================================================
 
--- Execute custom actions based on action type
-local function ExecuteCustomAction(player, action_type)
-    print(string.format("[Enhanced Controller] Executing action: %s", action_type))
-
-    if action_type == "none" then
-        return
-    end
-
+-- Execute a single action
+-- action_def can be:
+--   - A string: "action_name" (simple action)
+--   - A table: {"action_name", "param1", "param2", ...} (action with parameters)
+local function ExecuteAction(player, action_def)
     if not player then
         print("[Enhanced Controller] No player found")
         return
     end
 
-    -- Attack action
-    if action_type == "attack" then
-        local target = GLOBAL.TheInput:GetWorldEntityUnderMouse()
-        if target and player.components.combat and player.components.combat:CanTarget(target) then
-            player.components.combat:DoAttack(target)
-            print("[Enhanced Controller] Executing attack action")
+    -- Parse action definition
+    local action_name, params
+    if type(action_def) == "string" then
+        -- Simple action: "action_name"
+        action_name = action_def
+        params = {}
+    elseif type(action_def) == "table" then
+        -- Action with parameters: {"action_name", "param1", "param2", ...}
+        action_name = action_def[1]
+        params = {}
+        for i = 2, #action_def do
+            table.insert(params, action_def[i])
         end
+    else
+        print(string.format("[Enhanced Controller] Warning: Invalid action definition type '%s'", type(action_def)))
+        return
+    end
 
-    -- Examine action
-    elseif action_type == "examine" then
-        local target = GLOBAL.TheInput:GetWorldEntityUnderMouse()
-        if target then
-            local action = GLOBAL.BufferedAction(player, target, GLOBAL.ACTIONS.LOOKAT)
-            if player.components.playercontroller then
-                player.components.playercontroller:DoAction(action)
-                print("[Enhanced Controller] Executing examine action")
-            end
-        end
-
-    -- Auto-equip action
-    elseif action_type == "equip" then
-        if player.components.inventory then
-            local active_item = player.components.inventory:GetActiveItem()
-            if active_item and active_item.components.equippable then
-                player.components.inventory:Equip(active_item)
-                print("[Enhanced Controller] Executing equip action")
-            end
-        end
+    -- Execute action
+    local action_func = ACTIONS[action_name]
+    if action_func then
+        action_func(player, unpack(params))
+    else
+        print(string.format("[Enhanced Controller] Warning: Unknown action '%s'", action_name))
     end
 end
 
@@ -194,42 +180,20 @@ end
 -- Controller Input Handler
 -- ============================================================================
 
--- Action trigger modes
-local TRIGGER_MODE = {
-    ONCE = "once",        -- Trigger only once per press, ignore subsequent events until release
-    REPEAT = "repeat",    -- Trigger every time the system sends the event (throttling according to interval or no interval)
-    RELEASE = "release",  -- Trigger only on button release
-}
-
--- Button combination configuration table
--- Maps modifier button + face button to their configured actions and trigger modes
--- Each entry: { action = "action_name", mode = TRIGGER_MODE.XXX, interval = seconds }
+-- Button combination to task mapping
+-- Maps modifier button + face button to their task name in tasks.lua
 local BUTTON_COMBINATIONS = {
     LB = {
-        -- ON_PRESS_ONCE: Press once to trigger, won't repeat while held
-        A = { action = LB_A_ACTION, mode = TRIGGER_MODE.ON_PRESS_ONCE},
-
-        -- ON_PRESS_REPEAT: Triggers on press, then repeats every 'interval' seconds while held
-        B = { action = LB_B_ACTION, mode = TRIGGER_MODE.ON_PRESS_REPEAT},
-
-        -- ON_RELEASE: Only triggers when button is released
-        X = { action = LB_X_ACTION, mode = TRIGGER_MODE.ON_RELEASE },
-
-        -- ON_PRESS_ONCE: Single trigger per press
-        Y = { action = LB_Y_ACTION, mode = TRIGGER_MODE.ON_PRESS_ONCE },
+        A = "LB_A",
+        B = "LB_B",
+        X = "LB_X",
+        Y = "LB_Y",
     },
     RB = {
-        -- ON_PRESS_REPEAT: Fast repeat for rapid actions
-        A = { action = RB_A_ACTION, mode = TRIGGER_MODE.ON_PRESS_REPEAT },
-
-        -- ON_PRESS_ONCE: Single trigger
-        B = { action = RB_B_ACTION, mode = TRIGGER_MODE.ON_PRESS_ONCE },
-
-        -- ON_PRESS_REPEAT: Medium speed repeat
-        X = { action = RB_X_ACTION, mode = TRIGGER_MODE.ON_PRESS_REPEAT},
-
-        -- ON_RELEASE: Trigger on button release
-        Y = { action = RB_Y_ACTION, mode = TRIGGER_MODE.ON_RELEASE },
+        A = "RB_A",
+        B = "RB_B",
+        X = "RB_X",
+        Y = "RB_Y",
     },
 }
 
@@ -240,6 +204,17 @@ local button_states = {
     RB = {},
 }
 
+-- Execute actions from a task
+local function ExecuteTaskActions(player, actions)
+    if not actions or #actions == 0 then
+        return
+    end
+
+    for _, action_name in ipairs(actions) do
+        ExecuteAction(player, action_name)
+    end
+end
+
 -- Check if a button combination should be handled
 -- Returns true if the combination was handled (should block default behavior)
 local function HandleButtonCombination(player, control, down)
@@ -247,10 +222,17 @@ local function HandleButtonCombination(player, control, down)
     for modifier_name, face_buttons in pairs(BUTTON_COMBINATIONS) do
         if IsButtonPressed(modifier_name) then
             -- Check each face button (A, B, X, Y)
-            for face_button, config in pairs(face_buttons) do
+            for face_button, task_name in pairs(face_buttons) do
                 if IsButton(control, face_button) then
-                    local action = config.action
-                    local mode = config.mode
+                    -- Get task definition
+                    local task = TASKS[task_name]
+                    if not task then
+                        print(string.format("[Enhanced Controller] Warning: Task '%s' not found", task_name))
+                        return true
+                    end
+
+                    print(string.format("[Enhanced Controller] Detected combination: %s + %s (%s)",
+                        modifier_name, face_button, down and "press" or "release"))
 
                     -- Initialize state if not exists
                     if not button_states[modifier_name][face_button] then
@@ -261,38 +243,20 @@ local function HandleButtonCombination(player, control, down)
 
                     if down then
                         -- Button press event
-                        if mode == TRIGGER_MODE.ON_PRESS_ONCE then
-                            -- Only trigger once until released
-                            if not state.pressed then
-                                print(string.format("[Enhanced Controller] %s + %s -> %s (once)",
-                                    modifier_name, face_button, action))
-                                if action ~= "none" then
-                                    ExecuteCustomAction(player, action)
-                                end
-                                state.pressed = true
-                            end
-                        elseif mode == TRIGGER_MODE.ON_PRESS_REPEAT then
-                            -- Trigger every time system sends event
-                            print(string.format("[Enhanced Controller] %s + %s -> %s (repeat)",
-                                modifier_name, face_button, action))
-                            if action ~= "none" then
-                                ExecuteCustomAction(player, action)
-                            end
-                            state.pressed = true
-                        elseif mode == TRIGGER_MODE.ON_RELEASE then
-                            -- Mark as pressed, will trigger on release
+                        if not state.pressed then
+                            print(string.format("[Enhanced Controller] %s + %s pressed -> executing %d actions",
+                                modifier_name, face_button, #task.on_press))
+                            ExecuteTaskActions(player, task.on_press)
                             state.pressed = true
                         end
                     else
                         -- Button release event
-                        if mode == TRIGGER_MODE.ON_RELEASE and state.pressed then
-                            print(string.format("[Enhanced Controller] %s + %s -> %s (release)",
-                                modifier_name, face_button, action))
-                            if action ~= "none" then
-                                ExecuteCustomAction(player, action)
-                            end
+                        if state.pressed then
+                            print(string.format("[Enhanced Controller] %s + %s released -> executing %d actions",
+                                modifier_name, face_button, #task.on_release))
+                            ExecuteTaskActions(player, task.on_release)
+                            state.pressed = false
                         end
-                        state.pressed = false
                     end
 
                     return true
@@ -331,15 +295,16 @@ end)
 -- Initialize mod for each player instance
 AddComponentPostInit("playercontroller", function(inst)
     print("[Enhanced Controller] Initializing for player")
-    print("[Enhanced Controller] Configuration:")
-    print("  - LB + A:", LB_A_ACTION)
-    print("  - LB + B:", LB_B_ACTION)
-    print("  - LB + X:", LB_X_ACTION)
-    print("  - LB + Y:", LB_Y_ACTION)
-    print("  - RB + A:", RB_A_ACTION)
-    print("  - RB + B:", RB_B_ACTION)
-    print("  - RB + X:", RB_X_ACTION)
-    print("  - RB + Y:", RB_Y_ACTION)
+    print("[Enhanced Controller] Task Configuration:")
+    for modifier_name, face_buttons in pairs(BUTTON_COMBINATIONS) do
+        for face_button, task_name in pairs(face_buttons) do
+            local task = TASKS[task_name]
+            if task then
+                print(string.format("  - %s + %s: %d on_press, %d on_release",
+                    modifier_name, face_button, #task.on_press, #task.on_release))
+            end
+        end
+    end
 
     local playercontroller = inst
     if not playercontroller then
@@ -347,14 +312,21 @@ AddComponentPostInit("playercontroller", function(inst)
         return
     end
 
+    -- Initialize equipment tracking for this player
+    -- This sets up event listeners for equip/unequip events
+    if ACTIONS.InitEquipmentTracking then
+        ACTIONS.InitEquipmentTracking(playercontroller.inst)
+        print("[Enhanced Controller] Equipment tracking initialized")
+    end
+
     local OldOnControl = playercontroller.OnControl
 
     playercontroller.OnControl = function(self, control, down)
         -- Debug output: show current control and all pressed controls
-        -- local pressed = GetPressedControls()
-        -- local pressed_str = #pressed > 0 and table.concat(pressed, " + ") or "None"
-        -- print(string.format("[Enhanced Controller] %s %s | All pressed: [%s]",
-        --     GetButtonName(control), down and "pressed" or "released", pressed_str))
+        local pressed = GetPressedControls()
+        local pressed_str = #pressed > 0 and table.concat(pressed, " + ") or "None"
+        print(string.format("[Enhanced Controller] %s %s | All pressed: [%s]",
+            GetButtonName(control), down and "pressed" or "released", pressed_str))
 
         -- Block LB/RB press to prevent default behavior
         if IsButton(control, "LB") or IsButton(control, "RB") then

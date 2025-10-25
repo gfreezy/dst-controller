@@ -88,52 +88,34 @@ if [ ! -d "$MOD_TARGET_DIR" ]; then
     mkdir -p "$MOD_TARGET_DIR"
 fi
 
-# 定义需要同步的文件
-FILES_TO_SYNC=(
-    "modinfo.lua"
-    "modmain.lua"
-    "modicon.xml"
-)
-
-# 可选文件（如果存在则同步）
-OPTIONAL_FILES=(
-    "modicon.tex"
-    "images"
-)
-
-# 排除的目录（不同步这些目录）
-EXCLUDED_DIRS=(
-    "scripts"
+# 排除的目录和文件（不同步这些）
+EXCLUDED_PATTERNS=(
+    "scripts-raw"
     ".git"
     ".vscode"
     ".claude"
     "node_modules"
+    "sync.sh"
+    "sync.config"
+    "CLAUDE.md"
+    ".gitignore"
 )
 
-# 同步文件
+# 构建 rsync exclude 参数
+EXCLUDE_ARGS=()
+for pattern in "${EXCLUDED_PATTERNS[@]}"; do
+    EXCLUDE_ARGS+=(--exclude="$pattern")
+done
+
+# 使用 rsync 同步文件
 echo -e "${GREEN}开始同步文件...${NC}"
-for file in "${FILES_TO_SYNC[@]}"; do
-    if [ -e "$MOD_SOURCE_DIR/$file" ]; then
-        echo "  复制: $file"
-        cp -r "$MOD_SOURCE_DIR/$file" "$MOD_TARGET_DIR/"
-    else
-        echo -e "  ${YELLOW}跳过: $file (不存在)${NC}"
-    fi
-done
+rsync -av --delete "${EXCLUDE_ARGS[@]}" "$MOD_SOURCE_DIR/" "$MOD_TARGET_DIR/"
 
-# 同步可选文件
-for file in "${OPTIONAL_FILES[@]}"; do
-    if [ -e "$MOD_SOURCE_DIR/$file" ]; then
-        echo "  复制: $file"
-        cp -r "$MOD_SOURCE_DIR/$file" "$MOD_TARGET_DIR/"
-    fi
-done
-
-# 显示排除的目录
+# 显示排除的内容
 echo ""
-echo -e "${YELLOW}已排除以下目录:${NC}"
-for dir in "${EXCLUDED_DIRS[@]}"; do
-    echo "  - $dir"
+echo -e "${YELLOW}已排除以下内容:${NC}"
+for pattern in "${EXCLUDED_PATTERNS[@]}"; do
+    echo "  - $pattern"
 done
 
 echo ""

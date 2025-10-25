@@ -8,9 +8,9 @@ This is a **Don't Starve Together (DST) mod** that enhances gamepad/controller f
 
 ## DST Game Scripts Reference
 
-The `scripts/` directory in this project contains the **original DST game interface and implementation files**. These are reference files for understanding DST's internal APIs and should NOT be modified. Use them to:
-- Understand DST's control system ([scripts/input.lua](scripts/input.lua))
-- Look up component APIs (scripts/components/)
+The `scripts-raw/` directory in this project contains the **original DST game interface and implementation files**. These are reference files for understanding DST's internal APIs and should NOT be modified. Use them to:
+- Understand DST's control system ([scripts-raw/input.lua](scripts-raw/input.lua))
+- Look up component APIs (scripts-raw/components/)
 - Find control constants and mappings
 - Understand how the game's internal systems work
 
