@@ -148,6 +148,8 @@ end
 
 -- Execute custom actions based on action type
 local function ExecuteCustomAction(player, action_type)
+    print(string.format("[Enhanced Controller] Executing action: %s", action_type))
+
     if action_type == "none" then
         return
     end
@@ -192,21 +194,50 @@ end
 -- Controller Input Handler
 -- ============================================================================
 
+-- Action trigger modes
+local TRIGGER_MODE = {
+    ONCE = "once",        -- Trigger only once per press, ignore subsequent events until release
+    REPEAT = "repeat",    -- Trigger every time the system sends the event (throttling according to interval or no interval)
+    RELEASE = "release",  -- Trigger only on button release
+}
+
 -- Button combination configuration table
--- Maps modifier button + face button to their configured actions
+-- Maps modifier button + face button to their configured actions and trigger modes
+-- Each entry: { action = "action_name", mode = TRIGGER_MODE.XXX, interval = seconds }
 local BUTTON_COMBINATIONS = {
     LB = {
-        A = LB_A_ACTION,
-        B = LB_B_ACTION,
-        X = LB_X_ACTION,
-        Y = LB_Y_ACTION,
+        -- ON_PRESS_ONCE: Press once to trigger, won't repeat while held
+        A = { action = LB_A_ACTION, mode = TRIGGER_MODE.ON_PRESS_ONCE},
+
+        -- ON_PRESS_REPEAT: Triggers on press, then repeats every 'interval' seconds while held
+        B = { action = LB_B_ACTION, mode = TRIGGER_MODE.ON_PRESS_REPEAT},
+
+        -- ON_RELEASE: Only triggers when button is released
+        X = { action = LB_X_ACTION, mode = TRIGGER_MODE.ON_RELEASE },
+
+        -- ON_PRESS_ONCE: Single trigger per press
+        Y = { action = LB_Y_ACTION, mode = TRIGGER_MODE.ON_PRESS_ONCE },
     },
     RB = {
-        A = RB_A_ACTION,
-        B = RB_B_ACTION,
-        X = RB_X_ACTION,
-        Y = RB_Y_ACTION,
+        -- ON_PRESS_REPEAT: Fast repeat for rapid actions
+        A = { action = RB_A_ACTION, mode = TRIGGER_MODE.ON_PRESS_REPEAT },
+
+        -- ON_PRESS_ONCE: Single trigger
+        B = { action = RB_B_ACTION, mode = TRIGGER_MODE.ON_PRESS_ONCE },
+
+        -- ON_PRESS_REPEAT: Medium speed repeat
+        X = { action = RB_X_ACTION, mode = TRIGGER_MODE.ON_PRESS_REPEAT},
+
+        -- ON_RELEASE: Trigger on button release
+        Y = { action = RB_Y_ACTION, mode = TRIGGER_MODE.ON_RELEASE },
     },
+}
+
+-- State tracking for button combinations
+-- Format: [modifier_name][face_button] = { pressed = bool }
+local button_states = {
+    LB = {},
+    RB = {},
 }
 
 -- Check if a button combination should be handled
@@ -216,13 +247,54 @@ local function HandleButtonCombination(player, control, down)
     for modifier_name, face_buttons in pairs(BUTTON_COMBINATIONS) do
         if IsButtonPressed(modifier_name) then
             -- Check each face button (A, B, X, Y)
-            for face_button, action in pairs(face_buttons) do
+            for face_button, config in pairs(face_buttons) do
                 if IsButton(control, face_button) then
-                    print(string.format("[Enhanced Controller] %s + %s -> %s",
-                        modifier_name, face_button, action))
-                    if action ~= "none" then
-                        ExecuteCustomAction(player, action)
+                    local action = config.action
+                    local mode = config.mode
+
+                    -- Initialize state if not exists
+                    if not button_states[modifier_name][face_button] then
+                        button_states[modifier_name][face_button] = { pressed = false }
                     end
+
+                    local state = button_states[modifier_name][face_button]
+
+                    if down then
+                        -- Button press event
+                        if mode == TRIGGER_MODE.ON_PRESS_ONCE then
+                            -- Only trigger once until released
+                            if not state.pressed then
+                                print(string.format("[Enhanced Controller] %s + %s -> %s (once)",
+                                    modifier_name, face_button, action))
+                                if action ~= "none" then
+                                    ExecuteCustomAction(player, action)
+                                end
+                                state.pressed = true
+                            end
+                        elseif mode == TRIGGER_MODE.ON_PRESS_REPEAT then
+                            -- Trigger every time system sends event
+                            print(string.format("[Enhanced Controller] %s + %s -> %s (repeat)",
+                                modifier_name, face_button, action))
+                            if action ~= "none" then
+                                ExecuteCustomAction(player, action)
+                            end
+                            state.pressed = true
+                        elseif mode == TRIGGER_MODE.ON_RELEASE then
+                            -- Mark as pressed, will trigger on release
+                            state.pressed = true
+                        end
+                    else
+                        -- Button release event
+                        if mode == TRIGGER_MODE.ON_RELEASE and state.pressed then
+                            print(string.format("[Enhanced Controller] %s + %s -> %s (release)",
+                                modifier_name, face_button, action))
+                            if action ~= "none" then
+                                ExecuteCustomAction(player, action)
+                            end
+                        end
+                        state.pressed = false
+                    end
+
                     return true
                 end
             end
@@ -245,7 +317,7 @@ AddClassPostConstruct("screens/playerhud", function(self)
     self.OnControl = function(hud_self, control, down)
         -- If LB or RB is pressed, block all controls to prevent default HUD actions
         if IsButtonPressed("LB") or IsButtonPressed("RB") then
-            return true
+            return false
         end
 
         return OldHudOnControl(hud_self, control, down)
@@ -279,29 +351,32 @@ AddComponentPostInit("playercontroller", function(inst)
 
     playercontroller.OnControl = function(self, control, down)
         -- Debug output: show current control and all pressed controls
-        local pressed = GetPressedControls()
-        local pressed_str = #pressed > 0 and table.concat(pressed, " + ") or "None"
-        print(string.format("[Enhanced Controller] %s %s | All pressed: [%s]",
-            GetButtonName(control), down and "pressed" or "released", pressed_str))
+        -- local pressed = GetPressedControls()
+        -- local pressed_str = #pressed > 0 and table.concat(pressed, " + ") or "None"
+        -- print(string.format("[Enhanced Controller] %s %s | All pressed: [%s]",
+        --     GetButtonName(control), down and "pressed" or "released", pressed_str))
 
         -- Block LB/RB press to prevent default behavior
         if IsButton(control, "LB") or IsButton(control, "RB") then
             if down then
-                print(string.format("[Enhanced Controller] Blocking %s press", GetButtonName(control)))
+                -- print(string.format("[Enhanced Controller] Blocking %s press", GetButtonName(control)))
                 return true
             else
-                print(string.format("[Enhanced Controller] %s released", GetButtonName(control)))
+                -- print(string.format("[Enhanced Controller] %s released", GetButtonName(control)))
                 return false
             end
         end
 
-        -- Check for button combinations on button press
+        -- Check for button combinations (both press and release)
         local lb_pressed = IsButtonPressed("LB")
         local rb_pressed = IsButtonPressed("RB")
 
-        -- If LB/RB is pressed and this is a face button, try to handle combination
-        if (lb_pressed or rb_pressed) and HandleButtonCombination(self.inst, control, down) then
-            return true
+        -- If LB/RB is pressed, or if this is a release of a face button
+        -- (for ON_RELEASE mode), try to handle combination
+        if (lb_pressed or rb_pressed) then
+            if HandleButtonCombination(self.inst, control, down) then
+                return true
+            end
         end
 
         -- Call original OnControl for all other inputs
