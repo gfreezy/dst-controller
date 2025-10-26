@@ -35,6 +35,22 @@ function G.Init(ENV_REF)
     G.CONTROL_MAP_ZOOM_OUT = GLOBAL_REF.CONTROL_MAP_ZOOM_OUT
     G.CONTROL_MENU_R2 = GLOBAL_REF.CONTROL_MENU_R2
 
+    -- Virtual Controls (for inventory navigation)
+    G.VIRTUAL_CONTROL_INV_LEFT = GLOBAL_REF.VIRTUAL_CONTROL_INV_LEFT
+    G.VIRTUAL_CONTROL_INV_RIGHT = GLOBAL_REF.VIRTUAL_CONTROL_INV_RIGHT
+    G.VIRTUAL_CONTROL_INV_UP = GLOBAL_REF.VIRTUAL_CONTROL_INV_UP
+    G.VIRTUAL_CONTROL_INV_DOWN = GLOBAL_REF.VIRTUAL_CONTROL_INV_DOWN
+    G.VIRTUAL_CONTROL_INV_ACTION_DOWN = GLOBAL_REF.VIRTUAL_CONTROL_INV_ACTION_DOWN
+
+    -- Movement Controls
+    G.CONTROL_MOVE_UP = GLOBAL_REF.CONTROL_MOVE_UP
+    G.CONTROL_MOVE_DOWN = GLOBAL_REF.CONTROL_MOVE_DOWN
+    G.CONTROL_MOVE_LEFT = GLOBAL_REF.CONTROL_MOVE_LEFT
+    G.CONTROL_MOVE_RIGHT = GLOBAL_REF.CONTROL_MOVE_RIGHT
+
+    -- Other Controls
+    G.CONTROL_USE_ITEM_ON_ITEM = GLOBAL_REF.CONTROL_USE_ITEM_ON_ITEM
+
     -- ============================================================================
     -- Game API Functions
     -- ============================================================================
@@ -42,6 +58,8 @@ function G.Init(ENV_REF)
     G.AddClassPostConstruct = ENV_REF.AddClassPostConstruct
     G.TheInput = GLOBAL_REF.TheInput
     G.TheSim = GLOBAL_REF.TheSim
+    G.TheWorld = GLOBAL_REF.TheWorld
+    G.TheFocalPoint = GLOBAL_REF.TheFocalPoint
 
     -- ============================================================================
     -- Equipment Slots
@@ -64,12 +82,14 @@ function G.Init(ENV_REF)
     G.IsEntityDead = GLOBAL_REF.IsEntityDead
     G.GetPortalRez = GLOBAL_REF.GetPortalRez
     G.anglediff = GLOBAL_REF.anglediff
+    G.GetGameModeProperty = GLOBAL_REF.GetGameModeProperty
 
     -- ============================================================================
     -- Constants
     -- ============================================================================
     G.TUNING = GLOBAL_REF.TUNING
     G.DEGREES = GLOBAL_REF.DEGREES
+    G.HINT_UPDATE_INTERVAL = 2.0  -- Inventory hint update interval in seconds
 
     -- ============================================================================
     -- Math/Utility Types

@@ -30,6 +30,25 @@ function Helpers.IsControlPressed(control)
     return G.TheInput:IsControlPressed(control)
 end
 
+-- Check if a control ID matches a logical button name
+-- @param control: CONTROL constant (e.g., CONTROL_ACCEPT)
+-- @param button_name: Logical button name (e.g., "A", "B", "LB", "RT")
+-- @return boolean: true if the control is mapped to this button
+function Helpers.IsControlNamedButton(control, button_name)
+    local controls = G.BUTTON_MAPPINGS[button_name]
+    if not controls then
+        return false
+    end
+
+    for _, mapped_control in ipairs(controls) do
+        if control == mapped_control then
+            return true
+        end
+    end
+
+    return false
+end
+
 -- Print debug message with mod prefix
 -- @param message: Message to print
 function Helpers.DebugPrint(message)

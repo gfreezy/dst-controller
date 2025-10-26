@@ -25,6 +25,7 @@ local Helpers = require("utils/helpers")
 local HudHook = require("hooks/hud-hook")
 local TargetHook = require("hooks/target-hook")
 local ControllerHook = require("hooks/controller-hook")
+local InventorybarHook = require("hooks/inventorybar-hook")
 
 -- ============================================================================
 -- Install Hooks
@@ -38,5 +39,8 @@ TargetHook.Install(CONFIG)
 
 -- Install controller hook (handles button combinations)
 ControllerHook.Install()
+
+-- Install inventorybar hook (customizes inventory behavior)
+InventorybarHook.Install()
 
 Helpers.DebugPrint("Enhanced Controller mod loaded successfully")

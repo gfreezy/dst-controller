@@ -20,28 +20,6 @@ function HudHook.Install()
                 return false
             end
 
-            -- Custom RT behavior: toggle inventory selection mode
-            if control == G.CONTROL_OPEN_INVENTORY and down then
-                -- Only handle when controller is attached
-                if G.TheInput:ControllerAttached() then
-                    local inventory = hud_self.owner.replica.inventory
-
-                    -- If inventory is already open, close it
-                    if hud_self:IsControllerInventoryOpen() then
-                        Helpers.DebugPrint("RT: Closing controller inventory")
-                        hud_self:CloseControllerInventory()
-                        return true
-                    end
-
-                    -- If inventory is visible and has slots, open it
-                    if inventory ~= nil and inventory:IsVisible() and inventory:GetNumSlots() > 0 then
-                        Helpers.DebugPrint("RT: Opening controller inventory")
-                        hud_self:OpenControllerInventory()
-                        return true
-                    end
-                end
-            end
-
             return OldHudOnControl(hud_self, control, down)
         end
 

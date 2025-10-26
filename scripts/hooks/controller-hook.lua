@@ -12,7 +12,7 @@ local ControllerHook = {}
 
 -- Install the PlayerController hook
 function ControllerHook.Install()
-    G.AddComponentPostInit("playercontroller", function(inst)
+    G.AddComponentPostInit("playercontroller", function(self)
         Helpers.DebugPrint("Initializing Enhanced Controller")
 
         -- Log task configuration
@@ -23,17 +23,17 @@ function ControllerHook.Install()
         end
 
         -- Initialize button state for this player
-        if inst.inst and inst.inst.GUID then
-            ButtonHandler.InitializePlayer(inst.inst)
-            ACTIONS.InitEquipmentTracking(inst.inst)
+        if self.inst and self.inst.GUID then
+            ButtonHandler.InitializePlayer(self.inst)
+            ACTIONS.InitEquipmentTracking(self.inst)
         end
 
         -- Hook OnControl to handle button combinations
-        local OldOnControl = inst.OnControl
-        inst.OnControl = function(self, control, down)
+        local OldOnControl = self.OnControl
+        self.OnControl = function(self, control, down)
             local player = self.inst
 
-            Helpers.DebugPrintf("OnControl: control=%d, down=%s", control, tostring(down))
+            -- Helpers.DebugPrintf("OnControl: control=%d, down=%s", control, tostring(down))
 
             -- Try to handle as button combination
             local handled = ButtonHandler.HandleButtonCombination(
@@ -54,6 +54,17 @@ function ControllerHook.Install()
             -- Otherwise, use default behavior
             return OldOnControl(self, control, down)
         end
+
+        -- returns: enable/disable, "a hud element is up, but still allow for limited gameplay to happen"
+        function self:IsEnabled()
+            if self.classified == nil or not self.classified.iscontrollerenabled:value() then
+                return false
+            elseif self.inst.HUD ~= nil and self.inst.HUD:HasInputFocus() then
+                return false, self.inst.HUD:IsCraftingOpen() or self.inst.HUD:IsSpellWheelOpen() or (self.command_wheel_allows_gameplay and self.inst.HUD:IsCommandWheelOpen()) or self.inst.HUD:IsControllerInventoryOpen()
+            end
+            return true
+        end
+
     end)
 end
 
