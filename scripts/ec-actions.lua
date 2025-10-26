@@ -39,21 +39,40 @@ end
 -- Combat Actions
 -- ============================================================================
 
--- Attack target under mouse
+-- Attack using controller targeting (uses controller_attack_target or finds nearest enemy)
+-- This mimics the game's native controller attack behavior
 ACTIONS.attack = function(player)
-    local target = TheInput:GetWorldEntityUnderMouse()
-    if target and player.components.combat and player.components.combat:CanTarget(target) then
-        player.components.combat:DoAttack(target)
-        print("[Enhanced Controller] Action: Attack")
+    if not player.components.playercontroller then
+        print("[Enhanced Controller] Error: No playercontroller component")
+        return
     end
+
+    -- Use the game's native controller attack function
+    -- This will automatically use controller_attack_target or find the nearest valid target
+    player.components.playercontroller:DoControllerAttackButton()
+    print("[Enhanced Controller] Action: Attack (Controller)")
 end
 
--- Force attack (even allies)
+-- Force attack (even allies) using controller targeting
 ACTIONS.force_attack = function(player)
-    local target = TheInput:GetWorldEntityUnderMouse()
-    if target and player.components.combat then
-        player.components.combat:DoAttack(target)
-        print("[Enhanced Controller] Action: Force Attack")
+    if not player.components.playercontroller then
+        print("[Enhanced Controller] Error: No playercontroller component")
+        return
+    end
+
+    -- Get controller attack target or current combat target
+    local target = player.components.playercontroller.controller_attack_target
+    if not target and player.components.combat then
+        target = player.components.combat:GetTarget()
+    end
+
+    if target then
+        local action = BufferedAction(player, target, ACTIONS.ATTACK)
+        action.action.canforce = true  -- Enable force attack
+        player.components.playercontroller:DoAction(action)
+        print("[Enhanced Controller] Action: Force Attack (Controller)")
+    else
+        print("[Enhanced Controller] Force Attack: No target available")
     end
 end
 
@@ -61,15 +80,23 @@ end
 -- Inspection Actions
 -- ============================================================================
 
--- Examine/inspect target under mouse
+-- Examine/inspect target using controller targeting
 ACTIONS.examine = function(player)
-    local target = TheInput:GetWorldEntityUnderMouse()
+    if not player.components.playercontroller then
+        print("[Enhanced Controller] Error: No playercontroller component")
+        return
+    end
+
+    -- Use controller_target (for interactable objects) or controller_attack_target (for entities)
+    local target = player.components.playercontroller.controller_target or
+                   player.components.playercontroller.controller_attack_target
+
     if target then
         local action = BufferedAction(player, target, ACTIONS.LOOKAT)
-        if player.components.playercontroller then
-            player.components.playercontroller:DoAction(action)
-            print("[Enhanced Controller] Action: Examine")
-        end
+        player.components.playercontroller:DoAction(action)
+        print("[Enhanced Controller] Action: Examine (Controller)")
+    else
+        print("[Enhanced Controller] Examine: No target available")
     end
 end
 
@@ -82,118 +109,29 @@ ACTIONS.inspect_self = function(player)
 end
 
 -- ============================================================================
--- Inventory Actions
+-- Equipment Actions
 -- ============================================================================
 
--- Equip item by name or equip active item
--- If item_name is provided, find and equip that item
--- Otherwise equip the currently active item
+-- Equip item by name (item_name is required)
 ACTIONS.equip_item = function(player, item_name)
     if not player.components.inventory then return end
 
-    local target_item = nil
-    if item_name then
-        -- Find specific item by name
-        target_item = FindItemByName(player, item_name)
-        if not target_item then
-            print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
-            return
-        end
-    else
-        -- Use active item
-        target_item = player.components.inventory:GetActiveItem()
+    if not item_name then
+        print("[Enhanced Controller] Error: equip_item requires item name parameter")
+        return
     end
 
-    if target_item and target_item.components.equippable then
+    local target_item = FindItemByName(player, item_name)
+    if not target_item then
+        print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
+        return
+    end
+
+    if target_item.components.equippable then
         player.components.inventory:Equip(target_item)
         print(string.format("[Enhanced Controller] Action: Equip Item (%s)", target_item.prefab))
-    end
-end
-
--- For backward compatibility, keep equip_active as alias
-ACTIONS.equip_active = ACTIONS.equip_item
-
--- Unequip and put into inventory (hand slot)
-ACTIONS.unequip_hand = function(player)
-    if player.components.inventory then
-        local equipped = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
-        if equipped then
-            player.components.inventory:Unequip(EQUIPSLOTS.HANDS)
-            print("[Enhanced Controller] Action: Unequip Hand")
-        end
-    end
-end
-
--- Unequip and put into inventory (head slot)
-ACTIONS.unequip_head = function(player)
-    if player.components.inventory then
-        local equipped = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
-        if equipped then
-            player.components.inventory:Unequip(EQUIPSLOTS.HEAD)
-            print("[Enhanced Controller] Action: Unequip Head")
-        end
-    end
-end
-
--- Unequip and put into inventory (body slot)
-ACTIONS.unequip_body = function(player)
-    if player.components.inventory then
-        local equipped = player.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
-        if equipped then
-            player.components.inventory:Unequip(EQUIPSLOTS.BODY)
-            print("[Enhanced Controller] Action: Unequip Body")
-        end
-    end
-end
-
--- Toggle hand equipment (equip if unequipped, unequip if equipped)
-ACTIONS.toggle_hand = function(player)
-    if player.components.inventory then
-        local equipped = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
-        if equipped then
-            player.components.inventory:Unequip(EQUIPSLOTS.HANDS)
-            print("[Enhanced Controller] Action: Toggle Hand (Unequip)")
-        else
-            local active = player.components.inventory:GetActiveItem()
-            if active and active.components.equippable then
-                player.components.inventory:Equip(active)
-                print("[Enhanced Controller] Action: Toggle Hand (Equip)")
-            end
-        end
-    end
-end
-
--- Toggle head equipment
-ACTIONS.toggle_head = function(player)
-    if player.components.inventory then
-        local equipped = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
-        if equipped then
-            player.components.inventory:Unequip(EQUIPSLOTS.HEAD)
-            print("[Enhanced Controller] Action: Toggle Head (Unequip)")
-        else
-            local active = player.components.inventory:GetActiveItem()
-            if active and active.components.equippable then
-                player.components.inventory:Equip(active)
-                print("[Enhanced Controller] Action: Toggle Head (Equip)")
-            end
-        end
-    end
-end
-
--- Toggle body equipment
-ACTIONS.toggle_body = function(player)
-    if player.components.inventory then
-        local equipped = player.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
-        if equipped then
-            player.components.inventory:Unequip(EQUIPSLOTS.BODY)
-            print("[Enhanced Controller] Action: Toggle Body (Unequip)")
-        else
-            local active = player.components.inventory:GetActiveItem()
-            if active and active.components.equippable then
-                player.components.inventory:Equip(active)
-                print("[Enhanced Controller] Action: Toggle Body (Equip)")
-            end
-        end
+    else
+        print(string.format("[Enhanced Controller] Item '%s' is not equippable", item_name))
     end
 end
 
@@ -201,65 +139,50 @@ end
 -- Item Usage Actions
 -- ============================================================================
 
--- Use active item or specific item by name
--- If item_name is provided, find and use that item instead of active item
+-- Use item by name (item_name is required)
 ACTIONS.use_item = function(player, item_name)
     if not player.components.inventory then return end
 
-    local target_item = nil
-    if item_name then
-        -- Find specific item by name
-        target_item = FindItemByName(player, item_name)
-        if not target_item then
-            print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
-            return
-        end
-    else
-        -- Use active item
-        target_item = player.components.inventory:GetActiveItem()
+    if not item_name then
+        print("[Enhanced Controller] Error: use_item requires item name parameter")
+        return
     end
 
-    if target_item and target_item.components.useableitem then
+    -- Find specific item by name
+    local target_item = FindItemByName(player, item_name)
+    if not target_item then
+        print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
+        return
+    end
+
+    if target_item.components.useableitem then
         target_item.components.useableitem:Use(player)
         print(string.format("[Enhanced Controller] Action: Use Item (%s)", target_item.prefab))
+    else
+        print(string.format("[Enhanced Controller] Item '%s' is not useable", item_name))
     end
 end
 
--- Use item on self
--- If item_name is provided, find and use that item instead of active item
+-- Use item on self by name (item_name is required)
 ACTIONS.use_item_on_self = function(player, item_name)
     if not player.components.inventory then return end
 
-    local target_item = nil
-    if item_name then
-        -- Find specific item by name
-        target_item = FindItemByName(player, item_name)
-        if not target_item then
-            print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
-            return
-        end
-    else
-        -- Use active item
-        target_item = player.components.inventory:GetActiveItem()
+    if not item_name then
+        print("[Enhanced Controller] Error: use_item_on_self requires item name parameter")
+        return
     end
 
-    if target_item then
-        local action = BufferedAction(player, player, ACTIONS.USEITEM, target_item)
-        if player.components.playercontroller then
-            player.components.playercontroller:DoAction(action)
-            print(string.format("[Enhanced Controller] Action: Use Item On Self (%s)", target_item.prefab))
-        end
+    -- Find specific item by name
+    local target_item = FindItemByName(player, item_name)
+    if not target_item then
+        print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
+        return
     end
-end
 
--- Drop active item
-ACTIONS.drop_item = function(player)
-    if player.components.inventory then
-        local active_item = player.components.inventory:GetActiveItem()
-        if active_item then
-            player.components.inventory:DropItem(active_item)
-            print("[Enhanced Controller] Action: Drop Item")
-        end
+    local action = BufferedAction(player, player, ACTIONS.USEITEM, target_item)
+    if player.components.playercontroller then
+        player.components.playercontroller:DoAction(action)
+        print(string.format("[Enhanced Controller] Action: Use Item On Self (%s)", target_item.prefab))
     end
 end
 
@@ -268,7 +191,7 @@ end
 -- ============================================================================
 
 -- Track last equipped items for each slot per player
--- Structure: [player_guid][slot_name] = { current = item, last = item }
+-- Structure: [player_guid][slot_name] = last_item
 local equipment_history = {}
 
 -- Initialize equipment tracking for a player
@@ -276,34 +199,19 @@ local function InitEquipmentTracking(player)
     local guid = player.GUID
     if not equipment_history[guid] then
         equipment_history[guid] = {
-            [EQUIPSLOTS.HANDS] = { current = nil, last = nil },
-            [EQUIPSLOTS.HEAD] = { current = nil, last = nil },
-            [EQUIPSLOTS.BODY] = { current = nil, last = nil },
+            [EQUIPSLOTS.HANDS] = nil,
+            [EQUIPSLOTS.HEAD] = nil,
+            [EQUIPSLOTS.BODY] = nil,
         }
 
-        -- Listen to equip events
-        player:ListenForEvent("equip", function(inst, data)
+        -- Listen to unequip events to track last equipped item
+        -- When an item is unequipped, save it as the last item for swapping
+        player:ListenForEvent("unequip", function(_, data)
             local slot = data.eslot
             local item = data.item
-            if equipment_history[guid] and equipment_history[guid][slot] then
-                -- Save current as last before updating
-                if equipment_history[guid][slot].current and equipment_history[guid][slot].current ~= item then
-                    equipment_history[guid][slot].last = equipment_history[guid][slot].current
-                end
-                equipment_history[guid][slot].current = item
-            end
-        end)
-
-        -- Listen to unequip events
-        player:ListenForEvent("unequip", function(inst, data)
-            local slot = data.eslot
-            local item = data.item
-            if equipment_history[guid] and equipment_history[guid][slot] then
-                -- Save unequipped item as last
-                if item then
-                    equipment_history[guid][slot].last = item
-                end
-                equipment_history[guid][slot].current = nil
+            if equipment_history[guid] and item then
+                -- Save the unequipped item as last for this slot
+                equipment_history[guid][slot] = item
             end
         end)
     end
@@ -314,10 +222,7 @@ local function SwapToLastEquipped(player, equipslot)
     if not player.components.inventory then return nil end
 
     local guid = player.GUID
-    local history = equipment_history[guid] and equipment_history[guid][equipslot]
-    if not history then return nil end
-
-    local last_item = history.last
+    local last_item = equipment_history[guid] and equipment_history[guid][equipslot]
 
     -- Try to equip the last item
     if last_item and last_item:IsValid() then
@@ -352,14 +257,8 @@ local function SwapToLastEquipped(player, equipslot)
             return last_item.prefab
         else
             -- Item no longer available, clear history
-            history.last = nil
+            equipment_history[guid][equipslot] = nil
         end
-    end
-
-    -- If no last item, try to unequip current
-    if history.current then
-        player.components.inventory:Unequip(equipslot)
-        return "unequip"
     end
 
     return nil
@@ -402,6 +301,8 @@ local function CycleEquipment(player, equipslot, direction)
         return nil
     end
 
+    -- Items are collected in inventory slot order
+    -- Players can organize their inventory to control cycle order
     local next_item = nil
     if not current_index then
         -- Nothing equipped, use first or last based on direction
@@ -419,8 +320,7 @@ local function CycleEquipment(player, equipslot, direction)
 
     -- If only one item and it's equipped, unequip it
     if #items == 1 and current_equipped then
-        player.components.inventory:Unequip(equipslot)
-        return "unequip"
+        return nil
     end
 
     if next_item then
@@ -515,10 +415,27 @@ ACTIONS.willow_cast_spell = function(player)
     local ember = FindItemByName(player, "willow_ember")
 
     if ember and ember.components.aoespell then
-        -- Get target position (use mouse position or player position)
-        local target_pos = TheInput:GetWorldPosition()
+        -- Get target position: use controller attack target position, or position in front of player
+        local target_pos = nil
+
+        -- Try to use controller attack target position if available
+        if player.components.playercontroller then
+            local controller_target = player.components.playercontroller.controller_attack_target
+            if controller_target and controller_target:IsValid() then
+                target_pos = controller_target:GetPosition()
+            end
+        end
+
+        -- If no controller target, cast at position in front of player
         if not target_pos then
-            target_pos = player:GetPosition()
+            local player_pos = player:GetPosition()
+            local player_angle = player.Transform:GetRotation() * DEGREES
+            local cast_distance = 3  -- Distance in front of player
+            target_pos = Vector3(
+                player_pos.x + math.cos(player_angle) * cast_distance,
+                0,
+                player_pos.z - math.sin(player_angle) * cast_distance
+            )
         end
 
         -- Try to cast the spell
@@ -570,6 +487,70 @@ ACTIONS.restore_hand_item = function(player)
     else
         -- No saved item, do nothing (safe behavior)
         print("[Enhanced Controller] Action: No saved hand item to restore")
+    end
+end
+
+-- Save currently equipped head item for later restoration
+ACTIONS.save_head_item = function(player)
+    if not player.components.inventory then return end
+
+    local current_head = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
+    if current_head then
+        player._saved_head_item = current_head.prefab
+        print(string.format("[Enhanced Controller] Action: Saved head item (%s)", current_head.prefab))
+    else
+        player._saved_head_item = nil
+        print("[Enhanced Controller] Action: No head item to save")
+    end
+end
+
+-- Restore previously saved head item
+ACTIONS.restore_head_item = function(player)
+    if not player.components.inventory then return end
+
+    if player._saved_head_item then
+        local saved_item = FindItemByName(player, player._saved_head_item)
+        if saved_item and saved_item.components.equippable then
+            player.components.inventory:Equip(saved_item)
+            print(string.format("[Enhanced Controller] Action: Restored head item (%s)", player._saved_head_item))
+        else
+            print(string.format("[Enhanced Controller] Cannot restore head item: %s not found", player._saved_head_item))
+        end
+        player._saved_head_item = nil
+    else
+        print("[Enhanced Controller] Action: No saved head item to restore")
+    end
+end
+
+-- Save currently equipped body item for later restoration
+ACTIONS.save_body_item = function(player)
+    if not player.components.inventory then return end
+
+    local current_body = player.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
+    if current_body then
+        player._saved_body_item = current_body.prefab
+        print(string.format("[Enhanced Controller] Action: Saved body item (%s)", current_body.prefab))
+    else
+        player._saved_body_item = nil
+        print("[Enhanced Controller] Action: No body item to save")
+    end
+end
+
+-- Restore previously saved body item
+ACTIONS.restore_body_item = function(player)
+    if not player.components.inventory then return end
+
+    if player._saved_body_item then
+        local saved_item = FindItemByName(player, player._saved_body_item)
+        if saved_item and saved_item.components.equippable then
+            player.components.inventory:Equip(saved_item)
+            print(string.format("[Enhanced Controller] Action: Restored body item (%s)", player._saved_body_item))
+        else
+            print(string.format("[Enhanced Controller] Cannot restore body item: %s not found", player._saved_body_item))
+        end
+        player._saved_body_item = nil
+    else
+        print("[Enhanced Controller] Action: No saved body item to restore")
     end
 end
 

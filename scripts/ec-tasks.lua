@@ -10,22 +10,22 @@
 -- Available actions (see actions.lua for full list):
 -- Combat: attack, force_attack
 -- Inspection: examine, inspect_self
--- Equipment Toggle: toggle_hand, toggle_head, toggle_body
--- Equipment Unequip: unequip_hand, unequip_head, unequip_body
+-- Equipment: equip_item(item_name) - requires item_name parameter
 -- Equipment Cycle (Next): cycle_hand, cycle_head, cycle_body
 -- Equipment Cycle (Prev): cycle_hand_prev, cycle_head_prev, cycle_body_prev
 -- Equipment Swap to Last: swap_hand_last, swap_head_last, swap_body_last
--- Equipment Equip: equip_item(item_name), equip_active (alias for equip_item)
--- Equipment Save/Restore: save_hand_item, restore_hand_item
--- Items: use_item(item_name), use_item_on_self(item_name), drop_item
+-- Equipment Save/Restore: save_hand_item, restore_hand_item,
+--                         save_head_item, restore_head_item,
+--                         save_body_item, restore_body_item
+-- Items: use_item(item_name), use_item_on_self(item_name) - require item_name parameter
+--        drop_item
 -- Channeling: start_channeling, stop_channeling
 -- Crafting: craft_item(recipe_name) - Auto-crafts intermediate ingredients
 -- Character-Specific:
 --   Willow: willow_cast_spell
 -- Misc: none
 --
--- Note: Actions with (parameter) support passing item/recipe name
---       If no parameter is provided, they work with the active item
+-- Note: Actions with (parameter) REQUIRE that parameter to be passed
 -- Note: Multiple actions can be combined in a task to create complex behaviors
 
 local TASKS = {
