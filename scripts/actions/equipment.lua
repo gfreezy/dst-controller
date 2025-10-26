@@ -1,6 +1,7 @@
 -- Enhanced Controller - Equipment Actions
 -- Equipment management, cycling, swapping, and save/restore functionality
 
+local G = require("global")
 local ActionHelpers = require("actions/helpers")
 
 local EquipmentActions = {}
@@ -18,9 +19,9 @@ local function InitEquipmentTracking(player)
     local guid = player.GUID
     if not equipment_history[guid] then
         equipment_history[guid] = {
-            [EQUIPSLOTS.HANDS] = nil,
-            [EQUIPSLOTS.HEAD] = nil,
-            [EQUIPSLOTS.BODY] = nil,
+            [G.EQUIPSLOTS.HANDS] = nil,
+            [G.EQUIPSLOTS.HEAD] = nil,
+            [G.EQUIPSLOTS.BODY] = nil,
         }
 
         -- Listen to unequip events to track last equipped item
@@ -92,13 +93,13 @@ local function CycleEquipment(player, equipslot, direction)
     local current_index = nil
 
     -- Collect all equippable items for this slot from main inventory
+    -- Create list with {item, slot_number} pairs for sorting
+    local item_list = {}
+
     for i = 1, player.components.inventory.maxslots do
         local item = player.components.inventory:GetItemInSlot(i)
         if item and item.components.equippable and item.components.equippable.equipslot == equipslot then
-            table.insert(items, item)
-            if current_equipped and item == current_equipped then
-                current_index = #items
-            end
+            table.insert(item_list, {item = item, slot = i})
         end
     end
 
@@ -108,11 +109,25 @@ local function CycleEquipment(player, equipslot, direction)
         for i = 1, overflow.numslots do
             local item = overflow:GetItemInSlot(i)
             if item and item.components.equippable and item.components.equippable.equipslot == equipslot then
-                table.insert(items, item)
-                if current_equipped and item == current_equipped then
-                    current_index = #items
-                end
+                table.insert(item_list, {item = item, slot = i + player.components.inventory.maxslots})
             end
+        end
+    end
+
+    -- If something is equipped, add it using its prevslot
+    if current_equipped and current_equipped.components.equippable and current_equipped.components.equippable.equipslot == equipslot then
+        local prevslot = current_equipped.prevslot or 0  -- Use prevslot if available, otherwise put at start
+        table.insert(item_list, {item = current_equipped, slot = prevslot})
+    end
+
+    -- Sort by slot number to maintain consistent order
+    table.sort(item_list, function(a, b) return a.slot < b.slot end)
+
+    -- Extract items and find current index
+    for i, entry in ipairs(item_list) do
+        table.insert(items, entry.item)
+        if entry.item == current_equipped then
+            current_index = i
         end
     end
 
@@ -120,14 +135,14 @@ local function CycleEquipment(player, equipslot, direction)
         return nil
     end
 
-    -- Items are collected in inventory slot order
+    -- Items are collected with equipped item first, then inventory order
     -- Players can organize their inventory to control cycle order
     local next_item = nil
     if not current_index then
-        -- Nothing equipped, use first or last based on direction
+        -- Nothing equipped, use first item (forward) or last item (backward)
         next_item = direction > 0 and items[1] or items[#items]
     else
-        -- Calculate next index
+        -- Calculate next index with wrapping
         local next_index = current_index + direction
         if next_index > #items then
             next_index = 1  -- Wrap to first
@@ -137,8 +152,9 @@ local function CycleEquipment(player, equipslot, direction)
         next_item = items[next_index]
     end
 
-    -- If only one item and it's equipped, unequip it
+    -- If only one item and it's already equipped, unequip it
     if #items == 1 and current_equipped then
+        player.components.inventory:Unequip(equipslot)
         return nil
     end
 
@@ -183,7 +199,7 @@ end
 
 -- Cycle through hand equipment (weapons/tools) - forward
 function EquipmentActions.cycle_hand(player)
-    local result = CycleEquipment(player, EQUIPSLOTS.HANDS, 1)
+    local result = CycleEquipment(player, G.EQUIPSLOTS.HANDS, 1)
     if result then
         print(string.format("[Enhanced Controller] Action: Cycle Hand (Next) -> %s", result))
     end
@@ -191,7 +207,7 @@ end
 
 -- Cycle through hand equipment (weapons/tools) - backward
 function EquipmentActions.cycle_hand_prev(player)
-    local result = CycleEquipment(player, EQUIPSLOTS.HANDS, -1)
+    local result = CycleEquipment(player, G.EQUIPSLOTS.HANDS, -1)
     if result then
         print(string.format("[Enhanced Controller] Action: Cycle Hand (Prev) -> %s", result))
     end
@@ -199,7 +215,7 @@ end
 
 -- Cycle through head equipment (hats/helmets) - forward
 function EquipmentActions.cycle_head(player)
-    local result = CycleEquipment(player, EQUIPSLOTS.HEAD, 1)
+    local result = CycleEquipment(player, G.EQUIPSLOTS.HEAD, 1)
     if result then
         print(string.format("[Enhanced Controller] Action: Cycle Head (Next) -> %s", result))
     end
@@ -207,7 +223,7 @@ end
 
 -- Cycle through head equipment (hats/helmets) - backward
 function EquipmentActions.cycle_head_prev(player)
-    local result = CycleEquipment(player, EQUIPSLOTS.HEAD, -1)
+    local result = CycleEquipment(player, G.EQUIPSLOTS.HEAD, -1)
     if result then
         print(string.format("[Enhanced Controller] Action: Cycle Head (Prev) -> %s", result))
     end
@@ -215,7 +231,7 @@ end
 
 -- Cycle through body equipment (armor) - forward
 function EquipmentActions.cycle_body(player)
-    local result = CycleEquipment(player, EQUIPSLOTS.BODY, 1)
+    local result = CycleEquipment(player, G.EQUIPSLOTS.BODY, 1)
     if result then
         print(string.format("[Enhanced Controller] Action: Cycle Body (Next) -> %s", result))
     end
@@ -223,7 +239,7 @@ end
 
 -- Cycle through body equipment (armor) - backward
 function EquipmentActions.cycle_body_prev(player)
-    local result = CycleEquipment(player, EQUIPSLOTS.BODY, -1)
+    local result = CycleEquipment(player, G.EQUIPSLOTS.BODY, -1)
     if result then
         print(string.format("[Enhanced Controller] Action: Cycle Body (Prev) -> %s", result))
     end
@@ -235,7 +251,7 @@ end
 
 -- Swap to last equipped hand item
 function EquipmentActions.swap_hand_last(player)
-    local result = SwapToLastEquipped(player, EQUIPSLOTS.HANDS)
+    local result = SwapToLastEquipped(player, G.EQUIPSLOTS.HANDS)
     if result then
         print(string.format("[Enhanced Controller] Action: Swap Hand Last -> %s", result))
     end
@@ -243,7 +259,7 @@ end
 
 -- Swap to last equipped head item
 function EquipmentActions.swap_head_last(player)
-    local result = SwapToLastEquipped(player, EQUIPSLOTS.HEAD)
+    local result = SwapToLastEquipped(player, G.EQUIPSLOTS.HEAD)
     if result then
         print(string.format("[Enhanced Controller] Action: Swap Head Last -> %s", result))
     end
@@ -251,7 +267,7 @@ end
 
 -- Swap to last equipped body item
 function EquipmentActions.swap_body_last(player)
-    local result = SwapToLastEquipped(player, EQUIPSLOTS.BODY)
+    local result = SwapToLastEquipped(player, G.EQUIPSLOTS.BODY)
     if result then
         print(string.format("[Enhanced Controller] Action: Swap Body Last -> %s", result))
     end
@@ -265,7 +281,7 @@ end
 function EquipmentActions.save_hand_item(player)
     if not player.components.inventory then return end
 
-    local current_hand = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
+    local current_hand = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
     if current_hand then
         player._saved_hand_item = current_hand.prefab
         print(string.format("[Enhanced Controller] Action: Saved hand item (%s)", current_hand.prefab))
@@ -300,7 +316,7 @@ end
 function EquipmentActions.save_head_item(player)
     if not player.components.inventory then return end
 
-    local current_head = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
+    local current_head = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.HEAD)
     if current_head then
         player._saved_head_item = current_head.prefab
         print(string.format("[Enhanced Controller] Action: Saved head item (%s)", current_head.prefab))
@@ -332,7 +348,7 @@ end
 function EquipmentActions.save_body_item(player)
     if not player.components.inventory then return end
 
-    local current_body = player.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
+    local current_body = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.BODY)
     if current_body then
         player._saved_body_item = current_body.prefab
         print(string.format("[Enhanced Controller] Action: Saved body item (%s)", current_body.prefab))

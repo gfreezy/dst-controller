@@ -1,6 +1,7 @@
 -- Enhanced Controller - Item Actions
 -- Item usage actions
 
+local G = require("global")
 local ActionHelpers = require("actions/helpers")
 
 local ItemActions = {}
@@ -45,7 +46,7 @@ function ItemActions.use_item_on_self(player, item_name)
         return
     end
 
-    local action = BufferedAction(player, player, ACTIONS.USEITEM, target_item)
+    local action = G.BufferedAction(player, player, G.ACTIONS.USEITEM, target_item)
     if player.components.playercontroller then
         player.components.playercontroller:DoAction(action)
         print(string.format("[Enhanced Controller] Action: Use Item On Self (%s)", target_item.prefab))

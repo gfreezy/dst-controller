@@ -18,26 +18,6 @@ server_filter_tags = {}
 -- 配置选项
 configuration_options = {
     {
-        name = "camera_rotation_speed",
-        label = "视角旋转速度",
-        options = {
-            {description = "慢", data = 1},
-            {description = "正常", data = 2},
-            {description = "快", data = 3},
-        },
-        default = 2,
-    },
-    {
-        name = "camera_zoom_speed",
-        label = "视角缩放速度",
-        options = {
-            {description = "慢", data = 0.5},
-            {description = "正常", data = 1},
-            {description = "快", data = 1.5},
-        },
-        default = 1,
-    },
-    {
         name = "attack_angle_mode",
         label = "攻击目标选择范围",
         hover = "控制是否可以选择360度范围内的目标，还是仅选择前方目标",

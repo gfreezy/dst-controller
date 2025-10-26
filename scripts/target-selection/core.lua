@@ -6,6 +6,8 @@
 -- Original source: scripts-raw/components/playercontroller.lua
 -- ============================================================================
 
+local G = require("global")
+
 local TargetSelection = {}
 
 -- ============================================================================
@@ -25,8 +27,16 @@ local FORCE_ATTACK_MODE = {
 }
 
 local TARGET_EXCLUDE_TAGS = { "FX", "NOCLICK", "DECOR", "INLIMBO", "stealth" }
-local REGISTERED_CONTROLLER_ATTACK_TARGET_TAGS = TheSim:RegisterFindTags({ "_combat" }, TARGET_EXCLUDE_TAGS)
+local REGISTERED_CONTROLLER_ATTACK_TARGET_TAGS = nil  -- Will be initialized on first use
 local CATCHABLE_TAGS = { "catchable" }
+
+-- Lazy initialization of registered tags (called on first use)
+local function GetRegisteredAttackTargetTags()
+    if REGISTERED_CONTROLLER_ATTACK_TARGET_TAGS == nil then
+        REGISTERED_CONTROLLER_ATTACK_TARGET_TAGS = G.TheSim:RegisterFindTags({ "_combat" }, TARGET_EXCLUDE_TAGS)
+    end
+    return REGISTERED_CONTROLLER_ATTACK_TARGET_TAGS
+end
 
 -- ============================================================================
 -- Module Configuration
@@ -51,7 +61,7 @@ end
 
 local function CheckControllerPriorityTagOrOverride(target, tag, override)
 	if override ~= nil then
-		return FunctionOrValue(override)
+		return G.FunctionOrValue(override)
 	end
 	return target:HasTag(tag)
 end
@@ -123,7 +133,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
     -- ========== 第三步：验证当前目标是否仍然有效 ==========
     if self.controller_attack_target ~= nil and
         not (combat:CanTarget(self.controller_attack_target) and
-            CanEntitySeeTarget(self.inst, self.controller_attack_target)) then
+            G.CanEntitySeeTarget(self.inst, self.controller_attack_target)) then
         self.controller_attack_target = nil
 		self.controller_targeting_lock_target = false  -- 目标失效，禁用锁定
     end
@@ -135,7 +145,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
     --end
 
     -- ========== 第四步：计算搜索范围 ==========
-	local equipped_item = inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
+	local equipped_item = inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
     local forced_rad = equipped_item ~= nil and equipped_item.controller_use_attack_distance or 0
 
 	local min_rad = 3  -- 最小搜索半径
@@ -144,7 +154,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
 
     -- ========== 第五步：查找附近的战斗实体 ==========
     -- 使用注册的查找，查找所有带 "_combat" 标签的实体（见 entity_replica.lua）
-	local nearby_ents = TheSim:FindEntities_Registered(x, y, z, max_rad + 3, REGISTERED_CONTROLLER_ATTACK_TARGET_TAGS)
+	local nearby_ents = G.TheSim:FindEntities_Registered(x, y, z, max_rad + 3, GetRegisteredAttackTargetTags())
     if self.controller_attack_target ~= nil then
         -- 如果已经有目标，把它插到列表最前面，确保只处理一次
         table.insert(nearby_ents, 1, self.controller_attack_target)
@@ -157,7 +167,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
 
     -- 首选目标：按住攻击键时使用当前目标，否则使用combat目标
     local preferred_target =
-        TheInput:IsControlPressed(CONTROL_CONTROLLER_ATTACK) and
+        G.TheInput:IsControlPressed(G.CONTROL_CONTROLLER_ATTACK) and
         self.controller_attack_target or
         combat:GetTarget() or
         nil
@@ -188,7 +198,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
 				local max_range = max_rad + phys_rad
 
 				-- 检查：在范围内 且 可见
-				if dsq < max_range * max_range and CanEntitySeePoint(self.inst, x1, y1, z1) then
+				if dsq < max_range * max_range and G.CanEntitySeePoint(self.inst, x1, y1, z1) then
                     local dist = dsq > 0 and math.sqrt(dsq) or 0
                     local dot = dist > 0 and dx / dist * dirx + dz / dist * dirz or 0
 
@@ -306,7 +316,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
                 target = nil
                 target_isally = true
             end
-        elseif self.controller_target:HasTag("wall") and not IsEntityDead(self.controller_target, true) then
+        elseif self.controller_target:HasTag("wall") and not G.IsEntityDead(self.controller_target, true) then
             -- 如果没有X按钮目标，但Y按钮目标是墙，把墙给X按钮
             target = self.controller_target
             target_isally = false
@@ -375,7 +385,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
         and (not self.controller_target:IsValid() or
             self.controller_target:HasTag("INLIMBO") or
             self.controller_target:HasTag("NOCLICK") or
-            not CanEntitySeeTarget(self.inst, self.controller_target)) then
+            not G.CanEntitySeeTarget(self.inst, self.controller_target)) then
         -- "FX" 和 "DECOR" 标签永远不会改变，可以安全跳过检查
         self.controller_target = nil
         -- 目标失效，但不重置 age（保留闪烁防护）
@@ -392,8 +402,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
     -- 捕捉模式（玩家有 cancatch 标签时）
     if self.inst:HasTag("cancatch") then
-        local target = FindEntity(self.inst, 10, nil, CATCHABLE_TAGS, TARGET_EXCLUDE_TAGS)
-        if CanEntitySeeTarget(self.inst, target) then
+        local target = G.FindEntity(self.inst, 10, nil, CATCHABLE_TAGS, TARGET_EXCLUDE_TAGS)
+        if G.CanEntitySeeTarget(self.inst, target) then
             if target ~= self.controller_target then
                 self.controller_target = target
                 self.controller_target_age = 0
@@ -403,7 +413,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     end
 
     -- 检查手持物品
-    local equiped_item = self.inst.replica.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
+    local equiped_item = self.inst.replica.inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
 
     -- 某些物品强制使用攻击目标作为交互目标
     if equiped_item and equiped_item.controller_should_use_attack_target and self.controller_attack_target ~= nil then
@@ -437,7 +447,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
     -- ========== 第五步：查找附近实体 ==========
     -- 钓鱼时使用 max_rad，否则使用动态 rad
-    local nearby_ents = TheSim:FindEntities(x, y, z, fishing and max_rad or rad, nil, TARGET_EXCLUDE_TAGS)
+    local nearby_ents = G.TheSim:FindEntities(x, y, z, fishing and max_rad or rad, nil, TARGET_EXCLUDE_TAGS)
     if self.controller_target ~= nil then
         -- 如果已有目标，插到列表最前面，确保只处理一次
         table.insert(nearby_ents, 1, self.controller_target)
@@ -455,7 +465,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
     -- 角度限制：船上和陆地不同
     local currentboat = self.inst:GetCurrentPlatform()
-    local anglemax = currentboat and TUNING.CONTROLLER_BOATINTERACT_ANGLE or TUNING.CONTROLLER_INTERACT_ANGLE
+    local anglemax = currentboat and G.TUNING.CONTROLLER_BOATINTERACT_ANGLE or G.TUNING.CONTROLLER_INTERACT_ANGLE
 
     -- ========== 第七步：遍历所有附近实体，计算评分 ==========
     for i, v in ipairs(nearby_ents) do
@@ -491,14 +501,14 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                         and (v == self.controller_target or       -- 是当前目标
                             v == self.controller_attack_target or  -- 是攻击目标
                             dx * dirx + dz * dirz > 0))) and       -- 在玩家前方
-                    CanEntitySeePoint(self.inst, x1, y1, z1) then  -- 可见
+                    G.CanEntitySeePoint(self.inst, x1, y1, z1) then  -- 可见
 
                     -- 角度检查
                     local shouldcheck = dsq < 1  -- 距离<1的目标直接通过
                     if not shouldcheck then
                         local epos = v:GetPosition()
                         local angletoepos = self.inst:GetAngleToPoint(epos)
-                        local angleto = math.abs(anglediff(-heading_angle, angletoepos))
+                        local angleto = math.abs(G.anglediff(-heading_angle, angletoepos))
                         shouldcheck = angleto < anglemax  -- 在角度限制内
                     end
 
@@ -528,7 +538,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                         -- ===== 特殊目标加权 =====
                         -- 传送门：活着时优先级降低，幽灵复活模式优先级提高
                         if v:HasTag("portal") then
-                            score = score * (self.inst:HasTag("playerghost") and GetPortalRez() and 1.1 or 0.9)
+                            score = score * (self.inst:HasTag("playerghost") and G.GetPortalRez() and 1.1 or 0.9)
                         end
 
                         -- 家具装饰品：优先级降低
@@ -650,15 +660,11 @@ function TargetSelection.UpdateControllerTargets(controller, dt)
     end
     local x, y, z = controller.inst.Transform:GetWorldPosition()
     local heading_angle = -controller.inst.Transform:GetRotation()
-    local dirx = math.cos(heading_angle * DEGREES)
-    local dirz = math.sin(heading_angle * DEGREES)
+    local dirx = math.cos(heading_angle * G.DEGREES)
+    local dirz = math.sin(heading_angle * G.DEGREES)
     UpdateControllerInteractionTarget(controller, dt, x, y, z, dirx, dirz, heading_angle)
     UpdateControllerAttackTarget(controller, dt, x, y, z, dirx, dirz)
     UpdateControllerConflictingTargets(controller)
 end
-
--- ============================================================================
--- Module Exports
--- ============================================================================
 
 return TargetSelection

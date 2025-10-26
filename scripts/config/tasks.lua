@@ -26,6 +26,14 @@ local TASKS = {
         on_press = { "examine" },
         on_release = {},
     },
+    LB_LT = {
+        on_press = {},
+        on_release = {},
+    },
+    LB_RT = {
+        on_press = {},
+        on_release = {},
+    },
 
     -- RB button combinations
     RB_A = {
@@ -42,6 +50,14 @@ local TASKS = {
     },
     RB_Y = {
         on_press = { "inspect_self" },
+        on_release = {},
+    },
+    RB_LT = {
+        on_press = {},
+        on_release = {},
+    },
+    RB_RT = {
+        on_press = {},
         on_release = {},
     },
 }

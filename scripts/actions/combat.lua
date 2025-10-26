@@ -1,6 +1,8 @@
 -- Enhanced Controller - Combat Actions
 -- Attack and combat-related actions
 
+local G = require("global")
+
 local CombatActions = {}
 
 -- Attack only hostile targets (enemies actively attacking or tagged as hostile)
@@ -53,12 +55,12 @@ function CombatActions.force_attack(player)
 
     -- Get controller attack target or current combat target
     local target = player.components.playercontroller.controller_attack_target
-    if not target and player.components.combat then
-        target = player.components.combat:GetTarget()
+    if not target and player.replica.combat then
+        target = player.replica.combat:GetTarget()
     end
 
     if target then
-        local action = BufferedAction(player, target, ACTIONS.ATTACK)
+        local action = G.BufferedAction(player, target, G.ACTIONS.ATTACK)
         action.action.canforce = true  -- Enable force attack
         player.components.playercontroller:DoAction(action)
         print("[Enhanced Controller] Action: Force Attack (Controller)")

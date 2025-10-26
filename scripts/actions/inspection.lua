@@ -1,6 +1,8 @@
 -- Enhanced Controller - Inspection Actions
 -- Examine and inspect actions
 
+local G = require("global")
+
 local InspectionActions = {}
 
 -- Examine/inspect target using controller targeting
@@ -15,7 +17,7 @@ function InspectionActions.examine(player)
                    player.components.playercontroller.controller_attack_target
 
     if target then
-        local action = BufferedAction(player, target, ACTIONS.LOOKAT)
+        local action = G.BufferedAction(player, target, G.ACTIONS.LOOKAT)
         player.components.playercontroller:DoAction(action)
         print("[Enhanced Controller] Action: Examine (Controller)")
     else

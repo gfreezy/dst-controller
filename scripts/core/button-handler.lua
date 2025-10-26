@@ -1,6 +1,7 @@
 -- Enhanced Controller - Button Handler Module
 -- Handles button detection, combination checking, and state management
 
+local G = require("global")
 local Helpers = require("utils/helpers")
 
 local ButtonHandler = {}
@@ -8,8 +9,8 @@ local ButtonHandler = {}
 -- Button combination configuration
 -- Maps modifier buttons to face button combinations
 local BUTTON_COMBINATIONS = {
-    LB = { A = "LB_A", B = "LB_B", X = "LB_X", Y = "LB_Y" },
-    RB = { A = "RB_A", B = "RB_B", X = "RB_X", Y = "RB_Y" },
+    LB = { A = "LB_A", B = "LB_B", X = "LB_X", Y = "LB_Y", LT = "LB_LT", RT = "LB_RT" },
+    RB = { A = "RB_A", B = "RB_B", X = "RB_X", Y = "RB_Y", LT = "RB_LT", RT = "RB_RT" },
 }
 
 -- Button state tracking per player
@@ -27,6 +28,8 @@ function ButtonHandler.InitializePlayer(player)
                 B = { pressed = false },
                 X = { pressed = false },
                 Y = { pressed = false },
+                LT = { pressed = false },
+                RT = { pressed = false },
             }
         end
         Helpers.DebugPrint("Initialized button states for player " .. guid)
@@ -34,8 +37,8 @@ function ButtonHandler.InitializePlayer(player)
 end
 
 -- Check if a physical control matches a logical button
-function ButtonHandler.IsButton(control, button_name, button_mappings)
-    local mappings = button_mappings[button_name]
+function ButtonHandler.IsButton(control, button_name)
+    local mappings = G.BUTTON_MAPPINGS[button_name]
     if not mappings then return false end
 
     for _, mapped_control in ipairs(mappings) do
@@ -48,8 +51,8 @@ function ButtonHandler.IsButton(control, button_name, button_mappings)
 end
 
 -- Get logical button name from a physical control
-function ButtonHandler.GetLogicalButtonName(control, button_mappings)
-    for button_name, mappings in pairs(button_mappings) do
+function ButtonHandler.GetLogicalButtonName(control)
+    for button_name, mappings in pairs(G.BUTTON_MAPPINGS) do
         for _, mapped_control in ipairs(mappings) do
             if control == mapped_control then
                 return button_name
@@ -60,10 +63,10 @@ function ButtonHandler.GetLogicalButtonName(control, button_mappings)
 end
 
 -- Get all currently pressed logical buttons
-function ButtonHandler.GetPressedControls(button_mappings)
+function ButtonHandler.GetPressedControls()
     local pressed = {}
-    for button_name, _ in pairs(button_mappings) do
-        if Helpers.IsButtonPressed(button_name, button_mappings) then
+    for button_name, _ in pairs(G.BUTTON_MAPPINGS) do
+        if Helpers.IsButtonPressed(button_name) then
             table.insert(pressed, button_name)
         end
     end
@@ -72,7 +75,7 @@ end
 
 -- Handle button combination events
 -- Returns true if a combination was handled, false otherwise
-function ButtonHandler.HandleButtonCombination(player, control, down, button_mappings, tasks, execute_callback)
+function ButtonHandler.HandleButtonCombination(player, control, down, tasks, execute_callback)
     local guid = player.GUID
 
     -- Initialize if needed
@@ -82,10 +85,10 @@ function ButtonHandler.HandleButtonCombination(player, control, down, button_map
 
     -- Check if this is a modifier button (LB or RB)
     for modifier_name, face_buttons in pairs(BUTTON_COMBINATIONS) do
-        if Helpers.IsButtonPressed(modifier_name, button_mappings) then
+        if Helpers.IsButtonPressed(modifier_name) then
             -- Modifier is pressed, check if face button event
             for face_button, task_name in pairs(face_buttons) do
-                if ButtonHandler.IsButton(control, face_button, button_mappings) then
+                if ButtonHandler.IsButton(control, face_button) then
                     -- This is a button combination event
                     local task = tasks[task_name]
                     if not task then

@@ -1,6 +1,7 @@
 -- Enhanced Controller - Character-Specific Actions
 -- Actions specific to certain characters
 
+local G = require("global")
 local ActionHelpers = require("actions/helpers")
 
 local CharacterActions = {}
@@ -31,9 +32,9 @@ function CharacterActions.willow_cast_spell(player)
         -- If no controller target, cast at position in front of player
         if not target_pos then
             local player_pos = player:GetPosition()
-            local player_angle = player.Transform:GetRotation() * DEGREES
+            local player_angle = player.Transform:GetRotation() * G.DEGREES
             local cast_distance = 3  -- Distance in front of player
-            target_pos = Vector3(
+            target_pos = G.Vector3(
                 player_pos.x + math.cos(player_angle) * cast_distance,
                 0,
                 player_pos.z - math.sin(player_angle) * cast_distance
@@ -43,7 +44,7 @@ function CharacterActions.willow_cast_spell(player)
         -- Try to cast the spell
         if ember.components.aoespell:CanCast(player, target_pos) then
             -- Create buffered action to cast AOE spell
-            local action = BufferedAction(player, nil, ACTIONS.CASTAOE, ember, target_pos)
+            local action = G.BufferedAction(player, nil, G.ACTIONS.CASTAOE, ember, target_pos)
             if player.components.playercontroller then
                 player.components.playercontroller:DoAction(action)
                 print(string.format("[Enhanced Controller] Action: Willow Cast Spell at (%.1f, %.1f, %.1f)",
@@ -65,7 +66,7 @@ end
 function CharacterActions.start_channeling(player)
     if not player.components.channelcaster then return end
 
-    local equipped = player.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
+    local equipped = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
     if equipped and equipped.components.channelcastable then
         player.components.channelcaster:StartChanneling(equipped)
         print(string.format("[Enhanced Controller] Action: Started channeling (%s)", equipped.prefab))

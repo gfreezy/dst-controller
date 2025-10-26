@@ -1,6 +1,7 @@
 -- Enhanced Controller - Target Selection Hook
 -- Hooks UpdateControllerTargets to customize target selection behavior
 
+local G = require("global")
 local Helpers = require("utils/helpers")
 local TargetSelection = require("target-selection/core")
 
@@ -13,7 +14,7 @@ function TargetHook.Install(config)
     -- Set configuration in TargetSelection module
     TargetSelection.SetConfig(config)
 
-    AddComponentPostInit("playercontroller", function(controller)
+    G.AddComponentPostInit("playercontroller", function(controller)
         -- Override UpdateControllerTargets with our custom implementation
         controller.UpdateControllerTargets = function(self, dt)
             -- Use custom target selection logic from target-selection/core.lua
