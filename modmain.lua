@@ -13,10 +13,9 @@ Init.SetupGlobalEnv()
 -- ============================================================================
 
 local Helpers = require("utils/helpers")
-local ButtonHandler = require("core/button-handler")
-local ActionExecutor = require("core/action-executor")
 local HudHook = require("hooks/hud-hook")
 local TargetHook = require("hooks/target-hook")
+local ControllerHook = require("hooks/controller-hook")
 
 -- Load action and task definitions
 local ACTIONS = require("actions/init")  -- Aggregated actions from multiple modules
@@ -48,52 +47,7 @@ HudHook.Install(BUTTON_MAPPINGS)
 -- Install target selection hook (customizes controller targeting)
 TargetHook.Install()
 
--- ============================================================================
--- Player Controller Hook
--- ============================================================================
-
--- Hook PlayerController:OnControl for button combination handling
-AddComponentPostInit("playercontroller", function(inst)
-    Helpers.DebugPrint("Initializing Enhanced Controller")
-
-    -- Log task configuration
-    Helpers.DebugPrint("Task Configuration:")
-    for task_name, task in pairs(TASKS) do
-        Helpers.DebugPrintf("  - %s: %d on_press, %d on_release",
-            task_name, #task.on_press, #task.on_release)
-    end
-
-    -- Initialize button state for this player
-    if inst.inst and inst.inst.GUID then
-        ButtonHandler.InitializePlayer(inst.inst)
-        ACTIONS.InitEquipmentTracking(inst.inst)
-    end
-
-    -- Hook OnControl to handle button combinations
-    local OldOnControl = inst.OnControl
-    inst.OnControl = function(self, control, down)
-        local player = self.inst
-
-        -- Try to handle as button combination
-        local handled = ButtonHandler.HandleButtonCombination(
-            player,
-            control,
-            down,
-            BUTTON_MAPPINGS,
-            TASKS,
-            function(p, action_list)
-                ActionExecutor.ExecuteTaskActions(p, action_list, ACTIONS)
-            end
-        )
-
-        -- If handled as combination, block default behavior
-        if handled then
-            return true
-        end
-
-        -- Otherwise, use default behavior
-        return OldOnControl(self, control, down)
-    end
-end)
+-- Install controller hook (handles button combinations)
+ControllerHook.Install(BUTTON_MAPPINGS, TASKS, ACTIONS)
 
 Helpers.DebugPrint("Enhanced Controller mod loaded successfully")
