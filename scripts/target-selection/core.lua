@@ -7,6 +7,7 @@
 -- ============================================================================
 
 local G = require("global")
+local Helpers = require("utils/helpers")
 
 local TargetSelection = {}
 
@@ -246,12 +247,13 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
                         -- ===== 敌对目标过滤（可配置） =====
                         -- FORCE_ATTACK_MODE.HOSTILE_ONLY: 只能攻击敌对生物
                         -- FORCE_ATTACK_MODE.FORCE_ATTACK: 可以攻击所有目标（原版行为）
+                        -- 特殊：按下 LB 时，可以攻击所有目标
                         local can_attack = true
-                        if CONFIG.force_attack_mode == FORCE_ATTACK_MODE.HOSTILE_ONLY then
-                            -- 仅敌对模式：必须是敌对目标才能攻击
+                        if CONFIG.force_attack_mode == FORCE_ATTACK_MODE.HOSTILE_ONLY and not Helpers.IsButtonPressed("LB") then
+                            -- 仅敌对模式：必须是敌对目标才能攻击（除非按下 LB）
                             can_attack = IsHostileTarget(v, self.inst)
                         end
-                        -- 强制攻击模式：can_attack 保持 true
+                        -- 强制攻击模式 或 按下 LB：can_attack 保持 true
 
                         if can_attack then
                             -- ===== 添加到可选目标列表 =====

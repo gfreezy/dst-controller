@@ -95,11 +95,16 @@ local function CycleEquipment(player, equipslot, direction)
     -- Collect all equippable items for this slot from main inventory
     -- Create list with {item, slot_number} pairs for sorting
     local item_list = {}
+    local seen_prefabs = {}  -- Track prefabs we've already added
 
     for i = 1, player.components.inventory.maxslots do
         local item = player.components.inventory:GetItemInSlot(i)
         if item and item.components.equippable and item.components.equippable.equipslot == equipslot then
-            table.insert(item_list, {item = item, slot = i})
+            -- Only add if we haven't seen this prefab before
+            if not seen_prefabs[item.prefab] then
+                table.insert(item_list, {item = item, slot = i})
+                seen_prefabs[item.prefab] = true
+            end
         end
     end
 
@@ -109,15 +114,30 @@ local function CycleEquipment(player, equipslot, direction)
         for i = 1, overflow.numslots do
             local item = overflow:GetItemInSlot(i)
             if item and item.components.equippable and item.components.equippable.equipslot == equipslot then
-                table.insert(item_list, {item = item, slot = i + player.components.inventory.maxslots})
+                -- Only add if we haven't seen this prefab before
+                if not seen_prefabs[item.prefab] then
+                    table.insert(item_list, {item = item, slot = i + player.components.inventory.maxslots})
+                    seen_prefabs[item.prefab] = true
+                end
             end
         end
     end
 
-    -- If something is equipped, add it using its prevslot
+    -- If something is equipped, add it using its prevslot (only if not already in the list)
     if current_equipped and current_equipped.components.equippable and current_equipped.components.equippable.equipslot == equipslot then
-        local prevslot = current_equipped.prevslot or 0  -- Use prevslot if available, otherwise put at start
-        table.insert(item_list, {item = current_equipped, slot = prevslot})
+        local already_in_list = false
+        for _, entry in ipairs(item_list) do
+            if entry.item == current_equipped then
+                already_in_list = true
+                break
+            end
+        end
+
+        if not already_in_list then
+            local prevslot = current_equipped.prevslot or 0  -- Use prevslot if available, otherwise put at start
+            table.insert(item_list, {item = current_equipped, slot = prevslot})
+            seen_prefabs[current_equipped.prefab] = true
+        end
     end
 
     -- Sort by slot number to maintain consistent order
