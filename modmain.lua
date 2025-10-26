@@ -9,6 +9,15 @@ local Init = require("core/init")
 Init.SetupGlobalEnv()
 
 -- ============================================================================
+-- Mod Configuration
+-- ============================================================================
+
+local CONFIG = {
+    attack_angle_mode = GetModConfigData("attack_angle_mode") or "forward_only",
+    force_attack_mode = GetModConfigData("force_attack_mode") or "hostile_only",
+}
+
+-- ============================================================================
 -- Load Modules
 -- ============================================================================
 
@@ -45,7 +54,7 @@ local BUTTON_MAPPINGS = {
 HudHook.Install(BUTTON_MAPPINGS)
 
 -- Install target selection hook (customizes controller targeting)
-TargetHook.Install()
+TargetHook.Install(CONFIG)
 
 -- Install controller hook (handles button combinations)
 ControllerHook.Install(BUTTON_MAPPINGS, TASKS, ACTIONS)
