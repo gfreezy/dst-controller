@@ -19,7 +19,7 @@ local TASKS = {
         },
     },
     LB_X = {
-        on_press = { "force_attack" },
+        on_press = { },
         on_release = {},
     },
     LB_Y = {
@@ -37,7 +37,7 @@ local TASKS = {
 
     -- RB button combinations
     RB_A = {
-        on_press = { "cycle_hand" },
+        on_press = { },
         on_release = {},
     },
     RB_B = {
@@ -45,11 +45,11 @@ local TASKS = {
         on_release = {},
     },
     RB_X = {
-        on_press = { "cycle_head" },
+        on_press = { "cycle_hand" },
         on_release = {},
     },
     RB_Y = {
-        on_press = { "inspect_self" },
+        on_press = { "cycle_head" },
         on_release = {},
     },
     RB_LT = {
