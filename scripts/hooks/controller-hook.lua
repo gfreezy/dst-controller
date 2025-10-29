@@ -5,7 +5,7 @@ local G = require("global")
 local Helpers = require("utils/helpers")
 local ButtonHandler = require("core/button-handler")
 local ActionExecutor = require("core/action-executor")
-local TASKS = require("config/tasks")
+local ConfigManager = require("utils/config_manager")
 local ACTIONS = require("actions/init")
 
 local ControllerHook = {}
@@ -14,6 +14,9 @@ local ControllerHook = {}
 function ControllerHook.Install()
     G.AddComponentPostInit("playercontroller", function(self)
         Helpers.DebugPrint("Initializing Enhanced Controller")
+
+        -- Load task configuration from ConfigManager
+        local TASKS = ConfigManager.LoadTasks()
 
         -- Log task configuration
         Helpers.DebugPrint("Task Configuration:")
@@ -35,12 +38,15 @@ function ControllerHook.Install()
 
             -- Helpers.DebugPrintf("OnControl: control=%d, down=%s", control, tostring(down))
 
+            -- Get latest TASKS configuration from ConfigManager
+            local current_tasks = ConfigManager.GetRuntimeTasks()
+
             -- Try to handle as button combination
             local handled = ButtonHandler.HandleButtonCombination(
                 player,
                 control,
                 down,
-                TASKS,
+                current_tasks,
                 function(p, action_list)
                     ActionExecutor.ExecuteTaskActions(p, action_list, ACTIONS)
                 end

@@ -4,9 +4,9 @@
 -- ============================================================================
 -- Global Environment Setup
 -- ============================================================================
--- Import centralized GLOBAL references and initialize with GLOBAL
+-- Import centralized GLOBAL references and initialize with both GLOBAL and env
 local G = require("global")
-G.Init(env)
+G.Init(GLOBAL, env)
 
 -- ============================================================================
 -- Mod Configuration
@@ -22,10 +22,26 @@ local CONFIG = {
 -- ============================================================================
 
 local Helpers = require("utils/helpers")
+local ConfigManager = require("utils/config_manager")
 local HudHook = require("hooks/hud-hook")
 local TargetHook = require("hooks/target-hook")
 local ControllerHook = require("hooks/controller-hook")
 local InventorybarHook = require("hooks/inventorybar-hook")
+local TaskConfigHook = require("hooks/taskconfig-hook")
+
+-- ============================================================================
+-- Load Saved Configuration
+-- ============================================================================
+
+-- Load saved configuration on startup (async)
+ConfigManager.LoadTasksFromFile(function(success, tasks)
+    if success then
+        print("[Enhanced Controller] Loaded saved configuration from file")
+        ConfigManager.UpdateRuntimeTasks(tasks)
+    else
+        print("[Enhanced Controller] Using default configuration from tasks.lua")
+    end
+end)
 
 -- ============================================================================
 -- Install Hooks
@@ -42,5 +58,8 @@ ControllerHook.Install()
 
 -- Install inventorybar hook (customizes inventory behavior)
 InventorybarHook.Install()
+
+-- Install task config hook (hotkey to open config screen)
+TaskConfigHook.Install()
 
 Helpers.DebugPrint("Enhanced Controller mod loaded successfully")

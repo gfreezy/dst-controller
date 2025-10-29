@@ -1,105 +1,106 @@
 -- Enhanced Controller - Global References
--- This module provides centralized access to GLOBAL references for all other modules
--- All GLOBAL references are extracted once here, and other modules can require this file
+-- This module provides centralized access to GLOBAL and env references for all other modules
+-- Uses metatable for dynamic proxy to handle objects created after mod initialization
 
+---@alias EntityScript table DST entity instance
+---@alias InputHandler table DST input handler
+---@alias Vector3 table DST Vector3 type
+
+---@class GlobalReferences
+---@field HINT_UPDATE_INTERVAL number Inventory hint update interval in seconds
+---@field BUTTON_MAPPINGS table<string, table<number>> Button mapping table
+---
+--- Game Objects (from GLOBAL)
+---@field ThePlayer EntityScript|nil Current player instance
+---@field TheInput InputHandler Input system
+---@field TheWorld EntityScript|nil Current world instance
+---@field TheSim table Simulation engine
+---@field TheFrontEnd table Frontend UI manager
+---@field TheCamera table Camera controller
+---@field TheNet table Network manager
+---
+--- Data Tables (from GLOBAL)
+---@field TUNING table Game tuning parameters
+---@field STRINGS table Game text strings
+---@field ACTIONS table Game action definitions
+---@field EQUIPSLOTS table Equipment slot constants
+---
+--- Control Constants (from GLOBAL)
+---@field CONTROL_CAM_AND_INV_MODIFIER number
+---@field CONTROL_CHARACTER_COMMAND_WHEEL number
+---@field CONTROL_ACCEPT number
+---@field CONTROL_CONTROLLER_ACTION number
+---@field CONTROL_CANCEL number
+---@field CONTROL_CONTROLLER_ALTACTION number
+---@field CONTROL_CONTROLLER_ATTACK number
+---@field CONTROL_PUTSTACK number
+---@field CONTROL_MENU_MISC_1 number
+---@field CONTROL_MENU_MISC_2 number
+---@field CONTROL_INSPECT number
+---@field CONTROL_MAP_ZOOM_IN number
+---@field CONTROL_OPEN_CRAFTING number
+---@field CONTROL_MENU_L2 number
+---@field CONTROL_OPEN_INVENTORY number
+---@field CONTROL_MAP_ZOOM_OUT number
+---@field CONTROL_MENU_R2 number
+---@field CONTROL_MOVE_UP number
+---@field CONTROL_MOVE_DOWN number
+---@field CONTROL_MOVE_LEFT number
+---@field CONTROL_MOVE_RIGHT number
+---@field CONTROL_USE_ITEM_ON_ITEM number
+---@field VIRTUAL_CONTROL_INV_LEFT number
+---@field VIRTUAL_CONTROL_INV_RIGHT number
+---@field VIRTUAL_CONTROL_INV_UP number
+---@field VIRTUAL_CONTROL_INV_DOWN number
+---@field VIRTUAL_CONTROL_INV_ACTION_DOWN number
+---
+--- Math/Utility Types (from GLOBAL)
+---@field Vector3 table Vector3 constructor
+---@field Point table Point constructor
+---@field DEGREES number Degrees to radians multiplier
+---
+--- Helper Functions (from GLOBAL)
+---@field FunctionOrValue fun(fn_or_value: any, ...): any
+---@field CanEntitySeeTarget fun(entity: EntityScript, target: EntityScript): boolean
+---@field CanEntitySeePoint fun(entity: EntityScript, x: number, y: number, z: number): boolean
+---@field FindEntity fun(entity: EntityScript, radius: number, must_have_tags: table|nil, cant_have_tags: table|nil, must_have_one_of_tags: table|nil): EntityScript|nil
+---@field IsEntityDead fun(entity: EntityScript): boolean
+---@field GetPortalRez fun(): Vector3|nil
+---@field anglediff fun(angle1: number, angle2: number): number
+---@field GetGameModeProperty fun(property: string): any
+---
+--- Action System (from GLOBAL)
+---@field BufferedAction table BufferedAction constructor
+---
+--- Mod API Functions (from env)
+---@field AddComponentPostInit fun(component: string, fn: function)
+---@field AddClassPostConstruct fun(package: string, fn: function)
+---@field AddGamePostInit fun(fn: function)
+---@field AddSimPostInit fun(fn: function)
+---@field AddPrefabPostInit fun(prefab: string, fn: function)
+---@field AddPrefabPostInitAny fun(fn: function)
+---@field AddPlayerPostInit fun(fn: function)
+---@field GetModConfigData fun(option: string, get_local: boolean|nil): any
+---@field modimport fun(module: string)
 local G = {}
-local initialized = false
 
--- Initialize G with GLOBAL references
--- This must be called from modmain.lua before any other modules use G
-function G.Init(ENV_REF)
-    if initialized then
+local GLOBAL_REF = nil
+local ENV_REF = nil
+
+--- Initialize G with GLOBAL and env references
+--- This must be called from modmain.lua before any other modules use G
+---@param global_arg table The GLOBAL table from DST
+---@param env_arg table The mod environment table
+function G.Init(global_arg, env_arg)
+    if GLOBAL_REF ~= nil then
         return -- Already initialized
     end
 
-    local GLOBAL_REF = ENV_REF.GLOBAL
+    GLOBAL_REF = global_arg
+    ENV_REF = env_arg
 
-    -- ============================================================================
-    -- Control Constants
-    -- ============================================================================
-    G.CONTROL_CAM_AND_INV_MODIFIER = GLOBAL_REF.CONTROL_CAM_AND_INV_MODIFIER
-    G.CONTROL_CHARACTER_COMMAND_WHEEL = GLOBAL_REF.CONTROL_CHARACTER_COMMAND_WHEEL
-    G.CONTROL_ACCEPT = GLOBAL_REF.CONTROL_ACCEPT
-    G.CONTROL_CONTROLLER_ACTION = GLOBAL_REF.CONTROL_CONTROLLER_ACTION
-    G.CONTROL_CANCEL = GLOBAL_REF.CONTROL_CANCEL
-    G.CONTROL_CONTROLLER_ALTACTION = GLOBAL_REF.CONTROL_CONTROLLER_ALTACTION
-    G.CONTROL_CONTROLLER_ATTACK = GLOBAL_REF.CONTROL_CONTROLLER_ATTACK
-    G.CONTROL_PUTSTACK = GLOBAL_REF.CONTROL_PUTSTACK
-    G.CONTROL_MENU_MISC_1 = GLOBAL_REF.CONTROL_MENU_MISC_1
-    G.CONTROL_MENU_MISC_2 = GLOBAL_REF.CONTROL_MENU_MISC_2
-    G.CONTROL_INSPECT = GLOBAL_REF.CONTROL_INSPECT
-    G.CONTROL_MAP_ZOOM_IN = GLOBAL_REF.CONTROL_MAP_ZOOM_IN
-    G.CONTROL_OPEN_CRAFTING = GLOBAL_REF.CONTROL_OPEN_CRAFTING
-    G.CONTROL_MENU_L2 = GLOBAL_REF.CONTROL_MENU_L2
-    G.CONTROL_OPEN_INVENTORY = GLOBAL_REF.CONTROL_OPEN_INVENTORY
-    G.CONTROL_MAP_ZOOM_OUT = GLOBAL_REF.CONTROL_MAP_ZOOM_OUT
-    G.CONTROL_MENU_R2 = GLOBAL_REF.CONTROL_MENU_R2
-
-    -- Virtual Controls (for inventory navigation)
-    G.VIRTUAL_CONTROL_INV_LEFT = GLOBAL_REF.VIRTUAL_CONTROL_INV_LEFT
-    G.VIRTUAL_CONTROL_INV_RIGHT = GLOBAL_REF.VIRTUAL_CONTROL_INV_RIGHT
-    G.VIRTUAL_CONTROL_INV_UP = GLOBAL_REF.VIRTUAL_CONTROL_INV_UP
-    G.VIRTUAL_CONTROL_INV_DOWN = GLOBAL_REF.VIRTUAL_CONTROL_INV_DOWN
-    G.VIRTUAL_CONTROL_INV_ACTION_DOWN = GLOBAL_REF.VIRTUAL_CONTROL_INV_ACTION_DOWN
-
-    -- Movement Controls
-    G.CONTROL_MOVE_UP = GLOBAL_REF.CONTROL_MOVE_UP
-    G.CONTROL_MOVE_DOWN = GLOBAL_REF.CONTROL_MOVE_DOWN
-    G.CONTROL_MOVE_LEFT = GLOBAL_REF.CONTROL_MOVE_LEFT
-    G.CONTROL_MOVE_RIGHT = GLOBAL_REF.CONTROL_MOVE_RIGHT
-
-    -- Other Controls
-    G.CONTROL_USE_ITEM_ON_ITEM = GLOBAL_REF.CONTROL_USE_ITEM_ON_ITEM
-
-    -- ============================================================================
-    -- Game API Functions
-    -- ============================================================================
-    G.AddComponentPostInit = ENV_REF.AddComponentPostInit
-    G.AddClassPostConstruct = ENV_REF.AddClassPostConstruct
-    G.TheInput = GLOBAL_REF.TheInput
-    G.TheSim = GLOBAL_REF.TheSim
-    G.TheWorld = GLOBAL_REF.TheWorld
-    G.TheFocalPoint = GLOBAL_REF.TheFocalPoint
-
-    -- ============================================================================
-    -- Equipment Slots
-    -- ============================================================================
-    G.EQUIPSLOTS = GLOBAL_REF.EQUIPSLOTS
-
-    -- ============================================================================
-    -- Actions
-    -- ============================================================================
-    G.ACTIONS = GLOBAL_REF.ACTIONS
-    G.BufferedAction = GLOBAL_REF.BufferedAction
-
-    -- ============================================================================
-    -- Helper Functions
-    -- ============================================================================
-    G.FunctionOrValue = GLOBAL_REF.FunctionOrValue
-    G.CanEntitySeeTarget = GLOBAL_REF.CanEntitySeeTarget
-    G.CanEntitySeePoint = GLOBAL_REF.CanEntitySeePoint
-    G.FindEntity = GLOBAL_REF.FindEntity
-    G.IsEntityDead = GLOBAL_REF.IsEntityDead
-    G.GetPortalRez = GLOBAL_REF.GetPortalRez
-    G.anglediff = GLOBAL_REF.anglediff
-    G.GetGameModeProperty = GLOBAL_REF.GetGameModeProperty
-
-    -- ============================================================================
-    -- Constants
-    -- ============================================================================
-    G.TUNING = GLOBAL_REF.TUNING
-    G.DEGREES = GLOBAL_REF.DEGREES
-    G.HINT_UPDATE_INTERVAL = 2.0  -- Inventory hint update interval in seconds
-
-    -- ============================================================================
-    -- Math/Utility Types
-    -- ============================================================================
-    G.Vector3 = GLOBAL_REF.Vector3
-
-    -- ============================================================================
-    -- Button Mappings
-    -- ============================================================================
-    -- Button mapping table - each logical button can map to multiple physical controls
+    -- Initialize BUTTON_MAPPINGS after GLOBAL_REF is set
+    -- This allows us to access CONTROL_* constants through the metatable
     G.BUTTON_MAPPINGS = {
         LB = { G.CONTROL_CAM_AND_INV_MODIFIER },
         RB = { G.CONTROL_CHARACTER_COMMAND_WHEEL },
@@ -110,8 +111,39 @@ function G.Init(ENV_REF)
         LT = { G.CONTROL_OPEN_CRAFTING, G.CONTROL_MAP_ZOOM_IN, G.CONTROL_MENU_L2 },
         RT = { G.CONTROL_OPEN_INVENTORY, G.CONTROL_MAP_ZOOM_OUT, G.CONTROL_MENU_R2 },
     }
-
-    initialized = true
 end
 
+-- Use metatable to dynamically proxy all GLOBAL and env accesses
+-- This ensures we always get the latest values, even for objects created after Init()
+setmetatable(G, {
+    __index = function(t, k)
+        -- Priority 1: Check if it's a custom property on G itself
+        local custom_value = rawget(t, k)
+        if custom_value ~= nil then
+            return custom_value
+        end
+
+        -- Priority 2: Check env for mod-specific functions (AddComponentPostInit, etc.)
+        if ENV_REF and ENV_REF[k] ~= nil then
+            return ENV_REF[k]
+        end
+
+        -- Priority 3: Check GLOBAL for game objects (ThePlayer, TheInput, etc.)
+        if GLOBAL_REF and GLOBAL_REF[k] ~= nil then
+            return GLOBAL_REF[k]
+        end
+
+        -- Not found
+        return nil
+    end
+})
+
+-- ============================================================================
+-- Custom Constants and Configurations
+-- ============================================================================
+
+-- Inventory hint update interval in seconds
+G.HINT_UPDATE_INTERVAL = 2.0
+
+---@type GlobalReferences
 return G
