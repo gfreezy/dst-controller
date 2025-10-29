@@ -1,9 +1,9 @@
 -- Enhanced Controller - Target Selection Hook
 -- Hooks UpdateControllerTargets to customize target selection behavior
 
-local G = require("global")
-local Helpers = require("utils/helpers")
-local TargetSelection = require("target-selection/core")
+local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
+local TargetSelection = require("dst-controller/target-selection/core")
 
 local TargetHook = {}
 

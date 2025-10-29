@@ -7,9 +7,9 @@
 --   2. Override OnControl to allow movement controls to pass through
 --   3. Override OpenControllerInventory to remove TheFrontEnd:LockFocus call
 
-local G = require("global")
-local Helpers = require("utils/helpers")
-local Original = require("hooks/original/core")
+local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
+local Original = require("dst-controller/hooks/original/core")
 
 local InventorybarHook = {}
 

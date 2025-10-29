@@ -6,8 +6,8 @@
 -- Original source: scripts-raw/components/playercontroller.lua
 -- ============================================================================
 
-local G = require("global")
-local Helpers = require("utils/helpers")
+local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
 
 local TargetSelection = {}
 

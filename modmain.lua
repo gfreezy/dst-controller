@@ -5,7 +5,7 @@
 -- Global Environment Setup
 -- ============================================================================
 -- Import centralized GLOBAL references and initialize with both GLOBAL and env
-local G = require("global")
+local G = require("dst-controller/global")
 G.Init(GLOBAL, env)
 
 -- ============================================================================
@@ -21,13 +21,13 @@ local CONFIG = {
 -- Load Modules
 -- ============================================================================
 
-local Helpers = require("utils/helpers")
-local ConfigManager = require("utils/config_manager")
-local HudHook = require("hooks/hud-hook")
-local TargetHook = require("hooks/target-hook")
-local ControllerHook = require("hooks/controller-hook")
-local InventorybarHook = require("hooks/inventorybar-hook")
-local TaskConfigHook = require("hooks/taskconfig-hook")
+local Helpers = require("dst-controller/utils/helpers")
+local ConfigManager = require("dst-controller/utils/config_manager")
+local HudHook = require("dst-controller/hooks/hud-hook")
+local TargetHook = require("dst-controller/hooks/target-hook")
+local ControllerHook = require("dst-controller/hooks/controller-hook")
+local InventorybarHook = require("dst-controller/hooks/inventorybar-hook")
+local TaskConfigHook = require("dst-controller/hooks/taskconfig-hook")
 
 -- ============================================================================
 -- Load Saved Configuration

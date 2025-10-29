@@ -1,4 +1,4 @@
-local G = require("global")
+local G = require("dst-controller/global")
 
 -- Original Inv:OnControl implementation from scripts-raw/widgets/inventorybar.lua
 -- Lines 778-865

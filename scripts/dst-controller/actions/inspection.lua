@@ -1,7 +1,7 @@
 -- Enhanced Controller - Inspection Actions
 -- Examine and inspect actions
 
-local G = require("global")
+local G = require("dst-controller/global")
 
 local InspectionActions = {}
 

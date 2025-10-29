@@ -1,7 +1,7 @@
 -- Enhanced Controller - Combat Actions
 -- Attack and combat-related actions
 
-local G = require("global")
+local G = require("dst-controller/global")
 
 local CombatActions = {}
 

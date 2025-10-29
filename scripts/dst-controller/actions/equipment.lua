@@ -1,8 +1,8 @@
 -- Enhanced Controller - Equipment Actions
 -- Equipment management, cycling, swapping, and save/restore functionality
 
-local G = require("global")
-local ActionHelpers = require("actions/helpers")
+local G = require("dst-controller/global")
+local ActionHelpers = require("dst-controller/actions/helpers")
 
 local EquipmentActions = {}
 

@@ -1,6 +1,6 @@
 -- Config Manager - 配置管理器
 -- 处理TASKS配置的加载、保存和运行时更新
-local G = require("global")
+local G = require("dst-controller/global")
 local ConfigManager = {}
 
 -- 配置文件名（保存在客户端数据目录）
@@ -17,7 +17,7 @@ function ConfigManager.LoadTasks()
     end
 
     local success, tasks = pcall(function()
-        return require("config/tasks")
+        return require("dst-controller/config/tasks")
     end)
 
     if success and tasks then
@@ -117,7 +117,7 @@ end
 -- 加载默认TASKS配置（从tasks.lua）
 function ConfigManager.LoadDefaultTasks()
     local success, tasks = pcall(function()
-        return require("config/tasks")
+        return require("dst-controller/config/tasks")
     end)
 
     if success and tasks then

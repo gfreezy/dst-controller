@@ -1,8 +1,8 @@
 -- Enhanced Controller - HUD Hook
 -- Hooks PlayerHud to block default actions when modifier buttons are pressed
 
-local G = require("global")
-local Helpers = require("utils/helpers")
+local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
 
 local HudHook = {}
 

@@ -1,12 +1,12 @@
 -- Enhanced Controller - PlayerController Hook
 -- Hooks PlayerController:OnControl to handle button combinations
 
-local G = require("global")
-local Helpers = require("utils/helpers")
-local ButtonHandler = require("core/button-handler")
-local ActionExecutor = require("core/action-executor")
-local ConfigManager = require("utils/config_manager")
-local ACTIONS = require("actions/init")
+local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
+local ButtonHandler = require("dst-controller/core/button-handler")
+local ActionExecutor = require("dst-controller/core/action-executor")
+local ConfigManager = require("dst-controller/utils/config_manager")
+local ACTIONS = require("dst-controller/actions/init")
 
 local ControllerHook = {}
 

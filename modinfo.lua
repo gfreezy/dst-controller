@@ -1,7 +1,34 @@
 name = "Enhanced Controller"
-description = "强化手柄功能 - 自定义组合键和视角控制\n\n功能:\n- LB + 右摇杆左右: 旋转视角\n- LB + 右摇杆上下: 缩放视角\n- LB/RB + A/B/X/Y: 可自定义行为"
-author = "Your Name"
-version = "1.0.0"
+description = [[强化手柄功能 - 自定义组合键和视角控制
+
+核心功能：
+• 游戏内配置界面 (键盘: Ctrl+K, 手柄: LB+RB+Y 同时按)
+• 可自定义 12 种按钮组合的行为 (LB/RB + A/B/X/Y/LT/RT)
+• 支持多动作序列和参数化动作
+• 配置自动保存并在重启后加载
+• 完整的手柄操作支持
+
+视角控制：
+• LB + 右摇杆左右: 旋转视角
+• LB + 右摇杆上下: 缩放视角
+
+可用动作包括：
+• 攻击、检查、装备切换
+• 物品使用、制作
+• 自定义参数动作
+
+使用说明：
+1. 打开配置界面 (键盘: Ctrl+K, 手柄: LB+RB+Y)
+2. 选择要配置的按钮组合
+3. 添加按下/松开时的动作序列
+4. 点击应用保存配置
+
+配置文件位置：
+client_save/enhanced_controller_config.json
+]]
+
+author = "feichao"
+version = "2.0.0"
 
 forumthread = ""
 api_version = 10
@@ -29,100 +56,12 @@ configuration_options = {
     },
     {
         name = "force_attack_mode",
-        label = "攻击目标类型",
+        label = "强制攻击模式",
         hover = "控制是否可以攻击所有目标，还是仅攻击敌对生物",
         options = {
             {description = "仅敌对生物", data = "hostile_only", hover = "只能攻击敌对的怪物和正在攻击你的生物"},
-            {description = "所有目标", data = "force_attack", hover = "可以攻击任何目标，包括盟友（原版行为）"},
+            {description = "所有目标", data = "force_attack", hover = "可以攻击任何目标，包括盟友"},
         },
         default = "hostile_only",
-    },
-    {
-        name = "lb_a_action",
-        label = "LB + A 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
-    },
-    {
-        name = "lb_b_action",
-        label = "LB + B 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
-    },
-    {
-        name = "lb_x_action",
-        label = "LB + X 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
-    },
-    {
-        name = "lb_y_action",
-        label = "LB + Y 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
-    },
-    {
-        name = "rb_a_action",
-        label = "RB + A 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
-    },
-    {
-        name = "rb_b_action",
-        label = "RB + B 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
-    },
-    {
-        name = "rb_x_action",
-        label = "RB + X 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
-    },
-    {
-        name = "rb_y_action",
-        label = "RB + Y 动作",
-        options = {
-            {description = "无", data = "none"},
-            {description = "攻击", data = "attack"},
-            {description = "检查", data = "examine"},
-            {description = "自动装备", data = "equip"},
-        },
-        default = "none",
     },
 }

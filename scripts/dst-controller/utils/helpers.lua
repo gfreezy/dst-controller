@@ -1,7 +1,7 @@
 -- Enhanced Controller - Utility Helper Functions
 -- Common utility functions used across the mod
 
-local G = require("global")
+local G = require("dst-controller/global")
 
 local Helpers = {}
 

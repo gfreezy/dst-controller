@@ -2,13 +2,13 @@
 -- Aggregates all action modules into a single ACTIONS table
 
 -- Load all action modules
-local Combat = require("actions/combat")
-local Inspection = require("actions/inspection")
-local Equipment = require("actions/equipment")
-local Items = require("actions/items")
-local Crafting = require("actions/crafting")
-local Character = require("actions/character")
-local Utility = require("actions/utility")
+local Combat = require("dst-controller/actions/combat")
+local Inspection = require("dst-controller/actions/inspection")
+local Equipment = require("dst-controller/actions/equipment")
+local Items = require("dst-controller/actions/items")
+local Crafting = require("dst-controller/actions/crafting")
+local Character = require("dst-controller/actions/character")
+local Utility = require("dst-controller/actions/utility")
 
 -- Create the aggregated ACTIONS table
 local ACTIONS = {}

@@ -1,7 +1,7 @@
 -- Task Configuration Screen
 -- HUD界面用于配置按钮组合任务
 
-local G = require("global")
+local G = require("dst-controller/global")
 
 local Screen = require("widgets/screen")
 local Widget = require("widgets/widget")

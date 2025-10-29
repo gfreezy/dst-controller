@@ -1,7 +1,7 @@
 -- Enhanced Controller - Action Executor Module
 -- Handles execution of actions from task definitions
 
-local Helpers = require("utils/helpers")
+local Helpers = require("dst-controller/utils/helpers")
 
 local ActionExecutor = {}
 

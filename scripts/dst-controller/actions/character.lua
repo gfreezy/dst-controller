@@ -1,8 +1,8 @@
 -- Enhanced Controller - Character-Specific Actions
 -- Actions specific to certain characters
 
-local G = require("global")
-local ActionHelpers = require("actions/helpers")
+local G = require("dst-controller/global")
+local ActionHelpers = require("dst-controller/actions/helpers")
 
 local CharacterActions = {}
 
