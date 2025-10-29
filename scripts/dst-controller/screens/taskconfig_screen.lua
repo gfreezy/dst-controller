@@ -594,11 +594,8 @@ function ActionDetailScreen:SwitchTab(tab_type)
     end
 
     self:RefreshActionsList()
-
-    -- 恢复焦点到内容区域
-    if self.scroll_list then
-        self.scroll_list:SetFocus()
-    end
+    -- RefreshActionsList 会根据列表是否为空来设置正确的焦点
+    -- 有动作时焦点到 scroll_list，无动作时焦点到 add_action_button
 end
 
 function ActionDetailScreen:RefreshActionsList()
