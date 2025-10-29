@@ -25,6 +25,18 @@
 ---@field ACTIONS table Game action definitions
 ---@field EQUIPSLOTS table Equipment slot constants
 ---
+--- UI Constants (from GLOBAL)
+---@field ANCHOR_MIDDLE number Anchor point: middle
+---@field ANCHOR_LEFT number Anchor point: left
+---@field ANCHOR_RIGHT number Anchor point: right
+---@field ANCHOR_TOP number Anchor point: top
+---@field ANCHOR_BOTTOM number Anchor point: bottom
+---@field SCALEMODE_FILLSCREEN number Scale mode: fill entire screen
+---@field SCALEMODE_PROPORTIONAL number Scale mode: proportional scaling
+---@field NEWFONT string Default UI font (usually "opensans")
+---@field BUTTONFONT string Button font (usually "buttonfont")
+---@field HEADERFONT string Header font
+---
 --- Control Constants (from GLOBAL)
 ---@field CONTROL_CAM_AND_INV_MODIFIER number
 ---@field CONTROL_CHARACTER_COMMAND_WHEEL number
@@ -48,6 +60,13 @@
 ---@field CONTROL_MOVE_LEFT number
 ---@field CONTROL_MOVE_RIGHT number
 ---@field CONTROL_USE_ITEM_ON_ITEM number
+---@field CONTROL_SCROLLBACK number LB button (scroll back)
+---@field CONTROL_SCROLLFWD number RB button (scroll forward)
+---@field CONTROL_MENU_START number Start button (menu)
+---@field MOVE_UP number Focus direction: up
+---@field MOVE_DOWN number Focus direction: down
+---@field MOVE_LEFT number Focus direction: left
+---@field MOVE_RIGHT number Focus direction: right
 ---@field VIRTUAL_CONTROL_INV_LEFT number
 ---@field VIRTUAL_CONTROL_INV_RIGHT number
 ---@field VIRTUAL_CONTROL_INV_UP number
@@ -58,6 +77,9 @@
 ---@field Vector3 table Vector3 constructor
 ---@field Point table Point constructor
 ---@field DEGREES number Degrees to radians multiplier
+---
+--- Class System (from GLOBAL)
+---@field Class fun(base: table|nil, _ctor: function): table Create a new class
 ---
 --- Helper Functions (from GLOBAL)
 ---@field FunctionOrValue fun(fn_or_value: any, ...): any

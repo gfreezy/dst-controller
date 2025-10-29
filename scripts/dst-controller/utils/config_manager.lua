@@ -9,6 +9,7 @@ local CONFIG_VERSION = "1.0.0"
 
 -- 运行时缓存
 local RUNTIME_TASKS = nil
+local RUNTIME_SETTINGS = nil
 
 -- 加载TASKS配置
 function ConfigManager.LoadTasks()
@@ -30,6 +31,14 @@ function ConfigManager.LoadTasks()
     end
 end
 
+-- 加载默认设置
+function ConfigManager.LoadDefaultSettings()
+    return {
+        attack_angle_mode = "forward_only",
+        force_attack_mode = "hostile_only"
+    }
+end
+
 -- 深拷贝表
 function ConfigManager.DeepCopy(orig)
     local orig_type = type(orig)
@@ -46,15 +55,17 @@ function ConfigManager.DeepCopy(orig)
     return copy
 end
 
--- 保存TASKS配置到持久化文件
-function ConfigManager.SaveTasksToFile(tasks, callback)
+-- 保存配置到持久化文件（tasks 和 settings）
+function ConfigManager.SaveConfigToFile(tasks, settings, callback)
     -- 更新运行时配置
     RUNTIME_TASKS = ConfigManager.DeepCopy(tasks)
+    RUNTIME_SETTINGS = ConfigManager.DeepCopy(settings)
 
     -- 创建数据结构
     local data = {
         version = CONFIG_VERSION,
         tasks = tasks,
+        settings = settings or ConfigManager.LoadDefaultSettings(),
         timestamp = os.time()
     }
 
@@ -83,7 +94,12 @@ function ConfigManager.SaveTasksToFile(tasks, callback)
     )
 end
 
--- 从持久化文件加载TASKS配置
+-- 兼容旧方法名
+function ConfigManager.SaveTasksToFile(tasks, callback)
+    ConfigManager.SaveConfigToFile(tasks, ConfigManager.LoadDefaultSettings(), callback)
+end
+
+-- 从持久化文件加载配置
 function ConfigManager.LoadTasksFromFile(callback)
     G.TheSim:GetPersistentString(
         PERSISTENT_FILE_NAME,
@@ -97,8 +113,9 @@ function ConfigManager.LoadTasksFromFile(callback)
 
                     -- 更新运行时缓存
                     RUNTIME_TASKS = ConfigManager.DeepCopy(data.tasks)
+                    RUNTIME_SETTINGS = ConfigManager.DeepCopy(data.settings or ConfigManager.LoadDefaultSettings())
 
-                    if callback then callback(true, data.tasks) end
+                    if callback then callback(true, data.tasks, data.settings) end
                     return
                 else
                     print("[ConfigManager] Failed to decode saved configuration")
@@ -109,7 +126,8 @@ function ConfigManager.LoadTasksFromFile(callback)
 
             -- 加载失败，使用默认配置
             local default_tasks = ConfigManager.LoadDefaultTasks()
-            if callback then callback(false, default_tasks) end
+            local default_settings = ConfigManager.LoadDefaultSettings()
+            if callback then callback(false, default_tasks, default_settings) end
         end
     )
 end
@@ -262,6 +280,19 @@ end
 -- 更新运行时的TASKS配置
 function ConfigManager.UpdateRuntimeTasks(tasks)
     RUNTIME_TASKS = ConfigManager.DeepCopy(tasks)
+end
+
+-- 获取当前运行时的设置
+function ConfigManager.GetRuntimeSettings()
+    if not RUNTIME_SETTINGS then
+        RUNTIME_SETTINGS = ConfigManager.LoadDefaultSettings()
+    end
+    return RUNTIME_SETTINGS
+end
+
+-- 更新运行时的设置
+function ConfigManager.UpdateRuntimeSettings(settings)
+    RUNTIME_SETTINGS = ConfigManager.DeepCopy(settings)
 end
 
 return ConfigManager

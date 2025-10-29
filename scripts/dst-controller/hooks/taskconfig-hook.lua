@@ -21,11 +21,17 @@ local gamepad_buttons_pressed = {
 -- 安装快捷键监听器
 function TaskConfigHook.Install()
     -- 监听全局按键事件（键盘）
-    G.TheInput:AddKeyDownHandler(function(key)
-        TaskConfigHook.OnKeyDown(key)
+    print("[TaskConfigHook] Installing keyboard handler...")
+    local handler_installed = G.TheInput:AddKeyHandler(function(key, down)
+        if down then  -- 只处理按下事件，忽略释放事件
+            print(string.format("[TaskConfigHook] Key pressed: %d", key))
+            TaskConfigHook.OnKeyDown(key)
+        end
     end)
+    print("[TaskConfigHook] Keyboard handler installed:", handler_installed ~= nil)
 
     -- 监听手柄输入（通过 playercontroller hook）
+    print("[TaskConfigHook] Installing playercontroller hook...")
     G.AddComponentPostInit("playercontroller", function(component)
         local old_OnControl = component.OnControl
 
@@ -38,6 +44,7 @@ function TaskConfigHook.Install()
                 return old_OnControl(self, control, down)
             end
         end
+        print("[TaskConfigHook] Playercontroller hook installed")
     end)
 
     print("[TaskConfigHook] Task config hotkey installed")
@@ -49,9 +56,19 @@ end
 function TaskConfigHook.OnKeyDown(key)
     -- Ctrl+K 打开配置界面
     -- KEY_K = 107, KEY_CTRL = 401
-    if key == 107 and G.TheInput:IsKeyDown(401) then  -- 107 = K, 401 = CTRL
+    local ctrl_down = G.TheInput:IsKeyDown(401)
+    print(string.format("[TaskConfigHook] OnKeyDown - key=%d, K=%s, Ctrl=%s",
+        key,
+        tostring(key == 107),
+        tostring(ctrl_down)))
+
+    if key == 107 and ctrl_down then  -- 107 = K, 401 = CTRL
+        print("[TaskConfigHook] Ctrl+K detected! config_screen_open:", config_screen_open)
         if not config_screen_open then
+            print("[TaskConfigHook] Opening config screen...")
             TaskConfigHook.OpenConfigScreen()
+        else
+            print("[TaskConfigHook] Config screen already open, ignoring")
         end
     end
 end
@@ -81,25 +98,37 @@ end
 
 -- 打开配置界面
 function TaskConfigHook.OpenConfigScreen()
+    print("[TaskConfigHook] OpenConfigScreen called")
+
     if config_screen_open then
+        print("[TaskConfigHook] Screen already open, aborting")
         return
     end
 
-    -- 加载当前TASKS配置
+    -- 加载当前TASKS配置和设置
+    print("[TaskConfigHook] Loading runtime tasks...")
     local tasks = ConfigManager.GetRuntimeTasks()
+    local settings = ConfigManager.GetRuntimeSettings()
+    print("[TaskConfigHook] Tasks loaded:", tasks ~= nil)
+    print("[TaskConfigHook] Settings loaded:", settings ~= nil)
 
     -- 创建配置界面
-    local screen = TaskConfigScreen(tasks, function(updated_tasks)
-        TaskConfigHook.OnApplyConfig(updated_tasks)
+    print("[TaskConfigHook] Creating TaskConfigScreen...")
+    local screen = TaskConfigScreen(tasks, settings, function(updated_tasks, updated_settings)
+        TaskConfigHook.OnApplyConfig(updated_tasks, updated_settings)
     end)
+    print("[TaskConfigHook] Screen created:", screen ~= nil)
 
     -- 推入屏幕栈
+    print("[TaskConfigHook] Pushing screen to frontend...")
     G.TheFrontEnd:PushScreen(screen)
     config_screen_open = true
+    print("[TaskConfigHook] Screen pushed successfully")
 
     -- 使用Hook监听界面关闭
     local old_OnDestroy = screen.OnDestroy
     screen.OnDestroy = function(self)
+        print("[TaskConfigHook] Screen closing...")
         config_screen_open = false
         if old_OnDestroy then
             old_OnDestroy(self)
@@ -108,12 +137,13 @@ function TaskConfigHook.OpenConfigScreen()
 end
 
 -- 应用配置
-function TaskConfigHook.OnApplyConfig(updated_tasks)
+function TaskConfigHook.OnApplyConfig(updated_tasks, updated_settings)
     -- 更新运行时配置（立即生效）
     ConfigManager.UpdateRuntimeTasks(updated_tasks)
+    ConfigManager.UpdateRuntimeSettings(updated_settings)
 
     -- 保存到持久化文件
-    ConfigManager.SaveTasksToFile(updated_tasks, function(success)
+    ConfigManager.SaveConfigToFile(updated_tasks, updated_settings, function(success)
         if success then
             print("[TaskConfigHook] Configuration saved and applied successfully")
         else
