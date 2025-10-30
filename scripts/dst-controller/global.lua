@@ -83,10 +83,10 @@
 ---
 --- Helper Functions (from GLOBAL)
 ---@field FunctionOrValue fun(fn_or_value: any, ...): any
----@field CanEntitySeeTarget fun(entity: EntityScript, target: EntityScript): boolean
+---@field CanEntitySeeTarget fun(inst: EntityScript, target: EntityScript|nil): boolean
 ---@field CanEntitySeePoint fun(entity: EntityScript, x: number, y: number, z: number): boolean
 ---@field FindEntity fun(entity: EntityScript, radius: number, must_have_tags: table|nil, cant_have_tags: table|nil, must_have_one_of_tags: table|nil): EntityScript|nil
----@field IsEntityDead fun(entity: EntityScript): boolean
+---@field IsEntityDead fun(inst: EntityScript, require_health: boolean?): boolean
 ---@field GetPortalRez fun(): Vector3|nil
 ---@field anglediff fun(angle1: number, angle2: number): number
 ---@field GetGameModeProperty fun(property: string): any

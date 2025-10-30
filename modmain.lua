@@ -9,15 +9,6 @@ local G = require("dst-controller/global")
 G.Init(GLOBAL, env)
 
 -- ============================================================================
--- Mod Configuration
--- ============================================================================
-
-local CONFIG = {
-    attack_angle_mode = GetModConfigData("attack_angle_mode") or "forward_only",
-    force_attack_mode = GetModConfigData("force_attack_mode") or "hostile_only",
-}
-
--- ============================================================================
 -- Load Modules
 -- ============================================================================
 
@@ -51,7 +42,8 @@ end)
 HudHook.Install()
 
 -- Install target selection hook (customizes controller targeting)
-TargetHook.Install(CONFIG)
+-- Settings are loaded from ConfigManager
+TargetHook.Install()
 
 -- Install controller hook (handles button combinations)
 ControllerHook.Install()

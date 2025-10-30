@@ -42,26 +42,5 @@ icon = "modicon.tex"
 
 server_filter_tags = {}
 
--- 配置选项
-configuration_options = {
-    {
-        name = "attack_angle_mode",
-        label = "攻击目标选择范围",
-        hover = "控制是否可以选择360度范围内的目标，还是仅选择前方目标",
-        options = {
-            {description = "仅前方", data = "forward_only", hover = "只能选择玩家面向方向的目标（原版行为）"},
-            {description = "360度全方位", data = "all_around", hover = "可以选择任意方向的目标"},
-        },
-        default = "forward_only",
-    },
-    {
-        name = "force_attack_mode",
-        label = "强制攻击模式",
-        hover = "控制是否可以攻击所有目标，还是仅攻击敌对生物",
-        options = {
-            {description = "仅敌对生物", data = "hostile_only", hover = "只能攻击敌对的怪物和正在攻击你的生物"},
-            {description = "所有目标", data = "force_attack", hover = "可以攻击任何目标，包括盟友"},
-        },
-        default = "hostile_only",
-    },
-}
+-- 所有配置都通过游戏内配置界面进行设置（Ctrl+K 或 LB+RB+Y）
+configuration_options = {}

@@ -8,6 +8,7 @@
 
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
+local ConfigManager = require("dst-controller/utils/config_manager")
 
 local TargetSelection = {}
 
@@ -19,6 +20,12 @@ local TargetSelection = {}
 local ATTACK_ANGLE_MODE = {
     FORWARD_ONLY = "forward_only",  -- 只能选择前方目标（原版行为）
     ALL_AROUND = "all_around",      -- 可以选择360度任意方向的目标
+}
+
+-- Interaction angle mode constants
+local INTERACTION_ANGLE_MODE = {
+    FORWARD_ONLY = "forward_only",  -- 只能选择前方交互目标（原版行为）
+    ALL_AROUND = "all_around",      -- 可以选择360度任意方向的交互目标
 }
 
 -- Force attack mode constants
@@ -43,17 +50,14 @@ end
 -- Module Configuration
 -- ============================================================================
 
-local CONFIG = {
-    attack_angle_mode = ATTACK_ANGLE_MODE.FORWARD_ONLY,
-    force_attack_mode = FORCE_ATTACK_MODE.HOSTILE_ONLY,
-}
-
--- Set configuration
-function TargetSelection.SetConfig(config)
-    if config then
-        CONFIG.attack_angle_mode = config.attack_angle_mode or ATTACK_ANGLE_MODE.FORWARD_ONLY
-        CONFIG.force_attack_mode = config.force_attack_mode or FORCE_ATTACK_MODE.HOSTILE_ONLY
-    end
+-- Get current configuration from ConfigManager
+local function GetConfig()
+    local settings = ConfigManager.GetRuntimeSettings()
+    return {
+        attack_angle_mode = settings.attack_angle_mode or ATTACK_ANGLE_MODE.FORWARD_ONLY,
+        interaction_angle_mode = settings.interaction_angle_mode or INTERACTION_ANGLE_MODE.FORWARD_ONLY,
+        force_attack_mode = settings.force_attack_mode or FORCE_ATTACK_MODE.HOSTILE_ONLY,
+    }
 end
 
 -- ============================================================================
@@ -115,6 +119,9 @@ end
 -- ============================================================================
 
 local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
+    -- 获取当前配置
+    local CONFIG = GetConfig()
+
     -- ========== 第一步：检查是否可以进行目标选择 ==========
 	local inventory = self.inst.replica.inventory
 	-- 搬重物、拿着漂浮物、或者是幽灵时，不能选择攻击目标
@@ -366,6 +373,9 @@ end
 -- ============================================================================
 
 local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, heading_angle)
+    -- 获取当前配置
+    local CONFIG = GetConfig()
+
     -- ========== 第一步：特殊状态检查 ==========
 
     -- 如果启用了目标锁定，交互目标和攻击目标相同
@@ -505,13 +515,19 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                             dx * dirx + dz * dirz > 0))) and       -- 在玩家前方
                     G.CanEntitySeePoint(self.inst, x1, y1, z1) then  -- 可见
 
-                    -- 角度检查
+                    -- 角度检查（可配置）
                     local shouldcheck = dsq < 1  -- 距离<1的目标直接通过
                     if not shouldcheck then
-                        local epos = v:GetPosition()
-                        local angletoepos = self.inst:GetAngleToPoint(epos)
-                        local angleto = math.abs(G.anglediff(-heading_angle, angletoepos))
-                        shouldcheck = angleto < anglemax  -- 在角度限制内
+                        if CONFIG.interaction_angle_mode == INTERACTION_ANGLE_MODE.ALL_AROUND then
+                            -- 360度模式：所有方向都可以检查
+                            shouldcheck = true
+                        else
+                            -- 前方模式：只检查角度限制内的目标（原版行为）
+                            local epos = v:GetPosition()
+                            local angletoepos = self.inst:GetAngleToPoint(epos)
+                            local angleto = math.abs(G.anglediff(-heading_angle, angletoepos))
+                            shouldcheck = angleto < anglemax  -- 在角度限制内
+                        end
                     end
 
                     if shouldcheck then

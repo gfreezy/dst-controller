@@ -8,22 +8,17 @@ local TargetSelection = require("dst-controller/target-selection/core")
 local TargetHook = {}
 
 -- Install target selection hook
--- Parameters:
---   config: Mod configuration table
-function TargetHook.Install(config)
-    -- Set configuration in TargetSelection module
-    TargetSelection.SetConfig(config)
-
+function TargetHook.Install()
     G.AddComponentPostInit("playercontroller", function(controller)
         -- Override UpdateControllerTargets with our custom implementation
         controller.UpdateControllerTargets = function(self, dt)
             -- Use custom target selection logic from target-selection/core.lua
+            -- Configuration is loaded dynamically from ConfigManager
             TargetSelection.UpdateControllerTargets(self, dt)
         end
 
         Helpers.DebugPrint("Target selection hook installed (using custom target-selection/core.lua)")
-        Helpers.DebugPrintf("  - Attack angle mode: %s", config.attack_angle_mode)
-        Helpers.DebugPrintf("  - Force attack mode: %s", config.force_attack_mode)
+        Helpers.DebugPrint("  Settings are loaded dynamically from ConfigManager")
     end)
 end
 

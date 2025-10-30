@@ -78,6 +78,7 @@ local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, settings_dat
     self.tasks_data = tasks_data or {}
     self.settings_data = settings_data or {
         attack_angle_mode = "forward_only",
+        interaction_angle_mode = "forward_only",
         force_attack_mode = "hostile_only"
     }
     self.on_apply_cb = on_apply_cb
@@ -271,11 +272,41 @@ function TaskConfigScreen:BuildSettingsContent()
     force_attack_widget.force_attack_spinner = force_attack_spinner
     force_attack_widget.focus_forward = force_attack_spinner
 
-    -- 布局两个设置项
-    Layout.Vertical({attack_angle_widget, force_attack_widget}, {
-        spacing = 80,
+    -- 交互目标选择范围设置
+    local interaction_angle_widget = self.content_panel:AddChild(Widget("interaction_angle"))
+    local interaction_angle_label = interaction_angle_widget:AddChild(Text(G.NEWFONT, 30, "交互目标选择范围"))
+    interaction_angle_label:SetColour(1, 1, 1, 1)
+    interaction_angle_label:SetHAlign(G.ANCHOR_LEFT)
+
+    local interaction_angle_options = {
+        {text = "仅前方", data = "forward_only"},
+        {text = "360度全方位", data = "all_around"},
+    }
+    local interaction_angle_spinner = interaction_angle_widget:AddChild(Spinner(
+        interaction_angle_options,
+        200, 45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true  -- lean=true 使用简洁样式（透明背景）
+    ))
+
+    -- 设置初始值
+    local current_interaction_angle = self.settings_data.interaction_angle_mode or "forward_only"
+    interaction_angle_spinner:SetSelected(current_interaction_angle)
+
+    -- 设置回调
+    interaction_angle_spinner.onchangedfn = function(selected_data)
+        self.settings_data.interaction_angle_mode = selected_data
+        self.is_dirty = true
+    end
+
+    interaction_angle_widget.interaction_angle_spinner = interaction_angle_spinner
+    interaction_angle_widget.focus_forward = interaction_angle_spinner
+
+    -- 布局三个设置项
+    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget}, {
+        spacing = 60,
         start_x = 0,
-        start_y = 80,
+        start_y = 60,
         anchor = "center"
     })
 
@@ -283,6 +314,16 @@ function TaskConfigScreen:BuildSettingsContent()
     Layout.HorizontalRow({
         {widget = attack_angle_label, width = 250},
         {widget = attack_angle_spinner, width = 200},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
+    Layout.HorizontalRow({
+        {widget = interaction_angle_label, width = 250},
+        {widget = interaction_angle_spinner, width = 200},
     }, {
         spacing = 30,
         start_x = 0,
@@ -301,12 +342,17 @@ function TaskConfigScreen:BuildSettingsContent()
     })
 
     table.insert(self.setting_widgets, attack_angle_widget)
+    table.insert(self.setting_widgets, interaction_angle_widget)
     table.insert(self.setting_widgets, force_attack_widget)
 
     -- 设置焦点导航
-    attack_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, force_attack_widget)
+    attack_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, interaction_angle_widget)
     attack_angle_widget:SetFocusChangeDir(G.MOVE_UP, self.tabs)
-    force_attack_widget:SetFocusChangeDir(G.MOVE_UP, attack_angle_widget)
+
+    interaction_angle_widget:SetFocusChangeDir(G.MOVE_UP, attack_angle_widget)
+    interaction_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, force_attack_widget)
+
+    force_attack_widget:SetFocusChangeDir(G.MOVE_UP, interaction_angle_widget)
     force_attack_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
 
     self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, attack_angle_widget)
