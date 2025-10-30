@@ -6,6 +6,7 @@
 -- ============================================================================
 -- Import centralized GLOBAL references and initialize with both GLOBAL and env
 local G = require("dst-controller/global")
+---@diagnostic disable-next-line: undefined-global
 G.Init(GLOBAL, env)
 
 -- ============================================================================
@@ -19,18 +20,19 @@ local TargetHook = require("dst-controller/hooks/target-hook")
 local ControllerHook = require("dst-controller/hooks/controller-hook")
 local InventorybarHook = require("dst-controller/hooks/inventorybar-hook")
 local TaskConfigHook = require("dst-controller/hooks/taskconfig-hook")
+local VirtualCursorHook = require("dst-controller/hooks/virtual-cursor-hook")
 
 -- ============================================================================
 -- Load Saved Configuration
 -- ============================================================================
 
 -- Load saved configuration on startup (async)
-ConfigManager.LoadTasksFromFile(function(success, tasks)
+-- Note: LoadTasksFromFile automatically updates RUNTIME_TASKS and RUNTIME_SETTINGS
+ConfigManager.LoadTasksFromFile(function(success, _, _)
     if success then
         print("[Enhanced Controller] Loaded saved configuration from file")
-        ConfigManager.UpdateRuntimeTasks(tasks)
     else
-        print("[Enhanced Controller] Using default configuration from tasks.lua")
+        print("[Enhanced Controller] Using default configuration")
     end
 end)
 
@@ -53,5 +55,8 @@ InventorybarHook.Install()
 
 -- Install task config hook (hotkey to open config screen)
 TaskConfigHook.Install()
+
+-- Install virtual cursor hook (gamepad cursor emulation)
+VirtualCursorHook.Install()
 
 Helpers.DebugPrint("Enhanced Controller mod loaded successfully")

@@ -302,8 +302,50 @@ function TaskConfigScreen:BuildSettingsContent()
     interaction_angle_widget.interaction_angle_spinner = interaction_angle_spinner
     interaction_angle_widget.focus_forward = interaction_angle_spinner
 
-    -- 布局三个设置项
-    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget}, {
+    -- 虚拟光标设置
+    local vcursor_widget = self.content_panel:AddChild(Widget("virtual_cursor"))
+    local vcursor_label = vcursor_widget:AddChild(Text(G.NEWFONT, 30, "虚拟光标"))
+    vcursor_label:SetColour(1, 1, 1, 1)
+    vcursor_label:SetHAlign(G.ANCHOR_LEFT)
+
+    -- 确保 virtual_cursor_settings 存在
+    if not self.settings_data.virtual_cursor_settings then
+        self.settings_data.virtual_cursor_settings = {
+            enabled = true,
+            toggle_combo = {"LB", "RB", "RT"},
+            left_click_key = "RT",
+            right_click_key = "RB",
+            cursor_speed = 1.0,
+            dead_zone = 0.1,
+            show_cursor = true,
+        }
+    end
+
+    local vcursor_options = {
+        {text = "禁用", data = false},
+        {text = "启用", data = true},
+    }
+    local vcursor_spinner = vcursor_widget:AddChild(Spinner(
+        vcursor_options,
+        120, 45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true
+    ))
+
+    -- 设置初始值
+    vcursor_spinner:SetSelected(self.settings_data.virtual_cursor_settings.enabled)
+
+    -- 设置回调
+    vcursor_spinner.onchangedfn = function(selected_data)
+        self.settings_data.virtual_cursor_settings.enabled = selected_data
+        self.is_dirty = true
+    end
+
+    vcursor_widget.vcursor_spinner = vcursor_spinner
+    vcursor_widget.focus_forward = vcursor_spinner
+
+    -- 布局四个设置项
+    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget, vcursor_widget}, {
         spacing = 60,
         start_x = 0,
         start_y = 60,
@@ -341,9 +383,20 @@ function TaskConfigScreen:BuildSettingsContent()
         anchor = "center"
     })
 
+    Layout.HorizontalRow({
+        {widget = vcursor_label, width = 250},
+        {widget = vcursor_spinner, width = 120},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
     table.insert(self.setting_widgets, attack_angle_widget)
     table.insert(self.setting_widgets, interaction_angle_widget)
     table.insert(self.setting_widgets, force_attack_widget)
+    table.insert(self.setting_widgets, vcursor_widget)
 
     -- 设置焦点导航
     attack_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, interaction_angle_widget)
@@ -353,11 +406,14 @@ function TaskConfigScreen:BuildSettingsContent()
     interaction_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, force_attack_widget)
 
     force_attack_widget:SetFocusChangeDir(G.MOVE_UP, interaction_angle_widget)
-    force_attack_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+    force_attack_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_widget)
+
+    vcursor_widget:SetFocusChangeDir(G.MOVE_UP, force_attack_widget)
+    vcursor_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
 
     self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, attack_angle_widget)
-    self.apply_button:SetFocusChangeDir(G.MOVE_UP, force_attack_widget)
-    self.close_button:SetFocusChangeDir(G.MOVE_UP, force_attack_widget)
+    self.apply_button:SetFocusChangeDir(G.MOVE_UP, vcursor_widget)
+    self.close_button:SetFocusChangeDir(G.MOVE_UP, vcursor_widget)
 end
 
 function TaskConfigScreen:BuildConfigWidgets()

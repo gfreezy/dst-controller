@@ -35,7 +35,17 @@ end
 function ConfigManager.LoadDefaultSettings()
     return {
         attack_angle_mode = "forward_only",
-        force_attack_mode = "hostile_only"
+        force_attack_mode = "hostile_only",
+        interaction_angle_mode = "forward_only",
+        virtual_cursor_settings = {
+            enabled = true,
+            toggle_combo = {"LB", "RB", "RT"},
+            left_click_key = "RT",
+            right_click_key = "RB",
+            cursor_speed = 1.0,
+            dead_zone = 0.1,
+            show_cursor = true,
+        }
     }
 end
 

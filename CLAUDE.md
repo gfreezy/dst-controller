@@ -49,11 +49,12 @@ dst-controller/
 │       │   ├── button-handler.lua # Button combination detection
 │       │   └── action-executor.lua # Action execution engine
 │       ├── hooks/                 # Game hooks
-│       │   ├── controller-hook.lua    # PlayerController hook
-│       │   ├── hud-hook.lua           # HUD hook
-│       │   ├── inventorybar-hook.lua  # Inventory bar hook
-│       │   ├── target-hook.lua        # Target selection hook
-│       │   └── taskconfig-hook.lua    # Config UI hotkey hook
+│       │   ├── controller-hook.lua     # PlayerController hook
+│       │   ├── hud-hook.lua            # HUD hook
+│       │   ├── inventorybar-hook.lua   # Inventory bar hook
+│       │   ├── target-hook.lua         # Target selection hook
+│       │   ├── taskconfig-hook.lua     # Config UI hotkey hook
+│       │   └── virtual-cursor-hook.lua # Virtual cursor integration
 │       ├── screens/               # UI screens
 │       │   └── taskconfig_screen.lua  # Config UI (3-layer)
 │       ├── utils/                 # Utilities
@@ -61,8 +62,12 @@ dst-controller/
 │       │   └── config_manager.lua # Config persistence
 │       ├── config/                # Configuration
 │       │   └── tasks.lua          # Default button configurations
-│       └── target-selection/      # Target selection system
-│           └── core.lua
+│       ├── target-selection/      # Target selection system
+│       │   └── core.lua
+│       └── virtual-cursor/        # Virtual cursor system
+│           ├── core.lua           # Cursor logic and state
+│           └── cursor_widget.lua  # Cursor visual widget
+├── DST_MOUSE_BEHAVIOR_ANALYSIS.md # Mouse system analysis
 └── scripts-raw/                   # DST reference files (read-only)
 ```
 
@@ -215,6 +220,87 @@ All hooks use `G.AddComponentPostInit` or `G.AddClassPostConstruct`:
 **taskconfig-hook.lua**: Registers config UI hotkeys
 - Keyboard: Ctrl+K
 - Gamepad: LB+RB+Y
+
+**virtual-cursor-hook.lua**: Integrates virtual cursor system
+- Hooks Input methods (GetWorldPosition, GetScreenPosition, etc.)
+- Hooks PlayerController:UsingMouse() to enable mouse mode
+- Manages cursor widget visibility and updates
+
+### 7. Virtual Cursor System
+
+**Files**:
+- [scripts/dst-controller/virtual-cursor/core.lua](scripts/dst-controller/virtual-cursor/core.lua)
+- [scripts/dst-controller/virtual-cursor/cursor_widget.lua](scripts/dst-controller/virtual-cursor/cursor_widget.lua)
+- [scripts/dst-controller/hooks/virtual-cursor-hook.lua](scripts/dst-controller/hooks/virtual-cursor-hook.lua)
+
+**Purpose**: Provides mouse-like cursor control using gamepad right stick
+
+**Key Features**:
+- **Full Screen Coverage**: Cursor can move across entire screen (not limited to player vicinity)
+- **Screen-based Movement**: Works directly in screen coordinates for natural feel
+- **Automatic Bounds**: Clamped to visible screen area
+- **HUD Integration**: Supports clicking on inventory, crafting menu, and all UI elements
+- **Drag Walking**: Implements DST's 8-frame drag detection threshold
+- **Hover Detection**: Shows hover text and entity highlights
+- **Performance Optimized**: Rate-limited hover detection (updates only on >5 pixel movement)
+
+**Toggle Control** (default):
+- Keyboard: LB + RB + RT (simultaneously)
+- Configurable in settings
+
+**Cursor Movement**:
+- Right stick: Move cursor (when LB not pressed)
+- LB + Right stick: Camera control (original behavior)
+- RT: Left-click
+- RB: Right-click
+
+**Configuration** (saved in `enhanced_controller_config.json`):
+```lua
+virtual_cursor_settings = {
+    enabled = true,                    -- Enable/disable feature
+    toggle_combo = {"LB", "RB", "RT"}, -- Button combination to toggle
+    left_click_key = "RT",             -- Button for left-click
+    right_click_key = "RB",            -- Button for right-click
+    cursor_speed = 1.0,                -- Movement speed multiplier (0.1-3.0)
+    dead_zone = 0.1,                   -- Stick dead zone (0.0-0.5)
+    show_cursor = true,                -- Show/hide cursor widget
+}
+```
+
+**Architecture**:
+```
+User Input (Right Stick)
+    ↓
+VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
+    ↓
+Update screen coordinates (clamped to screen bounds)
+    ↓
+VirtualCursor.UpdateWorldPosition()  -- Project to world coords
+    ↓
+VirtualCursor.UpdateHoverEntity()    -- Detect entities (rate-limited)
+    ↓
+Input Hooks return virtual cursor data:
+  - TheInput:GetWorldPosition() → virtual cursor world pos
+  - TheInput:GetScreenPosition() → virtual cursor screen pos
+  - TheInput:GetWorldEntityUnderMouse() → entity at cursor
+  - TheInput:GetHUDEntityUnderMouse() → UI element at cursor
+  - PlayerController:UsingMouse() → true (enables mouse mode)
+    ↓
+DST's native mouse handling takes over
+  - Hover text displays
+  - Actions computed
+  - Click/drag detection works normally
+```
+
+**Implementation Notes**:
+- Cursor position stored in both screen coords and world coords
+- Screen coords updated first, then projected to world coords
+- All DST Input methods hooked to return virtual cursor data when active
+- No modifications to DST's action/click/drag logic needed
+- Fully compatible with existing mouse-based interactions
+
+**Reference Documentation**:
+See [DST_MOUSE_BEHAVIOR_ANALYSIS.md](DST_MOUSE_BEHAVIOR_ANALYSIS.md) for deep dive into DST's mouse system and implementation details.
 
 ## Development Guidelines
 
