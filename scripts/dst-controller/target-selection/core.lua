@@ -54,8 +54,8 @@ end
 local function GetConfig()
     local settings = ConfigManager.GetRuntimeSettings()
     return {
-        attack_angle_mode = settings.attack_angle_mode or ATTACK_ANGLE_MODE.FORWARD_ONLY,
-        interaction_angle_mode = settings.interaction_angle_mode or INTERACTION_ANGLE_MODE.FORWARD_ONLY,
+        attack_angle_mode = settings.attack_angle_mode or ATTACK_ANGLE_MODE.ALL_AROUND,
+        interaction_angle_mode = settings.interaction_angle_mode or INTERACTION_ANGLE_MODE.ALL_AROUND,
         force_attack_mode = settings.force_attack_mode or FORCE_ATTACK_MODE.HOSTILE_ONLY,
     }
 end
