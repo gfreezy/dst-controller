@@ -491,8 +491,8 @@ return {
 ```lua
 local G = require("dst-controller/global")
 
-local Screen = G.require("widgets/screen")
-local Widget = G.require("widgets/widget")
+local Screen = require("widgets/screen")
+local Widget = require("widgets/widget")
 
 local MyScreen = G.Class(Screen, function(self)
     Screen._ctor(self, "MyScreen")
