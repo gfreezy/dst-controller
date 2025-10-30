@@ -421,59 +421,54 @@ function TaskConfigScreen:BuildConfigWidgets()
 
     for _, combo_key in ipairs(BUTTON_COMBOS) do
         -- 如果是 HOSTILE_ONLY 模式，跳过 LB_X（用于强制攻击）
-        if self.settings_data.force_attack_mode == "hostile_only" and combo_key == "LB_X" then
-            -- 跳过 LB_X，不显示在配置列表中
-            goto continue
+        if not (self.settings_data.force_attack_mode == "hostile_only" and combo_key == "LB_X") then
+            -- 创建容器 widget，宽度等于 ScrollableList (650)
+            local container = Widget("combo_container_" .. combo_key)
+
+            -- 在容器内创建内容 widget
+            local widget = container:AddChild(Widget("combo_" .. combo_key))
+
+            local task_config = self.tasks_data[combo_key] or {
+                on_press = {},
+                on_release = {}
+            }
+
+            -- 按钮名称
+            local label = widget:AddChild(Text(G.NEWFONT, 35, BUTTON_NAMES[combo_key]))
+            label:SetColour(1, 1, 1, 1)
+            label:SetHAlign(G.ANCHOR_LEFT)
+
+            -- 显示当前配置的动作数量
+            local press_count = #task_config.on_press
+            local release_count = #task_config.on_release
+            local info_text = string.format("按下:%d  松开:%d", press_count, release_count)
+            local info_label = widget:AddChild(Text(G.NEWFONT, 28, info_text))
+            info_label:SetColour(0.4, 0.4, 0.4, 1)  -- 稍微深一点的灰色，提高对比度
+
+            -- 配置按钮
+            local config_btn = widget:AddChild(TEMPLATES.StandardButton(
+                function() self:OpenDetailConfig(combo_key) end,
+                "配置",
+                {120, 45}
+            ))
+
+            -- 在 widget 内部居中布局
+            -- 总宽度：140+220+120 = 480，间距：2×20 = 40，总计 520
+            Layout.HorizontalRow({
+                {widget = label, width = 140},
+                {widget = info_label, width = 220},
+                {widget = config_btn, width = 120},
+            }, {
+                spacing = 20,
+                start_x = 0,
+                start_y = 0,
+                anchor = "center"
+            })
+
+            container.focus_forward = config_btn
+            container.combo_key = combo_key
+            table.insert(self.config_widgets, container)
         end
-
-        -- 创建容器 widget，宽度等于 ScrollableList (650)
-        local container = Widget("combo_container_" .. combo_key)
-
-        -- 在容器内创建内容 widget
-        local widget = container:AddChild(Widget("combo_" .. combo_key))
-
-        local task_config = self.tasks_data[combo_key] or {
-            on_press = {},
-            on_release = {}
-        }
-
-        -- 按钮名称
-        local label = widget:AddChild(Text(G.NEWFONT, 35, BUTTON_NAMES[combo_key]))
-        label:SetColour(1, 1, 1, 1)
-        label:SetHAlign(G.ANCHOR_LEFT)
-
-        -- 显示当前配置的动作数量
-        local press_count = #task_config.on_press
-        local release_count = #task_config.on_release
-        local info_text = string.format("按下:%d  松开:%d", press_count, release_count)
-        local info_label = widget:AddChild(Text(G.NEWFONT, 28, info_text))
-        info_label:SetColour(0.4, 0.4, 0.4, 1)  -- 稍微深一点的灰色，提高对比度
-
-        -- 配置按钮
-        local config_btn = widget:AddChild(TEMPLATES.StandardButton(
-            function() self:OpenDetailConfig(combo_key) end,
-            "配置",
-            {120, 45}
-        ))
-
-        -- 在 widget 内部居中布局
-        -- 总宽度：140+220+120 = 480，间距：2×20 = 40，总计 520
-        Layout.HorizontalRow({
-            {widget = label, width = 140},
-            {widget = info_label, width = 220},
-            {widget = config_btn, width = 120},
-        }, {
-            spacing = 20,
-            start_x = 0,
-            start_y = 0,
-            anchor = "center"
-        })
-
-        container.focus_forward = config_btn
-        container.combo_key = combo_key
-        table.insert(self.config_widgets, container)
-
-        ::continue::
     end
 end
 

@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local ConfigManager = require("dst-controller/utils/config_manager")
+local Helpers = require("dst-controller/utils/helpers")
 
 local VirtualCursor = {}
 
@@ -58,8 +59,6 @@ local function GetControlCode(key_name)
         B = G.CONTROL_CANCEL,
         X = G.CONTROL_MENU_MISC_1,
         Y = G.CONTROL_MENU_MISC_2,
-        LS = G.CONTROL_MENU_L3,
-        RS = G.CONTROL_MENU_R3,
     }
 
     local control = control_map[key_name]
@@ -361,9 +360,9 @@ function VirtualCursor.IsToggleComboPressed()
     local config = GetConfig()
     local combo = config.toggle_combo or {"LB", "RB", "RT"}
 
+    -- Use Helpers.IsButtonPressed which handles all control mappings (including RT -> CONTROL_MENU_R2)
     for _, key_name in ipairs(combo) do
-        local control = GetControlCode(key_name)
-        if not control or not G.TheInput:IsControlPressed(control) then
+        if not Helpers.IsButtonPressed(key_name) then
             return false
         end
     end
@@ -372,10 +371,10 @@ function VirtualCursor.IsToggleComboPressed()
 end
 
 -- Get mapped control for left/right click
-function VirtualCursor.GetClickControl(button_type)
+function VirtualCursor.GetClickButtonName(button_type)
     local config = GetConfig()
     local key_name = (button_type == "left") and config.left_click_key or config.right_click_key
-    return GetControlCode(key_name)
+    return key_name
 end
 
 -- Set cursor widget reference

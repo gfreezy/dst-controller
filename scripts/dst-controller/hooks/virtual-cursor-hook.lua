@@ -132,11 +132,11 @@ function VirtualCursorHook.Install()
             -- If cursor mode is active, handle cursor controls
             if VirtualCursor.IsCursorModeActive() then
                 -- Check if LB is pressed
-                local lb_pressed = G.TheInput:IsControlPressed(G.CONTROL_ROTATE_LEFT)
+                local lb_pressed = Helpers.IsButtonPressed("LB")
 
                 -- Handle left-click button
-                local left_click_control = VirtualCursor.GetClickControl("left")
-                if control == left_click_control then
+                local left_click_control_name = VirtualCursor.GetClickButtonName("left")
+                if Helpers.IsControlNamedButton(control, left_click_control_name) then
                     if down then
                         VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, true)
                     else
@@ -146,8 +146,8 @@ function VirtualCursorHook.Install()
                 end
 
                 -- Handle right-click button
-                local right_click_control = VirtualCursor.GetClickControl("right")
-                if control == right_click_control then
+                local right_click_control_name = VirtualCursor.GetClickButtonName("right")
+                if Helpers.IsControlNamedButton(control, right_click_control_name) then
                     if down then
                         VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, true)
                     else
