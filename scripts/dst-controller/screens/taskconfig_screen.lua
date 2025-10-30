@@ -240,19 +240,19 @@ function TaskConfigScreen:BuildSettingsContent()
     attack_angle_widget.attack_angle_spinner = attack_angle_spinner
     attack_angle_widget.focus_forward = attack_angle_spinner
 
-    -- 强制攻击模式设置
+    -- 攻击目标过滤设置
     local force_attack_widget = self.content_panel:AddChild(Widget("force_attack"))
-    local force_attack_label = force_attack_widget:AddChild(Text(G.NEWFONT, 30, "强制攻击模式"))
+    local force_attack_label = force_attack_widget:AddChild(Text(G.NEWFONT, 30, "攻击目标过滤"))
     force_attack_label:SetColour(1, 1, 1, 1)
     force_attack_label:SetHAlign(G.ANCHOR_LEFT)
 
     local force_attack_options = {
-        {text = "仅敌对生物", data = "hostile_only"},
-        {text = "所有目标", data = "force_attack"},
+        {text = "仅敌对 (LB+X强攻)", data = "hostile_only"},
+        {text = "全部可攻击", data = "force_attack"},
     }
     local force_attack_spinner = force_attack_widget:AddChild(Spinner(
         force_attack_options,
-        200, 45,
+        280, 45,  -- 增加宽度以容纳长文本
         {font = G.NEWFONT, size = 28},
         nil, nil, nil, true  -- lean=true 使用简洁样式（透明背景）
     ))
@@ -292,7 +292,7 @@ function TaskConfigScreen:BuildSettingsContent()
 
     Layout.HorizontalRow({
         {widget = force_attack_label, width = 250},
-        {widget = force_attack_spinner, width = 200},
+        {widget = force_attack_spinner, width = 280},  -- 更新宽度匹配 Spinner
     }, {
         spacing = 30,
         start_x = 0,
@@ -318,6 +318,12 @@ function TaskConfigScreen:BuildConfigWidgets()
     self.config_widgets = {}
 
     for _, combo_key in ipairs(BUTTON_COMBOS) do
+        -- 如果是 HOSTILE_ONLY 模式，跳过 LB_X（用于强制攻击）
+        if self.settings_data.force_attack_mode == "hostile_only" and combo_key == "LB_X" then
+            -- 跳过 LB_X，不显示在配置列表中
+            goto continue
+        end
+
         -- 创建容器 widget，宽度等于 ScrollableList (650)
         local container = Widget("combo_container_" .. combo_key)
 
@@ -364,6 +370,8 @@ function TaskConfigScreen:BuildConfigWidgets()
         container.focus_forward = config_btn
         container.combo_key = combo_key
         table.insert(self.config_widgets, container)
+
+        ::continue::
     end
 end
 
@@ -534,6 +542,15 @@ ActionDetailScreen = G.Class(Screen, function(self, combo_key, combo_name, task_
     )
     self.scroll_list:SetPosition(0, 50)
 
+    -- 空状态提示文本（当列表为空时显示）
+    self.empty_text = self.root:AddChild(Text(G.NEWFONT, 28, "暂无动作\n点击下方 [+ 添加动作] 按钮"))
+    self.empty_text:SetColour(0.7, 0.7, 0.7, 1)
+    self.empty_text:SetRegionSize(500, 100)
+    self.empty_text:SetHAlign(ANCHOR_MIDDLE)
+    self.empty_text:SetVAlign(ANCHOR_MIDDLE)
+    self.empty_text:SetPosition(0, 50)
+    self.empty_text:Hide()  -- 初始隐藏
+
     -- CurlyWindow 已经管理了底部按钮的布局，设置 focus navigation
     -- 设置底部三个按钮之间的水平导航
     self.add_action_button:SetFocusChangeDir(G.MOVE_RIGHT, self.save_button)
@@ -610,19 +627,14 @@ function ActionDetailScreen:RefreshActionsList()
     local actions = self.task_config[self.current_edit_type]
 
     if #actions == 0 then
-        -- 创建容器 widget，宽度等于 ScrollableList (600)
-        local container = Widget("empty_container")
-
-        -- 在容器内创建文本 widget，居中显示
-        local text = container:AddChild(Text(G.NEWFONT, 28, "暂无动作\n点击下方 [+ 添加动作] 按钮"))
-        text:SetColour(0.7, 0.7, 0.7, 1)  -- 浅灰色文字，深色背景上可见
-        text:SetRegionSize(500, 100)  -- 设置区域大小，允许多行显示
-        text:SetHAlign(ANCHOR_MIDDLE)
-        text:SetVAlign(ANCHOR_MIDDLE)
-        text:SetPosition(0, 0)  -- 在容器内居中
-
-        table.insert(self.action_widgets, container)
+        -- 列表为空，显示空状态文本
+        self.empty_text:Show()
+        self.scroll_list:Hide()
     else
+        -- 列表有内容，隐藏空状态文本，显示 ScrollableList
+        self.empty_text:Hide()
+        self.scroll_list:Show()
+
         for i, action in ipairs(actions) do
             local action_widget = self:CreateActionWidget(action, i)
             table.insert(self.action_widgets, action_widget)
@@ -633,7 +645,7 @@ function ActionDetailScreen:RefreshActionsList()
     self.scroll_list:SetList(self.action_widgets)
 
     -- 刷新后重新设置焦点，避免焦点指向已删除的widget
-    if #self.action_widgets > 0 and self.scroll_list then
+    if #actions > 0 then
         self.scroll_list:SetFocus()
     else
         self.add_action_button:SetFocus()

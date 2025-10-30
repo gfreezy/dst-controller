@@ -261,11 +261,85 @@ require("utils/helpers")  -- Missing namespace
 ### UI Development
 
 When creating new screens/widgets:
-- Use `G.require()` for DST widgets: `G.require("widgets/screen")`
+- Use `require()` for DST widgets: `require("widgets/screen")`
 - Use `G.Class()` instead of `Class()`
 - Use `G.ANCHOR_*`, `G.SCALEMODE_*` constants
 - Support both keyboard and gamepad input
 - Implement `GetHelpText()` for dynamic help display
+
+#### Widget Positioning and Anchors
+
+**Widget Anchors** (`SetHAnchor` / `SetVAnchor`):
+
+- Each widget has independent anchor settings (not inherited by children)
+- Anchors determine which point of the widget is used as the position reference
+- Horizontal: `ANCHOR_LEFT` (1), `ANCHOR_MIDDLE` (0), `ANCHOR_RIGHT` (2)
+- Vertical: `ANCHOR_TOP` (1), `ANCHOR_MIDDLE` (0), `ANCHOR_BOTTOM` (2)
+- Default is `ANCHOR_MIDDLE` for both horizontal and vertical
+
+**ScrollableList Item Positioning**:
+
+- ScrollableList always positions items at `-width/2 + x_offset`
+- Items are positioned using their center point (if using default `ANCHOR_MIDDLE`)
+- To center items within ScrollableList, use `widgetXOffset = width/2` parameter:
+
+```lua
+ScrollableList(
+    items,
+    600, 300, 70, 10,     -- width, height, itemheight, itempadding
+    nil, nil, 600/2,       -- updatefn, widgetstoupdate, widgetXOffset (offset to center)
+    nil, nil, nil, nil, nil,
+    "GOLD"
+)
+```
+
+**Two-Layer Container Pattern for ScrollableList**:
+
+When items need centered layout within ScrollableList:
+
+```lua
+-- Create outer container (managed by ScrollableList)
+local container = Widget("container")
+
+-- Create inner content widget
+local widget = container:AddChild(Widget("content"))
+
+-- Add UI elements to widget
+local button1 = widget:AddChild(...)
+local button2 = widget:AddChild(...)
+
+-- Use Layout.HorizontalRow with anchor="center" for centered layout
+Layout.HorizontalRow({
+    {widget = button1, width = 100},
+    {widget = button2, width = 100},
+}, {
+    spacing = 10,
+    start_x = 0,
+    start_y = 0,
+    anchor = "center"  -- Centers content from start_x
+})
+
+-- Set focus forwarding for gamepad navigation
+container.focus_forward = button1
+
+-- Return container to ScrollableList
+return container
+```
+
+**Spinner Widget Styles**:
+
+- `lean = true`: Transparent background, white text, separate arrow textures
+- `lean = false` (default): Solid background, configurable text color
+- Callback `onchangedfn(selected_data)` receives data value directly, not an object
+- Use `GetSelectedData()` to get current selection (returns only the `data` field)
+
+**Focus Management Best Practices**:
+
+- Always set `focus_forward` on container widgets that don't directly handle input
+- When using ScrollableList with empty state, hide the list and show separate empty text widget
+- Empty widgets in ScrollableList cannot receive focus, causing focus loss issues
+- After `RefreshActionsList` or similar operations, ensure focus is restored to appropriate widget
+- Tab switching should delegate focus management to refresh methods, not force focus directly
 
 ### Configuration Changes
 
@@ -371,6 +445,72 @@ return MyScreen
 - Configuration UI requires pausing/menu access
 - Some actions may not work in all game states
 - Text input in config UI uses presets (no free text input)
+
+## Common Issues and Solutions
+
+### ScrollableList Items Not Centered
+
+**Problem**: Items in ScrollableList appear shifted to the left, with half of the content outside the visible area.
+
+**Root Cause**: ScrollableList positions items at `-width/2 + x_offset` by default, which places the item's center point at the left edge.
+
+**Solution**: Set `widgetXOffset` parameter to `width/2` when creating ScrollableList:
+
+```lua
+ScrollableList(
+    items,
+    600, 300, 70, 10,
+    nil, nil, 600/2,  -- widgetXOffset = width/2
+    nil, nil, nil, nil, nil,
+    "GOLD"
+)
+```
+
+### Focus Loss When Switching Tabs with Empty Lists
+
+**Problem**: When both tabs in ActionDetailScreen are empty, switching tabs with LT/RT causes focus to disappear.
+
+**Root Cause**: Empty container widgets in ScrollableList cannot receive focus because they have no `focus_forward` set.
+
+**Solution**: Use separate empty text widget instead of adding empty containers to ScrollableList:
+
+```lua
+-- Create empty text outside of ScrollableList
+self.empty_text = self.root:AddChild(Text(...))
+self.empty_text:SetPosition(0, 50)
+self.empty_text:Hide()
+
+-- In RefreshActionsList:
+if #actions == 0 then
+    self.empty_text:Show()
+    self.scroll_list:Hide()
+    self.add_action_button:SetFocus()
+else
+    self.empty_text:Hide()
+    self.scroll_list:Show()
+    -- Add items to scroll_list
+end
+```
+
+### Spinner Callback Data Access Issues
+
+**Problem**: Spinner `onchangedfn` callback fails when trying to access `selected.data`.
+
+**Root Cause**: The callback receives the data value directly, not an object with a `data` field.
+
+**Solution**: Use the parameter directly:
+
+```lua
+-- ❌ Wrong
+spinner.onchangedfn = function(selected)
+    local value = selected.data  -- Error: selected is not a table
+end
+
+-- ✅ Correct
+spinner.onchangedfn = function(selected_data)
+    local value = selected_data  -- selected_data is the actual value
+end
+```
 
 ## Version History
 

@@ -93,7 +93,15 @@ function ButtonHandler.HandleButtonCombination(player, control, down, tasks, exe
                     local task = tasks[task_name]
                     if not task then
                         Helpers.DebugPrintf("Warning: Task '%s' not found", task_name)
-                        return true
+                        return false  -- Task not found, allow default behavior
+                    end
+
+                    -- Check if task has any actions configured
+                    local has_actions = (task.on_press and #task.on_press > 0) or (task.on_release and #task.on_release > 0)
+
+                    if not has_actions then
+                        -- No actions configured, allow default behavior (e.g., LB+X for force attack)
+                        return false
                     end
 
                     local state = button_states[guid][modifier_name][face_button]
@@ -116,7 +124,7 @@ function ButtonHandler.HandleButtonCombination(player, control, down, tasks, exe
                         end
                     end
 
-                    return true
+                    return true  -- Combination handled
                 end
             end
         end
