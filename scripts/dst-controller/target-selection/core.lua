@@ -582,11 +582,11 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                                 target = v
                                 target_score = score
 
-                            -- ===== 第二级：可检查的物品 =====
-                            elseif canexamine and v:HasTag("inspectable") then
-                                -- 可检查的物品
-                                target = v
-                                target_score = score
+                            -- -- ===== 第二级：可检查的物品 =====
+                            -- elseif canexamine and v:HasTag("inspectable") then
+                            --     -- 可检查的物品
+                            --     target = v
+                            --     target_score = score
 
                             -- ===== 第三级：光标物品可以对目标使用 =====
                             else

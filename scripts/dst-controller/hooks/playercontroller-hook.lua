@@ -4,8 +4,8 @@
 
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
-local ButtonHandler = require("dst-controller/core/button-handler")
-local ActionExecutor = require("dst-controller/core/action-executor")
+local ButtonHandler = require("dst-controller.executor.button-handler")
+local ActionExecutor = require("dst-controller.executor.action-executor")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local ACTIONS = require("dst-controller/actions/init")
 local TargetSelection = require("dst-controller/target-selection/core")
