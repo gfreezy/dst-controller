@@ -54,6 +54,17 @@ function InputSystemHook.Install()
         return 2  -- Force scheme 2 for all control schemes
     end
 
+    -- Hook GetControllerID to return 0 (keyboard/mouse) when virtual cursor is active
+    -- This fixes hover text showing "not bound" for controller bindings
+    -- When we pretend no controller is attached, we should also pretend we're using keyboard/mouse
+    original_input_methods.GetControllerID = G.TheInput.GetControllerID
+    G.TheInput.GetControllerID = function(self)
+        if VirtualCursor.IsCursorModeActive() then
+            return 0  -- Return keyboard/mouse device ID
+        end
+        return original_input_methods.GetControllerID(self)
+    end
+
     -- Hook ControllerAttached to return false when virtual cursor is active
     -- This is THE KEY to switching to mouse mode!
     -- When ControllerAttached() returns false, the entire game switches to mouse/keyboard mode

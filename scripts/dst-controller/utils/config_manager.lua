@@ -41,8 +41,8 @@ function ConfigManager.LoadDefaultSettings()
         virtual_cursor_settings = {
             enabled = true,
             toggle_combo = {"LB", "RB", "RT"},
-            left_click_key = "RT",
-            right_click_key = "RB",
+            left_click_key = "LT",
+            right_click_key = "RT",
             cursor_speed = 1.0,
             dead_zone = 0.1,
             show_cursor = true,
