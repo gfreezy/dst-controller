@@ -30,23 +30,6 @@ function TaskConfigHook.Install()
     end)
     print("[TaskConfigHook] Keyboard handler installed:", handler_installed ~= nil)
 
-    -- 监听手柄输入（通过 playercontroller hook）
-    print("[TaskConfigHook] Installing playercontroller hook...")
-    G.AddComponentPostInit("playercontroller", function(component)
-        local old_OnControl = component.OnControl
-
-        component.OnControl = function(self, control, down)
-            -- 检查手柄快捷键组合
-            TaskConfigHook.OnGamepadControl(control, down)
-
-            -- 调用原始处理
-            if old_OnControl then
-                return old_OnControl(self, control, down)
-            end
-        end
-        print("[TaskConfigHook] Playercontroller hook installed")
-    end)
-
     print("[TaskConfigHook] Task config hotkey installed")
     print("[TaskConfigHook]   Keyboard: Ctrl+K")
     print("[TaskConfigHook]   Gamepad: LB+RB+Y (同时按下)")
@@ -74,7 +57,7 @@ function TaskConfigHook.OnKeyDown(key)
 end
 
 -- 处理手柄输入
-function TaskConfigHook.OnGamepadControl(control, down)
+function TaskConfigHook.OnControl(control, down)
     -- 更新按钮状态
     if Helpers.IsControlNamedButton(control, "LB") then
         gamepad_buttons_pressed.LB = down
@@ -91,9 +74,12 @@ function TaskConfigHook.OnGamepadControl(control, down)
             if not config_screen_open then
                 print("[TaskConfigHook] Opening config screen via gamepad hotkey (LB+RB+Y)")
                 TaskConfigHook.OpenConfigScreen()
+                return true
             end
         end
     end
+
+    return false
 end
 
 -- 打开配置界面

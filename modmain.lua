@@ -16,7 +16,6 @@ G.Init(GLOBAL, env)
 local Helpers = require("dst-controller/utils/helpers")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local HudHook = require("dst-controller/hooks/hud-hook")
-local TargetHook = require("dst-controller/hooks/target-hook")
 local ControllerHook = require("dst-controller/hooks/controller-hook")
 local InventorybarHook = require("dst-controller/hooks/inventorybar-hook")
 local TaskConfigHook = require("dst-controller/hooks/taskconfig-hook")
@@ -42,10 +41,6 @@ end)
 
 -- Install HUD hook (blocks default actions when modifiers are pressed)
 HudHook.Install()
-
--- Install target selection hook (customizes controller targeting)
--- Settings are loaded from ConfigManager
-TargetHook.Install()
 
 -- Install controller hook (handles button combinations)
 ControllerHook.Install()

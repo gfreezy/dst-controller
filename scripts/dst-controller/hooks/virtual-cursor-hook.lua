@@ -16,61 +16,9 @@ local original_input_methods = {}
 
 -- Hook TheInput to support virtual cursor
 local function HookInputSystem()
-    -- Hook GetWorldPosition to return virtual cursor position
-    original_input_methods.GetWorldPosition = G.TheInput.GetWorldPosition
-    G.TheInput.GetWorldPosition = function(self)
-        if VirtualCursor.IsCursorModeActive() then
-            return VirtualCursor.GetCursorPosition()
-        end
-        return original_input_methods.GetWorldPosition(self)
-    end
-
-    -- Hook GetScreenPosition to return virtual cursor screen position
-    original_input_methods.GetScreenPosition = G.TheInput.GetScreenPosition
-    G.TheInput.GetScreenPosition = function(self)
-        if VirtualCursor.IsCursorModeActive() then
-            local pos = VirtualCursor.GetCursorScreenPosition()
-            return G.Vector3(pos.x, pos.y, 0)
-        end
-        return original_input_methods.GetScreenPosition(self)
-    end
-
-    -- Hook GetWorldXZWithHeight for strafing/aiming direction
-    -- This is used by strafer component to calculate aim direction
-    original_input_methods.GetWorldXZWithHeight = G.TheInput.GetWorldXZWithHeight
-    G.TheInput.GetWorldXZWithHeight = function(self, height)
-        if VirtualCursor.IsCursorModeActive() then
-            local pos = VirtualCursor.GetCursorScreenPosition()
-            local x, _, z = G.TheSim:ProjectScreenPos(pos.x, pos.y, height)
-            return x, z
-        end
-        return original_input_methods.GetWorldXZWithHeight(self, height)
-    end
-
-    -- Hook GetWorldEntityUnderMouse to return entity under virtual cursor
-    original_input_methods.GetWorldEntityUnderMouse = G.TheInput.GetWorldEntityUnderMouse
-    G.TheInput.GetWorldEntityUnderMouse = function(self)
-        if VirtualCursor.IsCursorModeActive() then
-            return VirtualCursor.GetEntityAtCursor()
-        end
-        return original_input_methods.GetWorldEntityUnderMouse(self)
-    end
-
-    -- Hook GetHUDEntityUnderMouse for UI interactions (inventory, crafting, etc.)
-    original_input_methods.GetHUDEntityUnderMouse = G.TheInput.GetHUDEntityUnderMouse
-    G.TheInput.GetHUDEntityUnderMouse = function(self)
-        if VirtualCursor.IsCursorModeActive() then
-            local entities = VirtualCursor.GetEntitiesAtCursor()
-            -- Return first UI entity (entities without Transform component)
-            for _, ent in ipairs(entities) do
-                if ent and not ent.Transform then
-                    return ent
-                end
-            end
-            return nil
-        end
-        return original_input_methods.GetHUDEntityUnderMouse(self)
-    end
+    -- Note: TheSim:GetPosition hook is now managed dynamically in core.lua
+    -- It's installed when cursor mode is activated and removed when deactivated
+    -- This minimizes performance impact when virtual cursor is not in use
 
     -- Hook IsControlPressed to return button state for virtual cursor
     -- This is critical for drag detection (DST checks if CONTROL_PRIMARY is held)
@@ -89,130 +37,157 @@ local function HookInputSystem()
         return original_input_methods.IsControlPressed(self, control)
     end
 
-    Helpers.DebugPrint("Virtual cursor Input hooks installed:")
-    Helpers.DebugPrint("  ✓ GetWorldPosition - returns virtual cursor world position")
-    Helpers.DebugPrint("  ✓ GetScreenPosition - returns virtual cursor screen position")
-    Helpers.DebugPrint("  ✓ GetWorldXZWithHeight - for strafing/aiming direction")
-    Helpers.DebugPrint("  ✓ GetWorldEntityUnderMouse - returns entity at virtual cursor")
-    Helpers.DebugPrint("  ✓ GetHUDEntityUnderMouse - returns UI entity at virtual cursor")
-    Helpers.DebugPrint("  ✓ IsControlPressed - returns virtual button states for drag detection")
+    -- Hook ControllerAttached to return false when virtual cursor is active
+    -- This is THE KEY to switching to mouse mode!
+    -- When ControllerAttached() returns false, the entire game switches to mouse/keyboard mode
+    original_input_methods.ControllerAttached = G.TheInput.ControllerAttached
+    G.TheInput.ControllerAttached = function(self)
+        if VirtualCursor.IsCursorModeActive() then
+            return false  -- Pretend no controller is attached → mouse mode
+        end
+        return original_input_methods.ControllerAttached(self)
+    end
+
+    -- Hook ClearCachedController to auto-close virtual cursor when pause menu opens
+    -- When pause menu or other screens call ClearCachedController(), they want to switch to mouse mode
+    -- We should close virtual cursor to avoid conflicts
+    original_input_methods.ClearCachedController = G.TheInput.ClearCachedController
+    G.TheInput.ClearCachedController = function(self)
+        -- If virtual cursor is active, close it first
+        if VirtualCursor.IsCursorModeActive() then
+            Helpers.DebugPrint("Auto-closing virtual cursor (pause menu opened)")
+            VirtualCursor.ToggleCursorMode()  -- Close cursor mode
+        end
+        -- Call original method
+        return original_input_methods.ClearCachedController(self)
+    end
+
+    Helpers.DebugPrint("Virtual cursor hooks installed:")
+    Helpers.DebugPrint("  ✓ IsControlPressed - for drag detection (RT/RB button states)")
+    Helpers.DebugPrint("  ✓ ControllerAttached - returns false to enable mouse mode")
+    Helpers.DebugPrint("  ✓ ClearCachedController - auto-close cursor when menu opens")
+    Helpers.DebugPrint("  ⚡ TheSim:GetPosition - dynamically installed/removed on toggle")
+    Helpers.DebugPrint("    ↳ Only active when virtual cursor is enabled")
+    Helpers.DebugPrint("    ↳ Auto-fixes all Input position methods and hover detection")
 end
+
+function VirtualCursorHook.OnControl(self, control, down)
+    -- Check for toggle combo (LB + RB + RT by default)
+    -- Need to use raw input check because when cursor is active, ControllerAttached() returns false
+    -- which might interfere with button detection
+    local combo_config = VirtualCursor.GetConfig().toggle_combo or {"LB", "RB", "RT"}
+    local combo_pressed = true
+
+    -- Check each button in combo using TheSim directly (bypassing any hooks)
+    for _, key_name in ipairs(combo_config) do
+        local controls = G.BUTTON_MAPPINGS[key_name]
+        local button_pressed = false
+        if controls then
+            for _, ctrl in ipairs(controls) do
+                -- Use TheSim:GetDigitalControl directly - this bypasses all hooks
+                if G.TheSim:GetDigitalControl(ctrl) then
+                    button_pressed = true
+                    break
+                end
+            end
+        end
+        if not button_pressed then
+            combo_pressed = false
+            break
+        end
+    end
+
+    if combo_pressed and not combo_was_pressed then
+        -- Combo just pressed, toggle cursor mode
+        VirtualCursor.ToggleCursorMode()
+        combo_was_pressed = true
+        return true  -- Intercept
+    elseif not combo_pressed then
+        combo_was_pressed = false
+    end
+
+    -- If cursor mode is active, handle cursor controls
+    if VirtualCursor.IsCursorModeActive() then
+        -- Check if LB is pressed
+        local lb_pressed = Helpers.IsButtonPressed("LB")
+
+        -- Handle left-click button
+        local left_click_control_name = VirtualCursor.GetClickButtonName("left")
+        if Helpers.IsControlNamedButton(control, left_click_control_name) then
+            if down then
+                VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, true)
+            else
+                VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, false)
+            end
+            return true  -- Intercept
+        end
+
+        -- Handle right-click button
+        local right_click_control_name = VirtualCursor.GetClickButtonName("right")
+        if Helpers.IsControlNamedButton(control, right_click_control_name) then
+            if down then
+                VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, true)
+            else
+                VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, false)
+            end
+            return true  -- Intercept
+        end
+
+        -- If LB is pressed, don't intercept right stick (allow camera control)
+        if lb_pressed then
+            -- Let camera control work normally
+            return false
+        end
+    end
+end
+
 
 function VirtualCursorHook.Install()
     -- Hook Input system first
     HookInputSystem()
-    -- Hook into PlayerController
+
+    -- Debug: Hook PlayerController to check OnUpdate conditions
     G.AddComponentPostInit("playercontroller", function(self)
-        -- Hook UsingMouse to return true when virtual cursor is active
-        local old_UsingMouse = self.UsingMouse
-        self.UsingMouse = function(self)
-            if VirtualCursor.IsCursorModeActive() then
-                return true  -- Pretend we're using mouse
-            end
-            return old_UsingMouse(self)
-        end
-
-        -- Store original OnControl
-        local old_OnControl = self.OnControl
-
-        -- Override OnControl
-        self.OnControl = function(self, control, down)
-            -- Check for toggle combo (LB + RB + RT by default)
-            local combo_pressed = VirtualCursor.IsToggleComboPressed()
-
-            if combo_pressed and not combo_was_pressed then
-                -- Combo just pressed, toggle cursor mode
-                VirtualCursor.ToggleCursorMode()
-                combo_was_pressed = true
-                return true  -- Intercept
-            elseif not combo_pressed then
-                combo_was_pressed = false
-            end
-
-            -- If cursor mode is active, handle cursor controls
-            if VirtualCursor.IsCursorModeActive() then
-                -- Check if LB is pressed
-                local lb_pressed = Helpers.IsButtonPressed("LB")
-
-                -- Handle left-click button
-                local left_click_control_name = VirtualCursor.GetClickButtonName("left")
-                if Helpers.IsControlNamedButton(control, left_click_control_name) then
-                    if down then
-                        VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, true)
-                    else
-                        VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, false)
-                    end
-                    return true  -- Intercept
-                end
-
-                -- Handle right-click button
-                local right_click_control_name = VirtualCursor.GetClickButtonName("right")
-                if Helpers.IsControlNamedButton(control, right_click_control_name) then
-                    if down then
-                        VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, true)
-                    else
-                        VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, false)
-                    end
-                    return true  -- Intercept
-                end
-
-                -- If LB is pressed, don't intercept right stick (allow camera control)
-                if lb_pressed then
-                    -- Let camera control work normally
-                    return old_OnControl(self, control, down)
-                end
-
-                -- LB not pressed: right stick controls cursor
-                -- Note: We'll handle stick input in OnUpdate, not in OnControl
-                -- because OnControl only fires on button edges, not continuous input
-            end
-
-            -- Call original OnControl
-            return old_OnControl(self, control, down)
-        end
-
-        -- Store original OnUpdate
         local old_OnUpdate = self.OnUpdate
 
-        -- Override OnUpdate to handle continuous right stick input
-        self.OnUpdate = function(self, dt)
-            -- Update hover entity detection (for hover text)
-            VirtualCursor.UpdateHoverEntity()
-
-            -- If cursor mode is active, update cursor position from right stick
+        self.OnUpdate = function(pc_self, dt)
+            -- Check conditions before calling original
             if VirtualCursor.IsCursorModeActive() then
-                -- Check if LB is pressed
-                local lb_pressed = G.TheInput:IsControlPressed(G.CONTROL_ROTATE_LEFT)
-
-                -- Only move cursor if LB is NOT pressed
-                if not lb_pressed then
-                    -- Read right stick input
-                    local stick_x = G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_RIGHT)
-                                  - G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_LEFT)
-                    local stick_y = G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_UP)
-                                  - G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_DOWN)
-
-                    -- Update cursor position
-                    VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
-
-                    -- Update cursor widget drag state
-                    if self._cursor_widget then
-                        self._cursor_widget:UpdateDragState(VirtualCursor.IsDragging())
-                    end
+                local current_time = G.GetTime and G.GetTime() or 0
+                if not pc_self._debug_conditions_print then
+                    pc_self._debug_conditions_print = 0
+                end
+                if current_time - pc_self._debug_conditions_print >= 0.5 then
+                    local isenabled, ishudblocking = pc_self:IsEnabled()
+                    local has_handler = pc_self.handler ~= nil
+                    local actions_visible = pc_self.inst:IsActionsVisible()
+                    local controller_attached = G.TheInput:ControllerAttached()
+                    print(string.format("[VirtualCursor DEBUG] PC:OnUpdate conditions - enabled=%s, handler=%s, actionsVisible=%s, controllerAttached=%s",
+                        tostring(isenabled),
+                        tostring(has_handler),
+                        tostring(actions_visible),
+                        tostring(controller_attached)))
+                    pc_self._debug_conditions_print = current_time
                 end
             end
 
-            -- Call original OnUpdate
-            return old_OnUpdate(self, dt)
+            return old_OnUpdate(pc_self, dt)
         end
-
-        Helpers.DebugPrint("Virtual cursor hook installed")
-        Helpers.DebugPrint("  Toggle: LB + RB + RT (default)")
-        Helpers.DebugPrint("  Right stick: Move cursor (when LB not pressed)")
-        Helpers.DebugPrint("  LB + Right stick: Camera control")
     end)
 
-    -- Hook into HUD to add cursor widget and control hover text
+    -- Debug: Hook playeractionpicker to see if DoGetMouseActions is ever called
+    G.AddComponentPostInit("playeractionpicker", function(self)
+        local old_DoGetMouseActions = self.DoGetMouseActions
+
+        self.DoGetMouseActions = function(picker_self, ...)
+            if VirtualCursor.IsCursorModeActive() then
+                print("[VirtualCursor DEBUG] ===== DoGetMouseActions WAS CALLED! =====")
+            end
+            return old_DoGetMouseActions(picker_self, ...)
+        end
+    end)
+
+    -- Hook into HUD to add cursor widget
     G.AddClassPostConstruct("widgets/controls", function(self)
         -- Create cursor widget and add to HUD
         local cursor_widget = self:AddChild(CursorWidget())
@@ -226,30 +201,36 @@ function VirtualCursorHook.Install()
         if G.ThePlayer and G.ThePlayer.components.playercontroller then
             G.ThePlayer.components.playercontroller._cursor_widget = cursor_widget
         end
+    end)
 
-        -- Hook to show/hide hover text based on virtual cursor mode
-        -- The hover widget already exists in controls (created by DST)
-        if self.hover then
-            -- Store original OnUpdate
-            local old_hover_OnUpdate = self.hover.OnUpdate
+    -- Debug: Hook HoverText to see why it's not showing
+    G.AddClassPostConstruct("widgets/hoverer", function(self)
+        local old_OnUpdate = self.OnUpdate
 
-            -- Override to show hover text when virtual cursor is active
-            self.hover.OnUpdate = function(hover_self)
-                -- If virtual cursor is active, show hover text
-                if VirtualCursor.IsCursorModeActive() then
-                    hover_self:Show()
-                    -- Call original update (it will get virtual cursor position from our hooks)
-                    old_hover_OnUpdate(hover_self)
-                else
-                    -- Original behavior (hide for gamepad, show for mouse)
-                    old_hover_OnUpdate(hover_self)
+        self.OnUpdate = function(hover_self)
+            local result = old_OnUpdate(hover_self)
+
+            -- Debug: Print hover text state occasionally
+            if VirtualCursor.IsCursorModeActive() then
+                local current_time = G.GetTime and G.GetTime() or 0
+                if not hover_self._debug_last_print then
+                    hover_self._debug_last_print = 0
+                end
+                if current_time - hover_self._debug_last_print >= 0.5 then
+                    local pc = hover_self.owner.components.playercontroller
+                    local using_mouse = pc and pc:UsingMouse() or false
+                    local lmb_action = pc and pc:GetLeftMouseAction() or nil
+                    print(string.format("[VirtualCursor DEBUG] HoverText - shown=%s, forcehide=%s, UsingMouse=%s, LMBaction=%s",
+                        tostring(hover_self.shown),
+                        tostring(hover_self.forcehide),
+                        tostring(using_mouse),
+                        lmb_action and lmb_action.action.id or "nil"))
+                    hover_self._debug_last_print = current_time
                 end
             end
 
-            Helpers.DebugPrint("Virtual cursor hover text hook installed")
+            return result
         end
-
-        Helpers.DebugPrint("Virtual cursor widget created and added to HUD")
     end)
 end
 

@@ -222,9 +222,9 @@ All hooks use `G.AddComponentPostInit` or `G.AddClassPostConstruct`:
 - Gamepad: LB+RB+Y
 
 **virtual-cursor-hook.lua**: Integrates virtual cursor system
-- Hooks Input methods (GetWorldPosition, GetScreenPosition, etc.)
+- Hooks TheInput:IsControlPressed for drag detection
 - Hooks PlayerController:UsingMouse() to enable mouse mode
-- Manages cursor widget visibility and updates
+- Dynamic TheSim:GetPosition hook (installed/removed on toggle)
 
 ### 7. Virtual Cursor System
 
@@ -267,37 +267,103 @@ virtual_cursor_settings = {
 }
 ```
 
-**Architecture**:
+**Architecture** (Optimized - Full Mouse Mode Emulation):
 ```
-User Input (Right Stick)
+[Activation]
+User presses LB+RB+RT → VirtualCursor.ToggleCursorMode()
+    ↓
+    ├─ Install TheSim:GetPosition() hook (returns virtual cursor screen pos)
+    ├─ Initialize cursor at screen center
+    └─ Show cursor widget
+    ↓
+[Mouse Mode Switch - THE KEY!]
+TheInput:ControllerAttached() → returns false (hooked)
+    ↓
+    ├─ **Entire game switches to mouse/keyboard mode**
+    ├─ All UI widgets check ControllerAttached() and adapt behavior
+    ├─ Inventory/crafting menus switch to mouse-style navigation
+    ├─ HoverText automatically enabled
+    └─ Gamepad-specific UI elements hidden
+    ↓
+PlayerController:UsingMouse() → returns true (hooked)
+    ↓
+    ├─ HoverText:OnUpdate() → shows hover text (redundant but safe)
+    ├─ PlayerController:OnLeftClick() → enabled
+    ├─ PlayerController:OnRightClick() → enabled
+    └─ All mouse-based interactions enabled
+    ↓
+[Cursor Movement]
+Right Stick Input (when LB not pressed)
     ↓
 VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
     ↓
 Update screen coordinates (clamped to screen bounds)
     ↓
-VirtualCursor.UpdateWorldPosition()  -- Project to world coords
+TheSim:GetPosition() hooked → returns virtual cursor screen pos
     ↓
-VirtualCursor.UpdateHoverEntity()    -- Detect entities (rate-limited)
+DST's native systems automatically work:
+  - Input:OnUpdate() calls GetEntitiesAtScreenPoint(TheSim:GetPosition())
+    ↳ Updates TheInput.hoverinst with entity under virtual cursor
+    ↳ Fires mouseover/mouseout events automatically
+  - Input:GetWorldPosition() calls TheSim:GetPosition() + ProjectScreenPos()
+    ↳ Returns correct world position
+  - Input:GetScreenPosition() calls TheSim:GetPosition()
+    ↳ Returns correct screen position
+  - Input:GetWorldEntityUnderMouse() reads hoverinst
+    ↳ Returns correct entity
     ↓
-Input Hooks return virtual cursor data:
-  - TheInput:GetWorldPosition() → virtual cursor world pos
-  - TheInput:GetScreenPosition() → virtual cursor screen pos
-  - TheInput:GetWorldEntityUnderMouse() → entity at cursor
-  - TheInput:GetHUDEntityUnderMouse() → UI element at cursor
-  - PlayerController:UsingMouse() → true (enables mouse mode)
+[Click Actions]
+RT/RB pressed → VirtualCursor.SimulateMouseButton()
     ↓
-DST's native mouse handling takes over
-  - Hover text displays
-  - Actions computed
-  - Click/drag detection works normally
+    ├─ Update button state
+    ├─ Call PlayerController:OnLeftClick()/OnRightClick()
+    └─ DST's action system takes over (uses virtual cursor position)
+    ↓
+[Gamepad Control Blocking]
+Right stick controls intercepted in OnControl:
+  - CONTROL_PRESET_RSTICK_* (physical stick)
+  - VIRTUAL_CONTROL_INV_* (inventory navigation)
+  - VIRTUAL_CONTROL_INV_ACTION_* (inventory actions)
+    ↓
+Result: Right stick exclusively controls cursor, not inventory
+    ↓
+[Complete Mouse Mode]
+✅ Cursor movement
+✅ Hover text and entity highlighting
+✅ Left/right click actions
+✅ Drag-to-walk detection
+✅ UI element interaction (inventory, crafting, etc.)
+✅ No gamepad interference
+
+Total hooks: Only 5!
+  1. TheInput:ControllerAttached (returns false → THE KEY to mouse mode!)
+  2. TheInput:ClearCachedController (auto-closes virtual cursor → prevents conflicts)
+  3. PlayerController:UsingMouse (returns true → enables mouse actions)
+  4. TheSim:GetPosition (dynamically installed/removed → cursor position)
+  5. TheInput:IsControlPressed (for drag detection)
 ```
 
 **Implementation Notes**:
-- Cursor position stored in both screen coords and world coords
-- Screen coords updated first, then projected to world coords
-- All DST Input methods hooked to return virtual cursor data when active
-- No modifications to DST's action/click/drag logic needed
-- Fully compatible with existing mouse-based interactions
+- **Complete Mouse Mode Emulation**: Virtual cursor mode switches the game to full mouse mode
+  - **THE KEY**: Hook `TheInput:ControllerAttached()` to return `false`
+    - This is how DST's pause menu switches to mouse mode!
+    - All UI widgets check this and adapt their behavior
+    - Inventory/crafting menus automatically switch to mouse navigation
+  - **Auto-Close on Menu**: Hook `TheInput:ClearCachedController()` to auto-close virtual cursor
+    - Pause menu calls this to switch to real mouse mode
+    - Prevents conflicts between virtual cursor and menu navigation
+    - Seamless transition: virtual cursor → pause menu → real gamepad
+  - Hook `PlayerController:UsingMouse()` to return `true`
+  - All mouse-based interactions automatically enabled (hover, click, drag, UI)
+  - No manual hover text management needed
+- **Single Root Hook**: Only hook `TheSim:GetPosition()` - all Input methods call this internally
+- **Dynamic Hook Management**: Hook installed on cursor mode activation, removed on deactivation
+- **Gamepad Control Blocking**: Intercepts right stick controls to prevent inventory/crafting navigation
+  - Physical controls: `CONTROL_PRESET_RSTICK_*`
+  - Virtual controls: `VIRTUAL_CONTROL_INV_*` and `VIRTUAL_CONTROL_INV_ACTION_*`
+- **Zero Redundancy**: No custom hover detection, no duplicate entity queries
+- **Maximum Compatibility**: Leverages DST's native mouse system 100%
+- **Performance**: Minimal overhead when cursor mode is disabled (hooks removed)
 
 **Reference Documentation**:
 See [DST_MOUSE_BEHAVIOR_ANALYSIS.md](DST_MOUSE_BEHAVIOR_ANALYSIS.md) for deep dive into DST's mouse system and implementation details.

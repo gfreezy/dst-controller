@@ -5,11 +5,10 @@
 --   1. Remove "shouldautopausecontrollerinventory" tag from player (done in modmain.lua)
 --      This prevents autopause in OnUpdate without modifying it
 --   2. Override OnControl to allow movement controls to pass through
---   3. Override OpenControllerInventory to remove TheFrontEnd:LockFocus call
 
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
-local Original = require("dst-controller/hooks/original/core")
+local VirtualCursor = require("dst-controller/virtual-cursor/core")
 
 local InventorybarHook = {}
 
@@ -17,27 +16,14 @@ local InventorybarHook = {}
 function InventorybarHook.Install()
     G.AddClassPostConstruct("widgets/inventorybar", function(self)
         -- Save original OnControl
-        -- local OldOnControl = self.OnControl
+        local old_OnControl = self.OnControl
 
-        -- -- Override OnControl to allow movement while inventory is open
-        -- function self:OnControl(control, down)
-        --     -- If inventory is open, allow movement controls to pass through
-        --     if self.open then
-        --         if control == G.CONTROL_MOVE_UP or
-        --            control == G.CONTROL_MOVE_DOWN or
-        --            control == G.CONTROL_MOVE_LEFT or
-        --            control == G.CONTROL_MOVE_RIGHT then
-        --             return false  -- Don't handle, let player controller process it
-        --         end
-        --     end
-
-        --     -- Call original implementation for all other controls
-        --     return OldOnControl(self, control, down)
-        -- end
-
-        function self:OnUpdate(dt)
-            -- Stop atuopause behavior by skipping the relevant code
-            return Original.OnUpdate(self, dt)
+        function self:OnControl(control, down)
+            -- If virtual cursor is active, let HUD work normally (mouse mode behavior)
+            if VirtualCursor.IsCursorModeActive() then
+                return false
+            end
+            return old_OnControl(self, control, down)
         end
 
         function self:OpenControllerInventory()
@@ -62,6 +48,7 @@ function InventorybarHook.Install()
                 end
 
                 self:SetFocus()
+                G.TheFrontEnd:LockFocus(true)
             end
         end
 

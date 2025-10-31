@@ -3,7 +3,7 @@
 -- Uses metatable for dynamic proxy to handle objects created after mod initialization
 
 ---@alias EntityScript table DST entity instance
----@alias InputHandler table DST input handler
+---@alias InputHandler {GetAnalogControlValue: fun(control: number): number, IsControlPressed: fun(control: number): boolean, ControllerAttached: fun(): boolean, EnableMouse: fun(enable: boolean)} DST input handler
 ---@alias Vector3 table DST Vector3 type
 
 ---@class GlobalReferences
@@ -62,16 +62,31 @@
 ---@field CONTROL_USE_ITEM_ON_ITEM number
 ---@field CONTROL_SCROLLBACK number LB button (scroll back)
 ---@field CONTROL_SCROLLFWD number RB button (scroll forward)
+---@field CONTROL_ROTATE_RIGHT number RB button (rotate right)
 ---@field CONTROL_MENU_START number Start button (menu)
+---@field CONTROL_PRESET_RSTICK_UP number Right stick physical control: up
+---@field CONTROL_PRESET_RSTICK_DOWN number Right stick physical control: down
+---@field CONTROL_PRESET_RSTICK_LEFT number Right stick physical control: left
+---@field CONTROL_PRESET_RSTICK_RIGHT number Right stick physical control: right
+---@field CONTROL_INVENTORY_LEFT number Legacy inventory control: left
+---@field CONTROL_INVENTORY_RIGHT number Legacy inventory control: right
+---@field CONTROL_INVENTORY_UP number Legacy inventory control: up
+---@field CONTROL_INVENTORY_DOWN number Legacy inventory control: down
+---@field CONTROL_ROTATE_LEFT number Camera rotate left (LB)
+---@field CONTROL_PRIMARY number Primary mouse button
+---@field CONTROL_SECONDARY number Secondary mouse button
 ---@field MOVE_UP number Focus direction: up
 ---@field MOVE_DOWN number Focus direction: down
 ---@field MOVE_LEFT number Focus direction: left
 ---@field MOVE_RIGHT number Focus direction: right
----@field VIRTUAL_CONTROL_INV_LEFT number
----@field VIRTUAL_CONTROL_INV_RIGHT number
----@field VIRTUAL_CONTROL_INV_UP number
----@field VIRTUAL_CONTROL_INV_DOWN number
----@field VIRTUAL_CONTROL_INV_ACTION_DOWN number
+---@field VIRTUAL_CONTROL_INV_LEFT number Virtual control for inventory navigation left
+---@field VIRTUAL_CONTROL_INV_RIGHT number Virtual control for inventory navigation right
+---@field VIRTUAL_CONTROL_INV_UP number Virtual control for inventory navigation up
+---@field VIRTUAL_CONTROL_INV_DOWN number Virtual control for inventory navigation down
+---@field VIRTUAL_CONTROL_INV_ACTION_UP number Virtual control for inventory action up
+---@field VIRTUAL_CONTROL_INV_ACTION_DOWN number Virtual control for inventory action down
+---@field VIRTUAL_CONTROL_INV_ACTION_LEFT number Virtual control for inventory action left
+---@field VIRTUAL_CONTROL_INV_ACTION_RIGHT number Virtual control for inventory action right
 ---
 --- Math/Utility Types (from GLOBAL)
 ---@field Vector3 table Vector3 constructor
@@ -124,8 +139,8 @@ function G.Init(global_arg, env_arg)
     -- Initialize BUTTON_MAPPINGS after GLOBAL_REF is set
     -- This allows us to access CONTROL_* constants through the metatable
     G.BUTTON_MAPPINGS = {
-        LB = { G.CONTROL_CAM_AND_INV_MODIFIER },
-        RB = { G.CONTROL_CHARACTER_COMMAND_WHEEL },
+        LB = { G.CONTROL_CAM_AND_INV_MODIFIER, G.CONTROL_ROTATE_LEFT, G.CONTROL_SCROLLBACK },
+        RB = { G.CONTROL_CHARACTER_COMMAND_WHEEL, G.CONTROL_ROTATE_RIGHT, G.CONTROL_SCROLLFWD },
         A = { G.CONTROL_ACCEPT, G.CONTROL_CONTROLLER_ACTION },
         B = { G.CONTROL_CANCEL, G.CONTROL_CONTROLLER_ALTACTION },
         X = { G.CONTROL_CONTROLLER_ATTACK, G.CONTROL_PUTSTACK, G.CONTROL_MENU_MISC_1 },

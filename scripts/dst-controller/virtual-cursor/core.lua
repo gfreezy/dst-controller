@@ -8,8 +8,6 @@ local Helpers = require("dst-controller/utils/helpers")
 local VirtualCursor = {}
 
 -- Constants
-local FRAMES = G.FRAMES or (1/60) -- ~0.0167 seconds per frame @ 60fps
-local START_DRAG_TIME = 8 * FRAMES  -- ~0.133 seconds (DST standard)
 local BASE_CURSOR_SPEED = 400  -- Base pixels per second
 
 -- State
@@ -22,8 +20,6 @@ local STATE = {
         secondary = false,  -- RB (right-click)
     },
     cursor_widget = nil,  -- Will be set by cursor_widget.lua
-    hover_entity = nil,  -- Currently hovered entity
-    last_hover_update_pos = {x = 0, y = 0},  -- Last position where hover was updated
     last_toggle_time = 0,  -- Last time cursor mode was toggled
 }
 
@@ -44,31 +40,83 @@ local function GetConfig()
     }
 end
 
--- Helper function to get control code from string
-local function GetControlCode(key_name)
-    if not key_name then
+-- Hook management state
+local HOOK_STATE = {
+    thesim_mt = nil,
+    original_index = nil,
+    hooked = false,
+}
+
+-- Install TheSim:GetPosition hook
+local function InstallTheSimHook()
+    if HOOK_STATE.hooked then
+        return  -- Already hooked
+    end
+
+    HOOK_STATE.thesim_mt = getmetatable(G.TheSim)
+    HOOK_STATE.original_index = HOOK_STATE.thesim_mt.__index
+
+    HOOK_STATE.thesim_mt.__index = function(t, k)
+        if k == "GetPosition" then
+            -- Get original GetPosition method
+            local original_getpos
+            if type(HOOK_STATE.original_index) == "function" then
+                original_getpos = HOOK_STATE.original_index(t, "GetPosition")
+            elseif type(HOOK_STATE.original_index) == "table" then
+                original_getpos = HOOK_STATE.original_index["GetPosition"]
+            end
+
+            -- Return wrapped function
+            return function(self)
+                if STATE.cursor_mode_active then
+                    local pos = STATE.cursor_screen_pos
+
+                    -- Debug: Log position occasionally (every 0.5 seconds)
+                    if not STATE._debug_last_print_time then
+                        STATE._debug_last_print_time = 0
+                    end
+                    local current_time = G.GetTime and G.GetTime() or 0
+                    if current_time - STATE._debug_last_print_time >= 0.5 then
+                        print(string.format("[VirtualCursor DEBUG] TheSim:GetPosition() called, returning (%.1f, %.1f)", pos.x, pos.y))
+                        STATE._debug_last_print_time = current_time
+                    end
+
+                    return pos.x, pos.y
+                end
+                -- Call original
+                if original_getpos then
+                    return original_getpos(self)
+                end
+                return 0, 0
+            end
+        end
+
+        -- Fallback for other methods
+        if type(HOOK_STATE.original_index) == "function" then
+            return HOOK_STATE.original_index(t, k)
+        elseif type(HOOK_STATE.original_index) == "table" then
+            return HOOK_STATE.original_index[k]
+        end
         return nil
     end
 
-    local control_map = {
-        LB = G.CONTROL_ROTATE_LEFT,
-        RB = G.CONTROL_ROTATE_RIGHT,
-        LT = G.CONTROL_ZOOM_IN,
-        RT = G.CONTROL_ZOOM_OUT,
-        A = G.CONTROL_ACCEPT,
-        B = G.CONTROL_CANCEL,
-        X = G.CONTROL_MENU_MISC_1,
-        Y = G.CONTROL_MENU_MISC_2,
-    }
-
-    local control = control_map[key_name]
-    if not control then
-        print("[VirtualCursor] Warning: Invalid key name: " .. tostring(key_name))
-        return nil
-    end
-
-    return control
+    HOOK_STATE.hooked = true
 end
+
+-- Remove TheSim:GetPosition hook
+local function UninstallTheSimHook()
+    if not HOOK_STATE.hooked then
+        return  -- Not hooked
+    end
+
+    -- Restore original metatable
+    if HOOK_STATE.thesim_mt and HOOK_STATE.original_index then
+        HOOK_STATE.thesim_mt.__index = HOOK_STATE.original_index
+    end
+
+    HOOK_STATE.hooked = false
+end
+
 
 -- Initialize cursor position
 local function InitializeCursorPosition()
@@ -106,7 +154,7 @@ function VirtualCursor.ToggleCursorMode()
     end
 
     -- Prevent toggle spam (minimum 0.3 seconds between toggles)
-    local GetTime = G.GetTime or _G.GetTime
+    local GetTime = G.GetTime
     local current_time = GetTime and GetTime() or 0
     if current_time - STATE.last_toggle_time < 0.3 then
         return
@@ -117,7 +165,13 @@ function VirtualCursor.ToggleCursorMode()
 
     if STATE.cursor_mode_active then
         -- Entering cursor mode
+        InstallTheSimHook()  -- Hook TheSim:GetPosition
         InitializeCursorPosition()
+
+        -- Enable mouse mode in Input system (critical for hover detection!)
+        if G.TheInput and G.TheInput.EnableMouse then
+            G.TheInput:EnableMouse(true)
+        end
 
         if STATE.cursor_widget and config.show_cursor then
             STATE.cursor_widget:Show()
@@ -126,6 +180,13 @@ function VirtualCursor.ToggleCursorMode()
         print("[VirtualCursor] Cursor mode activated")
     else
         -- Exiting cursor mode
+        UninstallTheSimHook()  -- Unhook TheSim:GetPosition
+
+        -- Restore mouse enabled state based on controller attached
+        if G.TheInput and G.TheInput.EnableMouse and G.TheInput.ControllerAttached then
+            G.TheInput:EnableMouse(not G.TheInput:ControllerAttached())
+        end
+
         if STATE.cursor_widget then
             STATE.cursor_widget:Hide()
         end
@@ -166,7 +227,7 @@ function VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
 
     -- Update screen position directly (easier to clamp to screen bounds)
     STATE.cursor_screen_pos.x = STATE.cursor_screen_pos.x + stick_x * speed * dt
-    STATE.cursor_screen_pos.y = STATE.cursor_screen_pos.y - stick_y * speed * dt
+    STATE.cursor_screen_pos.y = STATE.cursor_screen_pos.y + stick_y * speed * dt  -- Changed to + for natural control
 
     -- Clamp to screen bounds
     local screen_w, screen_h = G.TheSim:GetScreenSize()
@@ -222,56 +283,12 @@ function VirtualCursor.UpdateScreenPosition()
     end
 end
 
--- Get all entities at cursor position (using screen coordinates for accuracy)
-function VirtualCursor.GetEntitiesAtCursor()
-    if not STATE.cursor_position or not STATE.cursor_screen_pos then
-        return {}
-    end
-
-    -- Use DST's screen-based entity detection (more accurate for UI/world objects)
-    local entities = G.TheSim:GetEntitiesAtScreenPoint(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
-
-    return entities or {}
-end
-
--- Get primary entity at cursor position (handles forwarding and mouse-through)
-function VirtualCursor.GetEntityAtCursor()
-    local entities = VirtualCursor.GetEntitiesAtCursor()
-
-    if #entities > 0 then
-        local inst = entities[1]
-
-        -- Handle client_forward_target (some entities forward to another entity)
-        if inst and inst.client_forward_target then
-            inst = inst.client_forward_target
-        end
-
-        -- Handle mouse-through entities (walls, etc.)
-        if inst and inst.CanMouseThrough then
-            local mousethrough, keepnone = inst:CanMouseThrough()
-            if mousethrough then
-                -- Find next valid entity
-                for i = 2, #entities do
-                    local nextinst = entities[i]
-                    if nextinst and nextinst.client_forward_target then
-                        nextinst = nextinst.client_forward_target
-                    end
-                    if nextinst and nextinst:IsValid() and not (keepnone and nextinst == G.ThePlayer) then
-                        inst = nextinst
-                        break
-                    end
-                end
-            end
-        end
-
-        -- Validate entity
-        if inst and inst:IsValid() and inst.entity:IsVisible() then
-            return inst
-        end
-    end
-
-    return nil
-end
+-- Note: GetEntitiesAtCursor and GetEntityAtCursor are NO LONGER NEEDED!
+-- DST's Input:OnUpdate() automatically handles entity detection via:
+--   TheSim:GetEntitiesAtScreenPoint(TheSim:GetPosition())
+-- Since we hook TheSim:GetPosition(), it uses our virtual cursor position.
+-- DST also handles client_forward_target and CanMouseThrough automatically.
+-- Result: TheInput.hoverinst always points to the correct entity under virtual cursor!
 
 -- Simulate mouse button press/release
 -- This directly calls DST's controller methods, which will use our hooked Input methods
@@ -291,51 +308,11 @@ function VirtualCursor.SimulateMouseButton(button, down)
     STATE.button_states[button_type] = down
 
     -- Call DST's controller methods directly
-    -- DST will handle drag detection, action computation, and execution
+    -- TheSim:GetPosition() is now globally hooked, so it will return virtual cursor position
     if button == G.CONTROL_PRIMARY then
         controller:OnLeftClick(down)
     elseif button == G.CONTROL_SECONDARY then
         controller:OnRightClick(down)
-    end
-end
-
--- Update hover entity detection (called in OnUpdate)
--- Rate limited to avoid expensive GetEntitiesAtScreenPoint calls every frame
-function VirtualCursor.UpdateHoverEntity()
-    if not STATE.cursor_mode_active then
-        STATE.hover_entity = nil
-        return
-    end
-
-    -- Rate limit: only update hover if cursor moved significantly (>5 pixels)
-    local dx = STATE.cursor_screen_pos.x - STATE.last_hover_update_pos.x
-    local dy = STATE.cursor_screen_pos.y - STATE.last_hover_update_pos.y
-    local dist_sq = dx * dx + dy * dy
-
-    if dist_sq < 25 then  -- < 5 pixels movement
-        return
-    end
-
-    -- Update last position
-    STATE.last_hover_update_pos.x = STATE.cursor_screen_pos.x
-    STATE.last_hover_update_pos.y = STATE.cursor_screen_pos.y
-
-    -- Get entity under cursor (expensive operation)
-    local new_hover = VirtualCursor.GetEntityAtCursor()
-
-    -- Check if hover entity changed
-    if new_hover ~= STATE.hover_entity then
-        -- Fire mouseout event on old entity
-        if STATE.hover_entity and STATE.hover_entity:IsValid() then
-            STATE.hover_entity:PushEvent("mouseout")
-        end
-
-        -- Fire mouseover event on new entity
-        if new_hover and new_hover:IsValid() then
-            new_hover:PushEvent("mouseover")
-        end
-
-        STATE.hover_entity = new_hover
     end
 end
 
@@ -400,6 +377,11 @@ end
 -- Get state (for debugging)
 function VirtualCursor.GetState()
     return STATE
+end
+
+-- Get configuration
+function VirtualCursor.GetConfig()
+    return GetConfig()
 end
 
 return VirtualCursor
