@@ -14,11 +14,6 @@ local InventorybarHook = {}
 function InventorybarHook.Install()
     G.AddClassPostConstruct("widgets/inventorybar", function(self)
         function self:OpenControllerInventory()
-            -- if self.owner.sg ~= nil then
-            --     self.owner.sg:RemoveStateTag("shouldautopausecontrollerinventory")
-            --     self.owner:RemoveTag("shouldautopausecontrollerinventory")
-            -- end
-
             if not self.open then
                 self.open = true
                 self.force_single_drop = false --reset the flag
