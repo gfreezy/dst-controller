@@ -3,7 +3,12 @@
 -- Uses metatable for dynamic proxy to handle objects created after mod initialization
 
 ---@alias EntityScript table DST entity instance
----@alias InputHandler {GetAnalogControlValue: fun(control: number): number, IsControlPressed: fun(control: number): boolean, ControllerAttached: fun(): boolean, EnableMouse: fun(enable: boolean)} DST input handler
+---@alias InputHandler { [any]: any,
+---  GetAnalogControlValue: fun(self: InputHandler, control: number): number,
+---  IsControlPressed: fun(self: InputHandler, control: number): boolean,
+---  ControllerAttached: fun(self: InputHandler): boolean,
+---  EnableMouse: fun(self: InputHandler, enable: boolean)
+---} DST input handler
 ---@alias Vector3 table DST Vector3 type
 
 ---@class GlobalReferences
@@ -105,6 +110,7 @@
 ---@field GetPortalRez fun(): Vector3|nil
 ---@field anglediff fun(angle1: number, angle2: number): number
 ---@field GetGameModeProperty fun(property: string): any
+---@field GetTime fun(): number
 ---
 --- Action System (from GLOBAL)
 ---@field BufferedAction table BufferedAction constructor

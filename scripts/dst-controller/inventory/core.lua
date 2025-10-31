@@ -4,9 +4,9 @@ local G = require("dst-controller/global")
 -- Lines 778-865
 -- This is a reference copy for understanding the original behavior
 
-local Original = {}
+local InventoryBarHook = {}
 
-function Original.OnUpdate(self, dt)
+function InventoryBarHook.OnUpdate(self, dt)
     self:UpdatePosition()
 
     self.hint_update_check = self.hint_update_check - dt
@@ -87,4 +87,4 @@ function Original.OnUpdate(self, dt)
     end
 end
 
-return Original
+return InventoryBarHook

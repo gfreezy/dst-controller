@@ -49,12 +49,13 @@ dst-controller/
 │       │   ├── button-handler.lua # Button combination detection
 │       │   └── action-executor.lua # Action execution engine
 │       ├── hooks/                 # Game hooks
-│       │   ├── controller-hook.lua     # PlayerController hook
-│       │   ├── hud-hook.lua            # HUD hook
-│       │   ├── inventorybar-hook.lua   # Inventory bar hook
-│       │   ├── target-hook.lua         # Target selection hook
-│       │   ├── taskconfig-hook.lua     # Config UI hotkey hook
-│       │   └── virtual-cursor-hook.lua # Virtual cursor integration
+│       │   ├── registry.lua                # Hook registry (central install point)
+│       │   ├── playercontroller-hook.lua   # PlayerController component hooks
+│       │   ├── playerhud-hook.lua          # PlayerHUD class hooks
+│       │   ├── inventorybar-hook.lua       # InventoryBar widget hooks
+│       │   ├── input-system-hook.lua       # TheInput global hooks (virtual cursor)
+│       │   ├── controls-hook.lua           # Controls widget hooks (cursor injection)
+│       │   └── taskconfig-hook.lua         # Config UI hotkey hook
 │       ├── screens/               # UI screens
 │       │   └── taskconfig_screen.lua  # Config UI (3-layer)
 │       ├── utils/                 # Utilities
@@ -199,39 +200,49 @@ return {
 
 ### 6. Hook System
 
-All hooks use `G.AddComponentPostInit` or `G.AddClassPostConstruct`:
+**Architecture**: All hooks are centrally managed through the hook registry to ensure each class/component is hooked exactly once.
 
-**controller-hook.lua**: Intercepts `playercontroller:OnControl`
-- Detects button combinations
-- Executes configured actions
-- Manages button state
+**registry.lua**: Central hook installation point
+- Imports and installs all hooks in proper dependency order
+- Single entry point called from modmain.lua
+- Ensures no duplicate hooks on the same class/component
 
-**hud-hook.lua**: Modifies `playeractionpicker:OnControl`
-- Blocks default actions when modifier keys (LB/RB) are held
+**playercontroller-hook.lua**: Consolidates ALL `playercontroller` component hooks
+- `UpdateControllerTargets` - Custom target selection
+- `OnControl` - Button combinations and input routing
+- `IsEnabled` - Enable/disable controller
+- `UsingMouse` - Returns true when virtual cursor active
+- `OnUpdate` - Virtual cursor movement updates
+- Delegates to feature modules (ButtonHandler, VirtualCursor, TaskConfig)
 
-**inventorybar-hook.lua**: Customizes inventory widget behavior
-- Shows hints for equipped items
-- Handles inventory navigation
+**playerhud-hook.lua**: Hooks `screens/playerhud` class
+- `OnControl` - Blocks default actions when LB/RB pressed (except in virtual cursor mode)
 
-**target-hook.lua**: Customizes target selection
-- Supports 360° targeting (configurable)
-- Hostile-only targeting (configurable)
+**inventorybar-hook.lua**: Hooks `widgets/inventorybar` class
+- `OnControl` - Custom inventory navigation
+- `OpenControllerInventory` - Disables autopause
 
-**taskconfig-hook.lua**: Registers config UI hotkeys
-- Keyboard: Ctrl+K
-- Gamepad: LB+RB+Y
+**input-system-hook.lua**: Hooks `TheInput` global object
+- `IsControlPressed` - Returns virtual cursor button states (for drag detection)
+- `ControllerAttached` - Returns false when virtual cursor active (THE KEY to mouse mode!)
+- `ClearCachedController` - Auto-closes virtual cursor when menu opens
+- `OnControl` - Virtual cursor toggle and click handling
 
-**virtual-cursor-hook.lua**: Integrates virtual cursor system
-- Hooks TheInput:IsControlPressed for drag detection
-- Hooks PlayerController:UsingMouse() to enable mouse mode
-- Dynamic TheSim:GetPosition hook (installed/removed on toggle)
+**controls-hook.lua**: Hooks `widgets/controls` class
+- Constructor - Injects cursor widget into HUD
+
+**taskconfig-hook.lua**: Global keyboard handler (not a class hook)
+- Registers Ctrl+K hotkey via `TheInput:AddKeyHandler`
+- Provides `OnControl` method called from playercontroller-hook for gamepad hotkey (LB+RB+Y)
 
 ### 7. Virtual Cursor System
 
 **Files**:
-- [scripts/dst-controller/virtual-cursor/core.lua](scripts/dst-controller/virtual-cursor/core.lua)
-- [scripts/dst-controller/virtual-cursor/cursor_widget.lua](scripts/dst-controller/virtual-cursor/cursor_widget.lua)
-- [scripts/dst-controller/hooks/virtual-cursor-hook.lua](scripts/dst-controller/hooks/virtual-cursor-hook.lua)
+- [scripts/dst-controller/virtual-cursor/core.lua](scripts/dst-controller/virtual-cursor/core.lua) - Core cursor logic
+- [scripts/dst-controller/virtual-cursor/cursor_widget.lua](scripts/dst-controller/virtual-cursor/cursor_widget.lua) - Cursor visual widget
+- [scripts/dst-controller/hooks/input-system-hook.lua](scripts/dst-controller/hooks/input-system-hook.lua) - Input system hooks
+- [scripts/dst-controller/hooks/controls-hook.lua](scripts/dst-controller/hooks/controls-hook.lua) - Widget injection
+- [scripts/dst-controller/hooks/playercontroller-hook.lua](scripts/dst-controller/hooks/playercontroller-hook.lua) - Cursor movement updates
 
 **Purpose**: Provides mouse-like cursor control using gamepad right stick
 
@@ -369,6 +380,53 @@ Total hooks: Only 5!
 See [DST_MOUSE_BEHAVIOR_ANALYSIS.md](DST_MOUSE_BEHAVIOR_ANALYSIS.md) for deep dive into DST's mouse system and implementation details.
 
 ## Development Guidelines
+
+### Hook System Guidelines
+
+**IMPORTANT**: The hook system has been refactored to prevent duplicate hooks and ensure maintainability.
+
+**Rules**:
+1. **Each class/component is hooked exactly once** - All hooks for the same target go in one file
+2. **Use the hook registry** - All new hooks must be registered in `hooks/registry.lua`
+3. **Separate hook logic from feature logic** - Hooks should delegate to feature modules
+4. **Name files by target** - `{target}-hook.lua` (e.g., `playercontroller-hook.lua`)
+
+**Adding a new hook**:
+1. Create `hooks/{target}-hook.lua` with an `Install()` function
+2. Add it to `hooks/registry.lua` in the appropriate order
+3. If hooking an existing target, add the method to the existing hook file
+
+**Example**:
+```lua
+-- hooks/mycomponent-hook.lua
+local G = require("dst-controller/global")
+local MyFeature = require("dst-controller/features/myfeature")
+
+local MyComponentHook = {}
+
+function MyComponentHook.Install()
+    G.AddComponentPostInit("mycomponent", function(self)
+        local old_Method = self.Method
+
+        self.Method = function(self, ...)
+            -- Delegate to feature module
+            if MyFeature.HandleMethod(self, ...) then
+                return true
+            end
+            return old_Method(self, ...)
+        end
+    end)
+end
+
+return MyComponentHook
+```
+
+**Benefits**:
+- ✅ No duplicate hooks - each class hooked exactly once
+- ✅ Clear organization - one file per hook target
+- ✅ Easy to maintain - all hooks for a class in one place
+- ✅ Reduced coupling - features don't directly call each other
+- ✅ Single entry point - `HookRegistry.InstallAll()` in modmain.lua
 
 ### Adding New Actions
 

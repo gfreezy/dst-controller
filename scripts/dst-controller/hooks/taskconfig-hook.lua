@@ -11,13 +11,6 @@ local TaskConfigHook = {}
 -- 配置界面是否打开
 local config_screen_open = false
 
--- 手柄按钮状态跟踪
-local gamepad_buttons_pressed = {
-    LB = false,
-    RB = false,
-    Y = false,
-}
-
 -- 安装快捷键监听器
 function TaskConfigHook.Install()
     -- 监听全局按键事件（键盘）
@@ -58,24 +51,13 @@ end
 
 -- 处理手柄输入
 function TaskConfigHook.OnControl(control, down)
-    -- 更新按钮状态
-    if Helpers.IsControlNamedButton(control, "LB") then
-        gamepad_buttons_pressed.LB = down
-    elseif Helpers.IsControlNamedButton(control, "RB") then
-        gamepad_buttons_pressed.RB = down
-    elseif Helpers.IsControlNamedButton(control, "Y") then
-        gamepad_buttons_pressed.Y = down
-    end
-
     -- 检查 LB+RB+Y 组合（当 Y 按下时检查）
-    if down and Helpers.IsControlNamedButton(control, "Y") then
-        if gamepad_buttons_pressed.LB and gamepad_buttons_pressed.RB then
-            -- LB+RB+Y 同时按下，打开配置界面
-            if not config_screen_open then
-                print("[TaskConfigHook] Opening config screen via gamepad hotkey (LB+RB+Y)")
-                TaskConfigHook.OpenConfigScreen()
-                return true
-            end
+    if down and Helpers.IsControlNamedButton(control, "LB") and Helpers.IsControlNamedButton(control, "RB") and Helpers.IsControlNamedButton(control, "Y") then
+        -- LB+RB+Y 同时按下，打开配置界面
+        if not config_screen_open then
+            print("[TaskConfigHook] Opening config screen via gamepad hotkey (LB+RB+Y)")
+            TaskConfigHook.OpenConfigScreen()
+            return true
         end
     end
 

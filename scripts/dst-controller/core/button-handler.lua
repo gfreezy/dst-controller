@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
+local ConfigManager = require("dst-controller/utils/config_manager")
 
 local ButtonHandler = {}
 
@@ -75,13 +76,15 @@ end
 
 -- Handle button combination events
 -- Returns true if a combination was handled, false otherwise
-function ButtonHandler.HandleButtonCombination(player, control, down, tasks, execute_callback)
+function ButtonHandler.HandleButtonCombination(player, control, down, execute_callback)
     local guid = player.GUID
 
     -- Initialize if needed
     if not button_states[guid] then
         ButtonHandler.InitializePlayer(player)
     end
+
+    local tasks = ConfigManager.GetRuntimeTasks()
 
     -- Check if this is a modifier button (LB or RB)
     for modifier_name, face_buttons in pairs(BUTTON_COMBINATIONS) do

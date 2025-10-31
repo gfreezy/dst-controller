@@ -13,7 +13,9 @@ local BASE_CURSOR_SPEED = 400  -- Base pixels per second
 -- State
 local STATE = {
     cursor_mode_active = false,
-    cursor_position = nil,  -- Vector3 world position
+    ---@type Vector3|nil
+    cursor_position = nil,
+    ---@type {x: number, y: number}
     cursor_screen_pos = {x = 0, y = 0},  -- Screen coordinates
     button_states = {
         primary = false,  -- RT (left-click)
@@ -70,17 +72,6 @@ local function InstallTheSimHook()
             return function(self)
                 if STATE.cursor_mode_active then
                     local pos = STATE.cursor_screen_pos
-
-                    -- Debug: Log position occasionally (every 0.5 seconds)
-                    if not STATE._debug_last_print_time then
-                        STATE._debug_last_print_time = 0
-                    end
-                    local current_time = G.GetTime and G.GetTime() or 0
-                    if current_time - STATE._debug_last_print_time >= 0.5 then
-                        print(string.format("[VirtualCursor DEBUG] TheSim:GetPosition() called, returning (%.1f, %.1f)", pos.x, pos.y))
-                        STATE._debug_last_print_time = current_time
-                    end
-
                     return pos.x, pos.y
                 end
                 -- Call original
@@ -146,7 +137,8 @@ local function InitializeCursorPosition()
 end
 
 -- Toggle cursor mode on/off
-function VirtualCursor.ToggleCursorMode()
+-- @param force_state (optional) - true to force enable, false to force disable, nil to toggle
+function VirtualCursor.ToggleCursorMode(force_state)
     local config = GetConfig()
 
     if not config.enabled then
@@ -161,7 +153,20 @@ function VirtualCursor.ToggleCursorMode()
     end
     STATE.last_toggle_time = current_time
 
-    STATE.cursor_mode_active = not STATE.cursor_mode_active
+    -- Determine new state based on parameter
+    local new_state
+    if force_state ~= nil then
+        new_state = force_state  -- Use explicit state if provided
+    else
+        new_state = not STATE.cursor_mode_active  -- Toggle if not provided
+    end
+
+    -- No-op if already in desired state
+    if STATE.cursor_mode_active == new_state then
+        return
+    end
+
+    STATE.cursor_mode_active = new_state
 
     if STATE.cursor_mode_active then
         -- Entering cursor mode
@@ -250,8 +255,8 @@ function VirtualCursor.UpdateWorldPosition()
         STATE.cursor_screen_pos.y
     )
 
-    if x and y and z then
-        STATE.cursor_position = G.Vector3(x, y, z)
+    if not (x and y) then
+        STATE.cursor_screen_pos = {x = 400, y = 300}
     end
 
     -- Update widget position
@@ -260,35 +265,6 @@ function VirtualCursor.UpdateWorldPosition()
     end
 end
 
--- Update screen position from world position (used during initialization)
-function VirtualCursor.UpdateScreenPosition()
-    if not STATE.cursor_position then
-        return
-    end
-
-    local screen_x, screen_y = G.TheSim:WorldPosToScreenPos(
-        STATE.cursor_position.x,
-        STATE.cursor_position.y or 0,
-        STATE.cursor_position.z
-    )
-
-    if screen_x and screen_y then
-        STATE.cursor_screen_pos.x = screen_x
-        STATE.cursor_screen_pos.y = screen_y
-
-        -- Update widget position
-        if STATE.cursor_widget then
-            STATE.cursor_widget:SetPosition(screen_x, screen_y)
-        end
-    end
-end
-
--- Note: GetEntitiesAtCursor and GetEntityAtCursor are NO LONGER NEEDED!
--- DST's Input:OnUpdate() automatically handles entity detection via:
---   TheSim:GetEntitiesAtScreenPoint(TheSim:GetPosition())
--- Since we hook TheSim:GetPosition(), it uses our virtual cursor position.
--- DST also handles client_forward_target and CanMouseThrough automatically.
--- Result: TheInput.hoverinst always points to the correct entity under virtual cursor!
 
 -- Simulate mouse button press/release
 -- This directly calls DST's controller methods, which will use our hooked Input methods
@@ -314,22 +290,6 @@ function VirtualCursor.SimulateMouseButton(button, down)
     elseif button == G.CONTROL_SECONDARY then
         controller:OnRightClick(down)
     end
-end
-
--- Check if currently dragging (reads DST's internal state)
--- DST handles drag detection in playercontroller:OnUpdate
-function VirtualCursor.IsDragging()
-    if not STATE.cursor_mode_active or not G.ThePlayer then
-        return false
-    end
-
-    local controller = G.ThePlayer.components.playercontroller
-    if not controller then
-        return false
-    end
-
-    -- Read DST's drag state directly
-    return controller.draggingonground or false
 end
 
 -- Check if combination keys are pressed
@@ -383,5 +343,90 @@ end
 function VirtualCursor.GetConfig()
     return GetConfig()
 end
+
+-- ============================================================================
+-- Control Input Handling
+-- ============================================================================
+
+-- Handle virtual cursor control inputs
+-- This is called from playercontroller:OnControl hook
+-- @param control - The control input
+-- @param down - Whether the control is pressed (true) or released (false)
+-- @return true if input was handled, false otherwise
+function VirtualCursor.OnControl(control, down)
+    -- Check for toggle combo (LB + RB + RT by default)
+    -- Need to use raw input check because when cursor is active, ControllerAttached() returns false
+    -- which might interfere with button detection
+    local combo_config = GetConfig().toggle_combo or {"LB", "RB", "RT"}
+    local combo_pressed = Helpers.IsComboButtonPressed(combo_config)
+
+    if combo_pressed and down then
+        -- Combo pressed, toggle cursor mode (no parameter = toggle behavior)
+        VirtualCursor.ToggleCursorMode()
+        return true  -- Intercept
+    end
+
+    -- If cursor mode is active, handle cursor controls
+    if STATE.cursor_mode_active then
+        -- Check if LB is pressed
+        local lb_pressed = Helpers.IsButtonPressed("LB")
+
+        -- Handle left-click button
+        local left_click_control_name = VirtualCursor.GetClickButtonName("left")
+        if Helpers.IsControlNamedButton(control, left_click_control_name) then
+            if down then
+                VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, true)
+            else
+                VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, false)
+            end
+            return true  -- Intercept
+        end
+
+        -- Handle right-click button
+        local right_click_control_name = VirtualCursor.GetClickButtonName("right")
+        if Helpers.IsControlNamedButton(control, right_click_control_name) then
+            if down then
+                VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, true)
+            else
+                VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, false)
+            end
+            return true  -- Intercept
+        end
+
+        -- If LB is pressed, don't intercept right stick (allow camera control)
+        if lb_pressed then
+            -- Let camera control work normally
+            return false
+        end
+    end
+
+    return false
+end
+
+function VirtualCursor.OnUpdate(self, dt)
+    -- If cursor mode is active, update cursor position from right stick
+    if not STATE.cursor_mode_active then
+        return false
+    end
+
+    -- Check if LB is pressed
+    local lb_pressed = Helpers.IsButtonPressed("LB")
+
+    -- Only move cursor if LB is NOT pressed
+    if not lb_pressed then
+        -- Read right stick input
+        local stick_x = G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_RIGHT)
+                        - G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_LEFT)
+        local stick_y = G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_UP)
+                        - G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_DOWN)
+
+        -- Update cursor position
+        VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
+        return true
+    end
+
+    return false
+end
+
 
 return VirtualCursor

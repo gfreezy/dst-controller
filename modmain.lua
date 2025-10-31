@@ -15,11 +15,7 @@ G.Init(GLOBAL, env)
 
 local Helpers = require("dst-controller/utils/helpers")
 local ConfigManager = require("dst-controller/utils/config_manager")
-local HudHook = require("dst-controller/hooks/hud-hook")
-local ControllerHook = require("dst-controller/hooks/controller-hook")
-local InventorybarHook = require("dst-controller/hooks/inventorybar-hook")
-local TaskConfigHook = require("dst-controller/hooks/taskconfig-hook")
-local VirtualCursorHook = require("dst-controller/hooks/virtual-cursor-hook")
+local HookRegistry = require("dst-controller/hooks/registry")
 
 -- ============================================================================
 -- Load Saved Configuration
@@ -39,19 +35,7 @@ end)
 -- Install Hooks
 -- ============================================================================
 
--- Install HUD hook (blocks default actions when modifiers are pressed)
-HudHook.Install()
-
--- Install controller hook (handles button combinations)
-ControllerHook.Install()
-
--- Install inventorybar hook (customizes inventory behavior)
-InventorybarHook.Install()
-
--- Install task config hook (hotkey to open config screen)
-TaskConfigHook.Install()
-
--- Install virtual cursor hook (gamepad cursor emulation)
-VirtualCursorHook.Install()
+-- Install all hooks via registry (ensures each class is hooked only once)
+HookRegistry.InstallAll()
 
 Helpers.DebugPrint("Enhanced Controller mod loaded successfully")

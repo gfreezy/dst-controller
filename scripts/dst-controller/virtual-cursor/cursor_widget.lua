@@ -43,12 +43,4 @@ function CursorWidget:SetPosition(x, y)
     Widget.SetPosition(self, x, y, 0)
 end
 
-function CursorWidget:UpdateDragState(is_dragging)
-    if is_dragging then
-        self:SetDragColor()
-    else
-        self:SetNormalColor()
-    end
-end
-
 return CursorWidget
