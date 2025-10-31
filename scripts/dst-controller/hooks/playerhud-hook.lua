@@ -34,14 +34,6 @@ local function InstallOnControl(self)
             return true
         end
 
-        -- If LB or RB is pressed (and virtual cursor not active), block default actions, pass through other controls
-        if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then
-            local button_name = Helpers.ControlToButtonName(control)
-            print("[PlayerHudHook] Control to button name:", button_name)
-
-            return true
-        end
-
         -- When virtual cursor is active, block default actions for LT/RT, pass through other controls
         if VirtualCursor.IsCursorModeActive() and (Helpers.IsButtonPressed("LT") or Helpers.IsButtonPressed("RT")) then
             return false

@@ -47,6 +47,13 @@ function InputSystemHook.Install()
         return original_input_methods.IsControlPressed(self, control)
     end
 
+    -- Hook GetActiveControlScheme to always return scheme 2
+    -- Scheme 2: R.Stick for camera (with modifier), R.Stick for inventory, twin-stick aiming
+    original_input_methods.GetActiveControlScheme = G.TheInput.GetActiveControlScheme
+    G.TheInput.GetActiveControlScheme = function()
+        return 2  -- Force scheme 2 for all control schemes
+    end
+
     -- Hook ControllerAttached to return false when virtual cursor is active
     -- This is THE KEY to switching to mouse mode!
     -- When ControllerAttached() returns false, the entire game switches to mouse/keyboard mode

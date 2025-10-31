@@ -12,6 +12,7 @@ local RUNTIME_TASKS = nil
 local RUNTIME_SETTINGS = nil
 
 -- 加载TASKS配置
+---@return table tasks
 function ConfigManager.LoadTasks()
     if RUNTIME_TASKS then
         return RUNTIME_TASKS
@@ -280,10 +281,12 @@ function ConfigManager.DeleteSavedConfig(callback)
 end
 
 -- 获取当前运行时的TASKS配置
+---@return table tasks
 function ConfigManager.GetRuntimeTasks()
     if not RUNTIME_TASKS then
         ConfigManager.LoadTasks()
     end
+    ---@type table
     return RUNTIME_TASKS
 end
 
