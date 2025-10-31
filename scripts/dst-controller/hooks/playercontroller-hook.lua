@@ -26,6 +26,10 @@ local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(self, control, down)
+
+        local button_name = Helpers.ControlToButtonName(control)
+        print("[PlayerControllerHook] Control to button name:", button_name)
+
         -- Block further actions for LB/RB when virtual cursor is not active, end event propagation
         if not VirtualCursor.IsCursorModeActive() then
             if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then

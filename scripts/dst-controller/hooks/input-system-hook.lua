@@ -13,6 +13,21 @@ local original_input_methods = {}
 
 -- Install TheInput hooks
 function InputSystemHook.Install()
+    -- Hook Input:OnUpdate to ensure mouse_enabled stays true when cursor is active
+    -- This is critical because DST only checks hover when mouse_enabled is true
+    original_input_methods.OnUpdate = G.TheInput.OnUpdate
+    G.TheInput.OnUpdate = function(self)
+        -- If virtual cursor is active, force enable mouse before hover detection
+        if VirtualCursor.IsCursorModeActive() then
+            if not self.mouse_enabled then
+                self.mouse_enabled = true
+                Helpers.DebugPrint("[VirtualCursor] Force enabled mouse_enabled in OnUpdate")
+            end
+        end
+
+        -- Call original OnUpdate (will do hover detection with mouse_enabled=true)
+        return original_input_methods.OnUpdate(self)
+    end
     -- Hook IsControlPressed to return button state for virtual cursor
     -- This is critical for drag detection (DST checks if CONTROL_PRIMARY is held)
     original_input_methods.IsControlPressed = G.TheInput.IsControlPressed

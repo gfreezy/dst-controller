@@ -174,6 +174,7 @@ function VirtualCursor.ToggleCursorMode(force_state)
         InitializeCursorPosition()
 
         -- Enable mouse mode in Input system (critical for hover detection!)
+        -- Note: We also hook Input:OnUpdate to force mouse_enabled=true every frame
         if G.TheInput and G.TheInput.EnableMouse then
             G.TheInput:EnableMouse(true)
         end

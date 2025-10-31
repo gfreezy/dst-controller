@@ -26,6 +26,18 @@ function Helpers.IsButtonPressed(button_name)
     return false
 end
 
+---@param control number CONTROL constant
+---@return ButtonName|nil button name if found, nil otherwise
+function Helpers.ControlToButtonName(control)
+    for button_name, controls in pairs(G.BUTTON_MAPPINGS) do
+        for _, mapped_control in ipairs(controls) do
+            if control == mapped_control then
+                return button_name
+            end
+        end
+    end
+end
+
 ---@param button_names ButtonName[] List of button names (e.g., {"LB", "RB", "RT"})
 ---@return boolean true if all buttons are pressed
 function Helpers.IsComboButtonPressed(button_names)
