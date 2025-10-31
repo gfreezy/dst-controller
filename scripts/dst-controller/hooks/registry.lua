@@ -33,9 +33,6 @@ function HookRegistry.InstallAll()
     -- 5. Controls Widget (cursor widget injection)
     require("dst-controller/hooks/controls-hook").Install()
 
-    -- 6. Task Config Hotkey (keyboard handler for Ctrl+K)
-    require("dst-controller/hooks/taskconfig-hook").Install()
-
     print("[HookRegistry] All hooks installed successfully")
 end
 

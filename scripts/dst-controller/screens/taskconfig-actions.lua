@@ -2,7 +2,7 @@
 -- 监听快捷键打开配置界面
 
 local G = require("dst-controller/global")
-local TaskConfigScreen = require("dst-controller/screens/taskconfig_screen")
+local TaskConfigScreen = require("dst-controller.screens.taskconfig-screen")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local Helpers = require("dst-controller/utils/helpers")
 
@@ -11,43 +11,6 @@ local TaskConfigHook = {}
 -- 配置界面是否打开
 local config_screen_open = false
 
--- 安装快捷键监听器
-function TaskConfigHook.Install()
-    -- 监听全局按键事件（键盘）
-    print("[TaskConfigHook] Installing keyboard handler...")
-    local handler_installed = G.TheInput:AddKeyHandler(function(key, down)
-        if down then  -- 只处理按下事件，忽略释放事件
-            print(string.format("[TaskConfigHook] Key pressed: %d", key))
-            TaskConfigHook.OnKeyDown(key)
-        end
-    end)
-    print("[TaskConfigHook] Keyboard handler installed:", handler_installed ~= nil)
-
-    print("[TaskConfigHook] Task config hotkey installed")
-    print("[TaskConfigHook]   Keyboard: Ctrl+K")
-    print("[TaskConfigHook]   Gamepad: LB+RB+Y (同时按下)")
-end
-
--- 处理键盘按键按下事件
-function TaskConfigHook.OnKeyDown(key)
-    -- Ctrl+K 打开配置界面
-    -- KEY_K = 107, KEY_CTRL = 401
-    local ctrl_down = G.TheInput:IsKeyDown(401)
-    print(string.format("[TaskConfigHook] OnKeyDown - key=%d, K=%s, Ctrl=%s",
-        key,
-        tostring(key == 107),
-        tostring(ctrl_down)))
-
-    if key == 107 and ctrl_down then  -- 107 = K, 401 = CTRL
-        print("[TaskConfigHook] Ctrl+K detected! config_screen_open:", config_screen_open)
-        if not config_screen_open then
-            print("[TaskConfigHook] Opening config screen...")
-            TaskConfigHook.OpenConfigScreen()
-        else
-            print("[TaskConfigHook] Config screen already open, ignoring")
-        end
-    end
-end
 
 -- 处理手柄输入
 function TaskConfigHook.OnControl(control, down)

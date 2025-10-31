@@ -9,7 +9,6 @@ local ActionExecutor = require("dst-controller/core/action-executor")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local ACTIONS = require("dst-controller/actions/init")
 local TargetSelection = require("dst-controller/target-selection/core")
-local TaskConfigHook = require("dst-controller/hooks/taskconfig-hook")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 
 local PlayerControllerHook = {}
@@ -32,11 +31,6 @@ local function InstallOnControl(self)
             if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then
                 return true
             end
-        end
-
-        -- Check task config screen shortcut (LB+RB+Y)
-        if TaskConfigHook.OnControl(control, down) then
-            return true
         end
 
         -- Check virtual cursor controls (toggle combo and cursor buttons)

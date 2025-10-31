@@ -4,6 +4,7 @@
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
+local TaskConfigHook = require("dst-controller.screens.taskconfig-actions")
 
 local PlayerHudHook = {}
 
@@ -28,6 +29,11 @@ local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(hud_self, control, down)
+        -- Check task config screen shortcut (LB+RB+Y)
+        if TaskConfigHook.OnControl(control, down) then
+            return true
+        end
+
         -- If LB or RB is pressed (and virtual cursor not active), block default actions, pass through other controls
         if Helpers.IsButtonPressed("LB") or Helpers.IsButtonPressed("RB") then
             return false
