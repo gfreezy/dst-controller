@@ -30,6 +30,9 @@ function HookRegistry.InstallAll()
     -- 4. InventoryBar Widget (inventory behavior customization)
     require("dst-controller/hooks/inventorybar-hook").Install()
 
+    -- 5. CraftingMenu Widget (hide bottom layer and block RSTICK)
+    require("dst-controller/hooks/craftingmenu-hook").Install()
+
     -- 6. Controls Widget (cursor widget injection)
     require("dst-controller/hooks/controls-hook").Install()
 
