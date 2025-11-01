@@ -27,19 +27,11 @@ local function InstallOnControl(self)
 
     self.OnControl = function(self, control, down)
 
-        local button_name = Helpers.ControlToButtonName(control)
-        print("[PlayerControllerHook] Control to button name:", button_name)
-
         -- Block further actions for LB/RB when virtual cursor is not active, end event propagation
         if not VirtualCursor.IsCursorModeActive() then
             if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then
                 return true
             end
-        end
-
-        -- Check virtual cursor controls (toggle combo and cursor buttons)
-        if VirtualCursor.OnControl(control, down) then
-            return true
         end
 
         -- Try to handle as button combination

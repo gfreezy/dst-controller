@@ -13,23 +13,6 @@ local original_input_methods = {}
 
 -- Install TheInput hooks
 function InputSystemHook.Install()
-    -- Hook Input:OnUpdate to ensure mouse_enabled stays true when cursor is active
-    -- This is critical because DST only checks hover when mouse_enabled is true
-    original_input_methods.OnUpdate = G.TheInput.OnUpdate
-    G.TheInput.OnUpdate = function(self)
-        -- If virtual cursor is active, force enable mouse before hover detection
-        if VirtualCursor.IsCursorModeActive() then
-            if not self.mouse_enabled then
-                self.mouse_enabled = true
-                Helpers.DebugPrint("[VirtualCursor] Force enabled mouse_enabled in OnUpdate")
-            end
-        end
-
-        -- Call original OnUpdate (will do hover detection with mouse_enabled=true)
-        return original_input_methods.OnUpdate(self)
-    end
-    -- Hook IsControlPressed to return button state for virtual cursor
-    -- This is critical for drag detection (DST checks if CONTROL_PRIMARY is held)
     original_input_methods.IsControlPressed = G.TheInput.IsControlPressed
     G.TheInput.IsControlPressed = function(self, control)
         if VirtualCursor.IsCursorModeActive() then
@@ -37,10 +20,12 @@ function InputSystemHook.Install()
             if control == G.CONTROL_PRIMARY then
                 ---@type {primary: boolean, secondary: boolean}
                 local button_states = VirtualCursor.GetButtonStates()
+                -- print("[InputSystemHook] IsControlPressed", control, "primary", button_states.primary)
                 return button_states.primary
             elseif control == G.CONTROL_SECONDARY then
                 ---@type {primary: boolean, secondary: boolean}
                 local button_states = VirtualCursor.GetButtonStates()
+                -- print("[InputSystemHook] IsControlPressed", control, "secondary", button_states.secondary)
                 return button_states.secondary
             end
         end
@@ -76,18 +61,21 @@ function InputSystemHook.Install()
         return original_input_methods.ControllerAttached(self)
     end
 
-    -- Hook ClearCachedController to auto-close virtual cursor when pause menu opens
-    -- When pause menu or other screens call ClearCachedController(), they want to switch to mouse mode
-    -- We should close virtual cursor to avoid conflicts
-    original_input_methods.ClearCachedController = G.TheInput.ClearCachedController
-    G.TheInput.ClearCachedController = function(self)
-        -- If virtual cursor is active, close it first
+    original_input_methods.OnMouseMove = G.TheInput.OnMouseMove
+    G.TheInput.OnMouseMove = function(self, p, q, from_touch)
         if VirtualCursor.IsCursorModeActive() then
-            Helpers.DebugPrint("Auto-closing virtual cursor (pause menu opened)")
-            VirtualCursor.ToggleCursorMode(false)  -- Force close cursor mode
+            VirtualCursor.SetCursorPosition(p, q)
+            -- print("[InputSystemHook] OnMouseMove", p, q)
         end
-        -- Call original method
-        return original_input_methods.ClearCachedController(self)
+        return original_input_methods.OnMouseMove(self, p, q, from_touch)
+    end
+
+    original_input_methods.OnPosition = G.TheInput.OnPosition
+    G.TheInput.OnPosition = function(self, p, q)
+        if VirtualCursor.IsCursorModeActive() then
+            VirtualCursor.SetCursorPosition(p, q)
+        end
+        return original_input_methods.OnPosition(self, p, q)
     end
 end
 

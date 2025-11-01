@@ -34,8 +34,8 @@ local function GetConfig()
     return {
         enabled = config.enabled ~= false,  -- Default true
         toggle_combo = config.toggle_combo or {"LB", "RB", "RT"},
-        left_click_key = config.left_click_key or "LT",
-        right_click_key = config.right_click_key or "RT",
+        left_click_key = "LT",
+        right_click_key = "RT",
         cursor_speed = math.max(0.1, math.min(3.0, config.cursor_speed or 1.0)),  -- Clamp 0.1-3.0
         dead_zone = math.max(0.0, math.min(0.5, config.dead_zone or 0.1)),  -- Clamp 0.0-0.5
         show_cursor = config.show_cursor ~= false,  -- Default true

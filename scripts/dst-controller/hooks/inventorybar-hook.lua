@@ -7,6 +7,7 @@
 --   2. Override OnControl to allow movement controls to pass through
 
 local G = require("dst-controller/global")
+local InventoryBarHook = require("dst-controller/inventory/core")
 
 local InventorybarHook = {}
 
@@ -32,6 +33,10 @@ function InventorybarHook.Install()
                 self:SetFocus()
                 G.TheFrontEnd:LockFocus(true)
             end
+        end
+
+        self.OnUpdate = function(self, dt)
+            InventoryBarHook.OnUpdate(self, dt)
         end
     end)
 end

@@ -756,10 +756,6 @@ function ActionDetailScreen:RefreshActionsList()
             self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, self.scroll_list)
         end
 
-        -- ScrollableList 向上到 Tabs，向下到底部按钮
-        self.scroll_list:SetFocusChangeDir(G.MOVE_UP, self.tabs)
-        self.scroll_list:SetFocusChangeDir(G.MOVE_DOWN, self.add_action_button)
-
         -- 底部按钮向上到 ScrollableList
         self.add_action_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
         self.save_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)

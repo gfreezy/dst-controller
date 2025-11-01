@@ -1,6 +1,51 @@
 # DST Event Distribution System
 
-This document provides a comprehensive analysis of Don't Starve Together's event distribution and input handling system.
+This document provides a comprehensive analysis of Don't Starve Together's event distribution and input handling system, with focus on the UI event distribution problem for virtual cursor implementation.
+
+## Virtual Cursor Mouse Event Integration (2024-11-01)
+
+The virtual cursor system now properly triggers mouse events to ensure correct UI focus handling:
+
+### Key Changes
+
+1. **OnMouseMove Integration**
+   - Calls `TheInput:OnMouseMove(x, y)` whenever cursor position changes
+   - Triggers on initial activation to set up focus state
+   - Ensures `TheFrontEnd.tracking_mouse = true` for proper focus updates
+   - Critical for automatic UI widget focus based on cursor position
+
+2. **OnMouseButton Integration**
+   - Calls `TheFrontEnd:OnMouseButton()` for UI widget handling first
+   - Only processes game world actions if UI doesn't handle the event
+   - Properly delegates through the screen/widget hierarchy
+   - Respects return values to prevent double-processing
+
+3. **Focus Chain Updates**
+   - UI widgets now properly gain/lose focus when cursor hovers
+   - Button highlights and hover effects work correctly
+   - Click events properly routed to focused widgets
+   - Works with DST's native focus system via `DoHoverFocusUpdate()`
+
+### Implementation Details
+
+```lua
+-- In UpdateCursorPosition():
+if position_changed then
+    TheInput:OnMouseMove(x, y)  -- Triggers focus updates
+end
+
+-- In SimulateMouseButton():
+local handled = TheFrontEnd:OnMouseButton(button, down, x, y)
+if not handled then
+    controller:OnLeftClick(down)  -- Game world actions
+end
+
+-- On activation:
+VirtualCursor.ToggleCursorMode(true)
+TheInput:OnMouseMove(x, y)  -- Initialize focus state
+```
+
+This ensures the virtual cursor behaves identically to a real mouse for UI interactions.
 
 ## Table of Contents
 
@@ -8,6 +53,7 @@ This document provides a comprehensive analysis of Don't Starve Together's event
 2. [Event Flow](#event-flow)
 3. [Return Value Semantics](#return-value-semantics)
 4. [Dual Input Architecture](#dual-input-architecture)
+5. [Virtual Cursor UI Click Problem](#virtual-cursor-ui-click-problem)
 5. [Joystick Dual Nature](#joystick-dual-nature)
 6. [Input System Independence](#input-system-independence)
 7. [Focus System](#focus-system)
@@ -1286,6 +1332,163 @@ Different code paths are activated:
 - `TheInput:ControllerAttached()` → gamepad-specific logic
 - `tracking_mouse` flag → auto-adaptation behavior
 - HUD blocking mode → only active in gamepad mode for some UIs
+
+---
+
+## Virtual Cursor UI Click Problem
+
+### The Core Issue
+
+Virtual cursor clicks on UI elements (inventory, crafting menu) don't work because of the **focus requirement** in DST's widget system:
+
+```lua
+-- From widgets/widget.lua:56-62
+function Widget:OnMouseButton(button, down, x, y)
+    if not self.focus then return false end  -- ← THE PROBLEM!
+
+    for k,v in pairs(self.children) do
+        if v.focus and v:OnMouseButton(button, down, x, y) then return true end
+    end
+end
+```
+
+**Key insight**: Even when we perfectly emulate mouse mode (`TheInput:ControllerAttached() == false`), widgets still require focus to respond to OnMouseButton.
+
+### Why Real Mouse Works
+
+Real mouse has special handling that grants focus automatically:
+
+1. **Hover Detection**: Mouse movement updates `TheInput.hoverinst`
+2. **Auto-Focus on Hover**: Some widgets grant themselves focus when hovered
+3. **Click-to-Focus**: Clicking a widget grants it focus (but this requires OnMouseButton to work first - catch-22!)
+
+### The Widget Focus Paradox
+
+For virtual cursor:
+1. Widget needs focus to receive OnMouseButton
+2. Widget gets focus by being clicked (OnMouseButton)
+3. But OnMouseButton requires focus → **Deadlock!**
+
+### Event Distribution Flow
+
+```
+Virtual Cursor Click (RT button)
+    ↓
+Input:OnControl(RT, true)
+    ↓
+[Our Hook] Convert RT → CONTROL_PRIMARY
+    ↓
+[Our Hook] Force mouse_enabled = true  ← Critical!
+    ↓
+[Our Hook] Call Input:OnMouseButton(0, true, x, y)
+    ↓
+Input:OnMouseButton checks mouse_enabled ✓
+    ↓
+TheFrontEnd:OnMouseButton(0, true, x, y)
+    ↓
+Screen:OnMouseButton (actually Widget:OnMouseButton)
+    ↓
+if not self.focus then return false ← FAILS HERE!
+```
+
+### Solution Attempts
+
+#### Attempt 1: Force mouse_enabled
+**Status**: ✓ Implemented
+```lua
+-- In input-system-hook.lua
+if not self.mouse_enabled then
+    self.mouse_enabled = true
+end
+```
+**Result**: OnMouseButton is called but widgets still don't have focus
+
+#### Attempt 2: Trigger both OnMouseButton and OnControl
+**Status**: ✓ Implemented
+```lua
+-- Trigger OnMouseButton for mouse-style widgets
+self:OnMouseButton(mouse_button, digitalvalue, cursor_pos.x, cursor_pos.y)
+-- Also trigger OnControl with CONTROL_PRIMARY
+control = converted_control
+```
+**Result**: Both events fired but widgets still need focus
+
+#### Attempt 3: Clear inventory focus on cursor activation
+**Status**: ✓ Implemented
+```lua
+-- In virtual-cursor/core.lua
+if inventorybar then
+    inventorybar:CloseControllerInventory()
+    inventorybar:UpdateCursor()  -- Switch to mouse mode
+    inventorybar:ClearFocus()
+end
+```
+**Result**: Inventory switches to mouse mode but slots still don't have focus
+
+### The Missing Piece: Focus Management
+
+What we need is one of:
+
+1. **Grant focus on hover** - When cursor moves over widget, grant it focus
+2. **Bypass focus check** - Hook Widget:OnMouseButton to skip focus check in virtual cursor mode
+3. **Use HUD entity system** - Widgets may have parallel entity-based click handling
+4. **Direct widget invocation** - Find widget under cursor and call its methods directly
+
+### Investigation: How Does Real Mouse Grant Focus?
+
+Looking at the code, there's no automatic focus granting in the base Widget class. This suggests:
+
+1. **Individual widgets** may implement hover → focus
+2. **HUD entity system** may handle clicks differently
+3. **Special mouse-only code path** we haven't found yet
+
+### Current Working Theory
+
+The fact that **"real mouse clicks at virtual cursor position work"** (user's key observation) tells us:
+- Position hook (`TheSim:GetPosition()`) is correct ✓
+- The problem is purely about widget focus state
+- Real mouse has a mechanism to grant/bypass focus that we're missing
+
+### Next Investigation Steps
+
+1. **Check if inventory slots override OnMouseButton**
+   ```lua
+   -- Look for InvSlot:OnMouseButton or similar
+   ```
+
+2. **Find hover → focus mechanism**
+   ```lua
+   -- Look for OnGainFocus calls triggered by mouse movement
+   ```
+
+3. **Consider hooking Widget:OnMouseButton**
+   ```lua
+   -- Bypass focus check when virtual cursor is active
+   local old_OnMouseButton = Widget.OnMouseButton
+   Widget.OnMouseButton = function(self, button, down, x, y)
+       if VirtualCursor.IsCursorModeActive() then
+           -- Skip focus check, process anyway
+           for k,v in pairs(self.children) do
+               if v:OnMouseButton(button, down, x, y) then return true end
+           end
+       end
+       return old_OnMouseButton(self, button, down, x, y)
+   end
+   ```
+
+4. **Use GetHUDEntityUnderMouse system**
+   ```lua
+   -- This returns entities at cursor position
+   -- May have different click handling than widgets
+   ```
+
+### Key Insight from Code Analysis
+
+The dual system architecture:
+- **Widget System**: Focus-based, used by both mouse and controller
+- **Entity System**: Position-based, possibly mouse-specific
+
+The `GetHUDEntityUnderMouse()` function in playercontroller.lua suggests UI elements create entities that can be clicked without widget focus.
 
 ---
 

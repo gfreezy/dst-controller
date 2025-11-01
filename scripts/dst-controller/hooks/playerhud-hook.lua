@@ -34,8 +34,18 @@ local function InstallOnControl(self)
             return true
         end
 
-        -- When virtual cursor is active, block default actions for LT/RT, pass through other controls
-        if VirtualCursor.IsCursorModeActive() and (Helpers.IsButtonPressed("LT") or Helpers.IsButtonPressed("RT")) then
+        if VirtualCursor.OnControl(control, down) then
+            return true
+        end
+
+        -- IsCursorModeActive 模式下，LT/RT down，触发 CONTROL_PRIMARY/CONTROL_SECONDARY down。
+        -- 时序：
+        -- 1. LT/RT down
+        -- 2. CONTROL_PRIMARY/CONTROL_SECONDARY down
+        -- 3. CONTROL_PRIMARY/CONTROL_SECONDARY up
+        -- 4. LT/RT up
+        -- 我们这里忽略 LT/RT 的 down 和 up 事件
+        if VirtualCursor.IsCursorModeActive() and (Helpers.IsControlNamedButton(control, "LT") or Helpers.IsControlNamedButton(control, "RT")) then
             return false
         end
 

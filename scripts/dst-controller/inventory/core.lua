@@ -1,4 +1,5 @@
 local G = require("dst-controller/global")
+local VirtualCursor = require("dst-controller/virtual-cursor/core")
 
 -- Original Inv:OnControl implementation from scripts-raw/widgets/inventorybar.lua
 -- Lines 778-865
@@ -58,7 +59,7 @@ function InventoryBarHook.OnUpdate(self, dt)
 
     self:UpdateCursor()
 
-    if self.shown then
+    if self.shown and not VirtualCursor.IsCursorModeActive() then
         --this is intentionally unaware of focus
         if self.repeat_time <= 0 then
             self.reps = self.reps and (self.reps + 1) or 1
