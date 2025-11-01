@@ -27,6 +27,12 @@ function InputSystemHook.Install()
                 local button_states = VirtualCursor.GetButtonStates()
                 -- print("[InputSystemHook] IsControlPressed", control, "secondary", button_states.secondary)
                 return button_states.secondary
+            elseif control == G.VIRTUAL_CONTROL_INV_UP or
+                control == G.VIRTUAL_CONTROL_INV_DOWN or
+                control == G.VIRTUAL_CONTROL_INV_LEFT or
+                control == G.VIRTUAL_CONTROL_INV_RIGHT then
+                -- Return false to prevent right analog stick from triggering focus navigation in inventory and crafting menus
+                return false
             end
         end
         return original_input_methods.IsControlPressed(self, control)
@@ -36,7 +42,7 @@ function InputSystemHook.Install()
     -- Scheme 2: R.Stick for camera (with modifier), R.Stick for inventory, twin-stick aiming
     original_input_methods.GetActiveControlScheme = G.TheInput.GetActiveControlScheme
     G.TheInput.GetActiveControlScheme = function()
-        return 2  -- Force scheme 2 for all control schemes
+        return 2 -- Force scheme 2 for all control schemes
     end
 
     -- Hook GetControllerID to return 0 (keyboard/mouse) when virtual cursor is active
@@ -45,7 +51,7 @@ function InputSystemHook.Install()
     original_input_methods.GetControllerID = G.TheInput.GetControllerID
     G.TheInput.GetControllerID = function(self)
         if VirtualCursor.IsCursorModeActive() then
-            return 0  -- Return keyboard/mouse device ID
+            return 0 -- Return keyboard/mouse device ID
         end
         return original_input_methods.GetControllerID(self)
     end
@@ -56,7 +62,7 @@ function InputSystemHook.Install()
     original_input_methods.ControllerAttached = G.TheInput.ControllerAttached
     G.TheInput.ControllerAttached = function(self)
         if VirtualCursor.IsCursorModeActive() then
-            return false  -- Pretend no controller is attached → mouse mode
+            return false -- Pretend no controller is attached → mouse mode
         end
         return original_input_methods.ControllerAttached(self)
     end

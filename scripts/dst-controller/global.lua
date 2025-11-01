@@ -56,10 +56,10 @@
 ---@field CONTROL_INSPECT number
 ---@field CONTROL_MAP_ZOOM_IN number
 ---@field CONTROL_OPEN_CRAFTING number
----@field CONTROL_MENU_L2 number
+---@field CONTROL_MENU_L2 number LT button (left-click)
 ---@field CONTROL_OPEN_INVENTORY number
 ---@field CONTROL_MAP_ZOOM_OUT number
----@field CONTROL_MENU_R2 number
+---@field CONTROL_MENU_R2 number RT button (right-click)
 ---@field CONTROL_MOVE_UP number
 ---@field CONTROL_MOVE_DOWN number
 ---@field CONTROL_MOVE_LEFT number
@@ -84,6 +84,11 @@
 ---@field MOVE_DOWN number Focus direction: down
 ---@field MOVE_LEFT number Focus direction: left
 ---@field MOVE_RIGHT number Focus direction: right
+---@field VIRTUAL_CONTROL_START number Virtual control range start (10000)
+---@field VIRTUAL_CONTROL_CAMERA_ZOOM_IN number Virtual control for camera zoom in
+---@field VIRTUAL_CONTROL_CAMERA_ZOOM_OUT number Virtual control for camera zoom out
+---@field VIRTUAL_CONTROL_CAMERA_ROTATE_LEFT number Virtual control for camera rotate left
+---@field VIRTUAL_CONTROL_CAMERA_ROTATE_RIGHT number Virtual control for camera rotate right
 ---@field VIRTUAL_CONTROL_INV_LEFT number Virtual control for inventory navigation left
 ---@field VIRTUAL_CONTROL_INV_RIGHT number Virtual control for inventory navigation right
 ---@field VIRTUAL_CONTROL_INV_UP number Virtual control for inventory navigation up
@@ -92,6 +97,8 @@
 ---@field VIRTUAL_CONTROL_INV_ACTION_DOWN number Virtual control for inventory action down
 ---@field VIRTUAL_CONTROL_INV_ACTION_LEFT number Virtual control for inventory action left
 ---@field VIRTUAL_CONTROL_INV_ACTION_RIGHT number Virtual control for inventory action right
+---@field CONTROL_NEXTVALUE number Next value (right stick right)
+---@field CONTROL_PREVVALUE number Previous value (right stick left)
 ---
 --- Math/Utility Types (from GLOBAL)
 ---@field Vector3 table Vector3 constructor
@@ -153,6 +160,10 @@ function G.Init(global_arg, env_arg)
         Y = { G.CONTROL_MENU_MISC_2, G.CONTROL_INSPECT },
         LT = { G.CONTROL_OPEN_CRAFTING, G.CONTROL_MAP_ZOOM_IN, G.CONTROL_MENU_L2 },
         RT = { G.CONTROL_OPEN_INVENTORY, G.CONTROL_MAP_ZOOM_OUT, G.CONTROL_MENU_R2 },
+        RSTICK_RIGHT = { G.CONTROL_PRESET_RSTICK_RIGHT, G.CONTROL_INVENTORY_RIGHT, G.CONTROL_NEXTVALUE },
+        RSTICK_LEFT = { G.CONTROL_PRESET_RSTICK_LEFT, G.CONTROL_INVENTORY_LEFT, G.CONTROL_PREVVALUE },
+        RSTICK_UP = { G.CONTROL_PRESET_RSTICK_UP, G.CONTROL_INVENTORY_UP },
+        RSTICK_DOWN = { G.CONTROL_PRESET_RSTICK_DOWN, G.CONTROL_INVENTORY_DOWN },
     }
 end
 

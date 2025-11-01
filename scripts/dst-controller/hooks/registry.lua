@@ -30,7 +30,7 @@ function HookRegistry.InstallAll()
     -- 4. InventoryBar Widget (inventory behavior customization)
     require("dst-controller/hooks/inventorybar-hook").Install()
 
-    -- 5. Controls Widget (cursor widget injection)
+    -- 6. Controls Widget (cursor widget injection)
     require("dst-controller/hooks/controls-hook").Install()
 
     print("[HookRegistry] All hooks installed successfully")

@@ -555,12 +555,6 @@ function VirtualCursor.OnControl(control, down)
             end
             return true  -- Intercept
         end
-
-        -- If LB is pressed, don't intercept right stick (allow camera control)
-        if lb_pressed then
-            -- Let camera control work normally
-            return false
-        end
     end
 
     return false
