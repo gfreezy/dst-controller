@@ -261,7 +261,7 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
         end
 
         if G.TheInput and G.TheInput.UpdatePosition then
-            G.TheFrontEnd:OnPosition(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
+            G.TheInput:UpdatePosition(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
         end
     end
 
@@ -311,14 +311,8 @@ function VirtualCursor.SimulateMouseButton(button, down)
     local button_type = (button == "left") and "primary" or "secondary"
     STATE.button_states[button_type] = down
 
-    local button_number = (button == "left") and G.MOUSEBUTTON_LEFT or G.MOUSEBUTTON_RIGHT
     local control = (button == "left") and G.CONTROL_PRIMARY or G.CONTROL_SECONDARY
 
-    -- IMPORTANT: OnMouseButton's second parameter is "is_up", not "down"!
-    -- When button is pressed (down=true), we pass is_up=false
-    -- When button is released (down=false), we pass is_up=true
-    -- local is_up = not down
-    -- G.TheInput:OnMouseButton(button_number, is_up, STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
     G.TheInput:OnControl(control, down)
 end
 
