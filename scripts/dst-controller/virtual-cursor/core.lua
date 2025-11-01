@@ -18,8 +18,8 @@ local STATE = {
     ---@type {x: number, y: number}
     cursor_screen_pos = {x = 0, y = 0},  -- Screen coordinates
     button_states = {
-        primary = false,  -- RT (left-click)
-        secondary = false,  -- RB (right-click)
+        primary = false,  -- LT (left-click)
+        secondary = false,  -- RT (right-click)
     },
     cursor_widget = nil,  -- Will be set by cursor_widget.lua
     last_toggle_time = 0,  -- Last time cursor mode was toggled
@@ -210,8 +210,17 @@ function VirtualCursor.IsCursorModeActive()
     return STATE.cursor_mode_active
 end
 
+function VirtualCursor.SetCursorPosition(x, y)
+    if not STATE.cursor_mode_active then
+        return
+    end
+    STATE.cursor_screen_pos.x = x
+    STATE.cursor_screen_pos.y = y
+    VirtualCursor.UpdateWorldPosition()
+end
+
 -- Update cursor position based on right stick input
-function VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
+function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
     if not STATE.cursor_mode_active then
         return
     end
@@ -231,6 +240,10 @@ function VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
     -- Calculate speed (pixels per second)
     local speed = BASE_CURSOR_SPEED * (config.cursor_speed or 1.0)
 
+    -- Store old position for comparison
+    local old_x = STATE.cursor_screen_pos.x
+    local old_y = STATE.cursor_screen_pos.y
+
     -- Update screen position directly (easier to clamp to screen bounds)
     STATE.cursor_screen_pos.x = STATE.cursor_screen_pos.x + stick_x * speed * dt
     STATE.cursor_screen_pos.y = STATE.cursor_screen_pos.y + stick_y * speed * dt  -- Changed to + for natural control
@@ -239,6 +252,18 @@ function VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
     local screen_w, screen_h = G.TheSim:GetScreenSize()
     STATE.cursor_screen_pos.x = math.max(0, math.min(screen_w, STATE.cursor_screen_pos.x))
     STATE.cursor_screen_pos.y = math.max(0, math.min(screen_h, STATE.cursor_screen_pos.y))
+
+    -- Trigger OnMouseMove if position changed
+    -- This is critical for UI focus updates!
+    if old_x ~= STATE.cursor_screen_pos.x or old_y ~= STATE.cursor_screen_pos.y then
+        if G.TheInput and G.TheInput.OnMouseMove then
+            G.TheInput:OnMouseMove(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
+        end
+
+        if G.TheInput and G.TheInput.UpdatePosition then
+            G.TheFrontEnd:OnPosition(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
+        end
+    end
 
     -- Update world position from screen position
     VirtualCursor.UpdateWorldPosition()
@@ -268,8 +293,10 @@ end
 
 
 -- Simulate mouse button press/release
--- This directly calls DST's controller methods, which will use our hooked Input methods
--- DST will handle all drag detection internally via playercontroller.draggingonground
+-- This triggers the proper mouse event chain through FrontEnd for UI focus handling
+-- Then calls DST's controller methods for game actions
+---@param button "left" | "right"
+---@param down boolean
 function VirtualCursor.SimulateMouseButton(button, down)
     if not STATE.cursor_mode_active or not G.ThePlayer then
         return
@@ -281,16 +308,18 @@ function VirtualCursor.SimulateMouseButton(button, down)
     end
 
     -- Update button state (used by IsControlPressed hook)
-    local button_type = (button == G.CONTROL_PRIMARY) and "primary" or "secondary"
+    local button_type = (button == "left") and "primary" or "secondary"
     STATE.button_states[button_type] = down
 
-    -- Call DST's controller methods directly
-    -- TheSim:GetPosition() is now globally hooked, so it will return virtual cursor position
-    if button == G.CONTROL_PRIMARY then
-        controller:OnLeftClick(down)
-    elseif button == G.CONTROL_SECONDARY then
-        controller:OnRightClick(down)
-    end
+    local button_number = (button == "left") and G.MOUSEBUTTON_LEFT or G.MOUSEBUTTON_RIGHT
+    local control = (button == "left") and G.CONTROL_PRIMARY or G.CONTROL_SECONDARY
+
+    -- IMPORTANT: OnMouseButton's second parameter is "is_up", not "down"!
+    -- When button is pressed (down=true), we pass is_up=false
+    -- When button is released (down=false), we pass is_up=true
+    -- local is_up = not down
+    -- G.TheInput:OnMouseButton(button_number, is_up, STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
+    G.TheInput:OnControl(control, down)
 end
 
 -- Check if combination keys are pressed
@@ -375,10 +404,8 @@ function VirtualCursor.OnControl(control, down)
         -- Handle left-click button
         local left_click_control_name = VirtualCursor.GetClickButtonName("left")
         if Helpers.IsControlNamedButton(control, left_click_control_name) then
-            if down then
-                VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, true)
-            else
-                VirtualCursor.SimulateMouseButton(G.CONTROL_PRIMARY, false)
+            if control == G.CONTROL_MENU_L2 then
+                VirtualCursor.SimulateMouseButton("left", down)
             end
             return true  -- Intercept
         end
@@ -386,10 +413,8 @@ function VirtualCursor.OnControl(control, down)
         -- Handle right-click button
         local right_click_control_name = VirtualCursor.GetClickButtonName("right")
         if Helpers.IsControlNamedButton(control, right_click_control_name) then
-            if down then
-                VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, true)
-            else
-                VirtualCursor.SimulateMouseButton(G.CONTROL_SECONDARY, false)
+            if control == G.CONTROL_MENU_R2 then
+                VirtualCursor.SimulateMouseButton("right", down)
             end
             return true  -- Intercept
         end
@@ -422,7 +447,7 @@ function VirtualCursor.OnUpdate(self, dt)
                         - G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_DOWN)
 
         -- Update cursor position
-        VirtualCursor.UpdateCursorPosition(dt, stick_x, stick_y)
+        VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
         return true
     end
 
