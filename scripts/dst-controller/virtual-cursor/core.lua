@@ -7,8 +7,20 @@ local Helpers = require("dst-controller/utils/helpers")
 
 local VirtualCursor = {}
 
--- Constants
-local BASE_CURSOR_SPEED = 400  -- Base pixels per second
+-- Constants (inspired by dst-mod khy_fs.lua)
+local BASE_SPEED_DIVISOR = 33  -- Used to calculate base speed from screen resolution
+local SPEED_RATE_DEFAULT = 9  -- Default speed multiplier (9/10 = 0.9)
+local DEAD_ZONE_DEFAULT = 0.2  -- Default dead zone threshold (20%)
+
+-- Scene-specific speed multipliers
+local SPEED_MULTIPLIERS = {
+    NORMAL = 1.0,           -- Normal movement
+    UI_HOVER = 0.4,         -- Hovering over UI elements (ui_slow_rate)
+    ENTITY_HOVER = 0.65,    -- Hovering over entities (slow_rate)
+    BUILDING = 0.25,        -- Building/placement mode (placer_slow_rate)
+    PLANTING = 0.5,         -- Planting mode (plant_slow_rate)
+    LIMITED = 0.7,          -- Limited speed mode
+}
 
 -- State
 local STATE = {
@@ -23,6 +35,14 @@ local STATE = {
     },
     cursor_widget = nil,  -- Will be set by cursor_widget.lua
     last_toggle_time = 0,  -- Last time cursor mode was toggled
+
+    -- Speed control state (for smooth transitions)
+    base_cursor_speed = 0,  -- Calculated from screen resolution (pixels per frame at 60fps)
+    current_speed_multiplier = SPEED_MULTIPLIERS.NORMAL,
+    target_speed_multiplier = SPEED_MULTIPLIERS.NORMAL,
+    speed_transition_rate = 2.0,  -- Speed recovery rate (per second)
+    is_hovering_ui = false,
+    is_hovering_entity = false,
 }
 
 -- Helper function to get config with validation
@@ -37,7 +57,7 @@ local function GetConfig()
         left_click_key = "LT",
         right_click_key = "RT",
         cursor_speed = math.max(0.1, math.min(3.0, config.cursor_speed or 1.0)),  -- Clamp 0.1-3.0
-        dead_zone = math.max(0.0, math.min(0.5, config.dead_zone or 0.1)),  -- Clamp 0.0-0.5
+        dead_zone = math.max(0.0, math.min(0.5, config.dead_zone or DEAD_ZONE_DEFAULT)),  -- Clamp 0.0-0.5, default 0.2
         show_cursor = config.show_cursor ~= false,  -- Default true
     }
 end
@@ -109,9 +129,25 @@ local function UninstallTheSimHook()
 end
 
 
+-- Calculate base cursor speed from screen resolution
+-- Formula: |width - height| / BASE_SPEED_DIVISOR
+-- This makes speed adaptive to screen size (inspired by dst-mod)
+local function CalculateBaseCursorSpeed()
+    local w, h = G.TheSim:GetScreenSize()
+    -- Use absolute difference between width and height
+    -- For 1920x1080: |1920-1080|/33 ≈ 25.45 pixels/frame
+    -- For 2560x1440: |2560-1440|/33 ≈ 33.94 pixels/frame
+    STATE.base_cursor_speed = math.abs(w - h) / BASE_SPEED_DIVISOR
+    print(string.format("[VirtualCursor] Base speed calculated: %.2f pixels/frame (screen: %dx%d)",
+        STATE.base_cursor_speed, w, h))
+end
+
 -- Initialize cursor position
 local function InitializeCursorPosition()
     if G.ThePlayer then
+        -- Calculate base speed first
+        CalculateBaseCursorSpeed()
+
         -- Start cursor at screen center
         local w, h = G.TheSim:GetScreenSize()
         STATE.cursor_screen_pos.x = w / 2
@@ -219,54 +255,130 @@ function VirtualCursor.SetCursorPosition(x, y)
     VirtualCursor.UpdateWorldPosition()
 end
 
--- Update cursor position based on right stick input
+-- Get adjusted cursor speed based on scene context
+-- Implements smooth speed transitions and scene-aware speed multipliers (inspired by dst-mod)
+local function GetAdjustedCursorSpeed(dt, config)
+    -- Base speed calculation: (SPEED_RATE_DEFAULT / 10) * base_cursor_speed * user_speed_multiplier
+    -- This gives us pixels per frame (assuming 60fps)
+    local speed_rate = (SPEED_RATE_DEFAULT / 10.0) * (config.cursor_speed or 1.0)
+    local base_speed = speed_rate * STATE.base_cursor_speed
+
+    -- Check if player is in building/planting mode
+    if G.ThePlayer and G.ThePlayer.components and G.ThePlayer.components.playercontroller then
+        local controller = G.ThePlayer.components.playercontroller
+
+        -- Building mode (placer active)
+        if controller.placer ~= nil then
+            STATE.target_speed_multiplier = SPEED_MULTIPLIERS.BUILDING
+            return base_speed * SPEED_MULTIPLIERS.BUILDING
+        end
+
+        -- Deploy placement mode (also building)
+        if controller.deployplacer ~= nil then
+            STATE.target_speed_multiplier = SPEED_MULTIPLIERS.BUILDING
+            return base_speed * SPEED_MULTIPLIERS.BUILDING
+        end
+    end
+
+    -- Check hover state for UI elements
+    if STATE.is_hovering_ui then
+        STATE.target_speed_multiplier = SPEED_MULTIPLIERS.UI_HOVER
+    -- Check hover state for entities
+    elseif STATE.is_hovering_entity then
+        STATE.target_speed_multiplier = SPEED_MULTIPLIERS.ENTITY_HOVER
+    else
+        STATE.target_speed_multiplier = SPEED_MULTIPLIERS.NORMAL
+    end
+
+    -- Smooth speed transition (gradual recovery to target speed)
+    if STATE.current_speed_multiplier < STATE.target_speed_multiplier then
+        -- Accelerate towards target speed
+        STATE.current_speed_multiplier = math.min(
+            STATE.target_speed_multiplier,
+            STATE.current_speed_multiplier + dt * STATE.speed_transition_rate
+        )
+    elseif STATE.current_speed_multiplier > STATE.target_speed_multiplier then
+        -- Instantly apply slower speed (no delay when slowing down)
+        STATE.current_speed_multiplier = STATE.target_speed_multiplier
+    end
+
+    return base_speed * STATE.current_speed_multiplier
+end
+
+-- Update cursor position based on right stick input (optimized algorithm from dst-mod)
 function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
     if not STATE.cursor_mode_active then
         return
     end
 
-    local config = GetConfig()
-    local dead_zone = config.dead_zone or 0.1
+    -- ===== Step 1: Get stick input values =====
+    -- stick_x, stick_y are already in range [-1, 1] from analog controls
+    local abs_x = math.abs(stick_x)
+    local abs_y = math.abs(stick_y)
 
+    local config = GetConfig()
+    local dead_zone = config.dead_zone or DEAD_ZONE_DEFAULT
+
+    -- ===== Step 2: Apply dead zone filtering =====
     -- Early return if both axes are in dead zone
-    if math.abs(stick_x) < dead_zone and math.abs(stick_y) < dead_zone then
+    if abs_x < dead_zone and abs_y < dead_zone then
         return
     end
 
-    -- Apply dead zone to each axis
-    if math.abs(stick_x) < dead_zone then stick_x = 0 end
-    if math.abs(stick_y) < dead_zone then stick_y = 0 end
+    -- Apply dead zone to each axis independently
+    if abs_x < dead_zone then stick_x = 0 end
+    if abs_y < dead_zone then stick_y = 0 end
 
-    -- Calculate speed (pixels per second)
-    local speed = BASE_CURSOR_SPEED * (config.cursor_speed or 1.0)
+    -- Recalculate absolute values after dead zone
+    abs_x = math.abs(stick_x)
+    abs_y = math.abs(stick_y)
 
-    -- Store old position for comparison
+    -- ===== Step 3: Calculate stick intensity (0-1) =====
+    -- Use sum of absolute values, clamped to 1.0 (dst-mod style)
+    local stick_intensity = math.min(1.0, abs_x + abs_y)
+
+    -- ===== Step 4: Get adjusted speed based on scene context =====
+    local adjusted_speed = GetAdjustedCursorSpeed(dt, config)
+
+    -- Convert to pixels per second (multiply by 60 to simulate 60fps)
+    local speed_per_second = adjusted_speed * 60
+
+    -- ===== Step 5: Calculate displacement for this frame =====
+    -- delta = direction × speed × intensity × dt
+    local delta_x = stick_x * speed_per_second * stick_intensity * dt
+    local delta_y = stick_y * speed_per_second * stick_intensity * dt
+
+    -- ===== Step 6: Store old position =====
     local old_x = STATE.cursor_screen_pos.x
     local old_y = STATE.cursor_screen_pos.y
 
-    -- Update screen position directly (easier to clamp to screen bounds)
-    STATE.cursor_screen_pos.x = STATE.cursor_screen_pos.x + stick_x * speed * dt
-    STATE.cursor_screen_pos.y = STATE.cursor_screen_pos.y + stick_y * speed * dt  -- Changed to + for natural control
+    -- ===== Step 7: Calculate new position with floor() for pixel precision =====
+    local new_x = math.floor(abs_x > 0 and old_x + delta_x or old_x)
+    local new_y = math.floor(abs_y > 0 and old_y + delta_y or old_y)
 
-    -- Clamp to screen bounds
+    -- ===== Step 8: Clamp to screen bounds =====
     local screen_w, screen_h = G.TheSim:GetScreenSize()
-    STATE.cursor_screen_pos.x = math.max(0, math.min(screen_w, STATE.cursor_screen_pos.x))
-    STATE.cursor_screen_pos.y = math.max(0, math.min(screen_h, STATE.cursor_screen_pos.y))
+    new_x = math.max(0, math.min(screen_w, new_x))
+    new_y = math.max(0, math.min(screen_h, new_y))
 
-    -- Trigger OnMouseMove if position changed
-    -- This is critical for UI focus updates!
-    if old_x ~= STATE.cursor_screen_pos.x or old_y ~= STATE.cursor_screen_pos.y then
+    -- ===== Step 9: Update position if changed =====
+    if new_x ~= old_x or new_y ~= old_y then
+        STATE.cursor_screen_pos.x = new_x
+        STATE.cursor_screen_pos.y = new_y
+
+        -- ===== Step 10: Trigger input events for hover detection =====
         if G.TheInput and G.TheInput.OnMouseMove then
-            G.TheInput:OnMouseMove(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
+            G.TheInput:OnMouseMove(new_x, new_y)
         end
 
         if G.TheInput and G.TheInput.UpdatePosition then
-            G.TheInput:UpdatePosition(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
+            G.TheInput:UpdatePosition(new_x, new_y)
         end
-    end
 
-    -- Update world position from screen position
-    VirtualCursor.UpdateWorldPosition()
+        -- ===== Step 11: Update world position and hover state =====
+        VirtualCursor.UpdateWorldPosition()
+        VirtualCursor.UpdateHoverState()
+    end
 end
 
 -- Update world position from screen position
@@ -288,6 +400,37 @@ function VirtualCursor.UpdateWorldPosition()
     -- Update widget position
     if STATE.cursor_widget then
         STATE.cursor_widget:SetPosition(STATE.cursor_screen_pos.x, STATE.cursor_screen_pos.y)
+    end
+end
+
+-- Update hover state for scene-aware speed adjustment
+function VirtualCursor.UpdateHoverState()
+    if not G.TheInput then
+        return
+    end
+
+    -- Reset hover states
+    STATE.is_hovering_ui = false
+    STATE.is_hovering_entity = false
+
+    -- Check if hovering over a widget (UI element)
+    -- TheFrontEnd:GetFocusWidget() returns the currently focused widget
+    if G.TheFrontEnd then
+        local focus_widget = G.TheFrontEnd:GetFocusWidget()
+        if focus_widget then
+            STATE.is_hovering_ui = true
+            return  -- UI takes priority over entities
+        end
+    end
+
+    -- Check if hovering over an entity
+    -- TheInput.hoverinst is automatically updated by DST's input system
+    if G.TheInput.hoverinst and G.TheInput.hoverinst:IsValid() then
+        -- Check if the entity is interactable (not just decoration)
+        local entity = G.TheInput.hoverinst
+        if not (entity:HasTag("NOCLICK") or entity:HasTag("FX") or entity:HasTag("DECOR") or entity:HasTag("INLIMBO")) then
+            STATE.is_hovering_entity = true
+        end
     end
 end
 
