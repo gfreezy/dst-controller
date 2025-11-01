@@ -347,8 +347,8 @@ end
 -- ============================================================================
 -- UpdateControllerInteractionTarget - 更新控制器交互目标
 -- ============================================================================
--- 功能：查找并更新 controller_target（用于交互/Y按钮）
--- 这是手柄Y按钮主要交互使用的目标
+-- 功能：查找并更新 controller_target（用于交互/A按钮）
+-- 这是手柄A按钮主要交互使用的目标
 --
 -- 主要行为：
 -- 1. 如果启用目标锁定，X和Y按钮使用同一个目标
@@ -363,6 +363,7 @@ end
 --    - 迟滞效应（当前目标1.5x）
 --    - 掉落物品近距离奖励
 -- 5. 只目标有有效动作或可检查的实体
+-- 6. 同时查找 controller_alternative_target（副动作目标，B按钮）
 --
 -- 参数：
 --   self: PlayerController 实例
@@ -446,7 +447,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
     -- 搜索范围设置
     local min_rad = 1.5  -- 最小搜索半径
-    local max_rad = 6    -- 最大搜索半径
+    local max_rad = 8    -- 最大搜索半径
     local min_rad_sq = min_rad * min_rad
     local max_rad_sq = max_rad * max_rad
 
@@ -468,6 +469,9 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     -- ========== 第六步：初始化评分变量 ==========
     local target = nil
     local target_score = 0
+    local target_has_rmb = false  -- 记录主目标是否有副动作
+    local alternative_target = nil
+    local alternative_target_score = 0
 
     -- 判断是否可以检查物品（需要满足多个条件）
     local canexamine = (self.inst.CanExamine == nil or self.inst:CanExamine())
@@ -508,12 +512,25 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                 end
 
                 -- 距离和方向过滤
-                if (dsq < min_rad_sq  -- 非常近的目标
-                    or (dsq <= rad_sq  -- 或者在搜索半径内且满足以下条件之一：
-                        and (v == self.controller_target or       -- 是当前目标
-                            v == self.controller_attack_target or  -- 是攻击目标
-                            dx * dirx + dz * dirz > 0))) and       -- 在玩家前方
-                    G.CanEntitySeePoint(self.inst, x1, y1, z1) then  -- 可见
+                local in_range = false
+                if dsq < min_rad_sq then
+                    -- 非常近的目标：总是在范围内
+                    in_range = true
+                elseif dsq <= rad_sq then
+                    -- 在搜索半径内：需要进一步检查
+                    if v == self.controller_target or v == self.controller_attack_target then
+                        -- 是当前目标或攻击目标：总是在范围内
+                        in_range = true
+                    elseif CONFIG.interaction_angle_mode == INTERACTION_ANGLE_MODE.ALL_AROUND then
+                        -- 360度模式：所有方向都在范围内
+                        in_range = true
+                    else
+                        -- 前方模式：必须在前方
+                        in_range = (dx * dirx + dz * dirz > 0)
+                    end
+                end
+
+                if in_range and G.CanEntitySeePoint(self.inst, x1, y1, z1) then  -- 在范围内且可见
 
                     -- 角度检查（可配置）
                     local shouldcheck = dsq < 1  -- 距离<1的目标直接通过
@@ -564,37 +581,55 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                             score = score * 0.5
                         end
 
-                        -- ===== 选择最佳目标 =====
-                        if score < target_score or
-                            (score == target_score and
-                                ((target ~= nil and not (target.CanMouseThrough ~= nil and target:CanMouseThrough())) or
-                                    (v.CanMouseThrough ~= nil and v:CanMouseThrough()))) then
-                            -- 分数不够或平局时优先不可穿透的物体，跳过
-                        else
-                            -- ===== 第一级：场景物品有可用动作 =====
-                            -- 检查是否有有效动作（开销较大，尽量少执行）
-                            local lmb, rmb
-                            if currentboat ~= v or score * 0.75 < target_score then
-                                -- 船上的场景物品优先级降低
-                                lmb, rmb = self:GetSceneItemControllerAction(v)
-                            end
-                            if lmb ~= nil or rmb ~= nil then
+                        -- ===== 第一级：场景物品有可用动作 =====
+                        -- 检查是否有有效动作（开销较大，尽量少执行）
+                        local lmb, rmb
+                        if currentboat ~= v or score * 0.75 < target_score then
+                            -- 船上的场景物品优先级降低
+                            lmb, rmb = self:GetSceneItemControllerAction(v)
+                        end
+
+                        -- ===== 独立选择主目标（A键）=====
+                        if lmb ~= nil then
+                            -- 有主动作：候选为主目标
+                            -- 检查分数和穿透优先级
+                            if score > target_score or
+                                (score == target_score and
+                                    not (target ~= nil and target.CanMouseThrough ~= nil and not target:CanMouseThrough()) and
+                                    (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                -- 分数更高，或分数相同但优先级更高（不可穿透优先）
                                 target = v
                                 target_score = score
+                                target_has_rmb = (rmb ~= nil)  -- 记录主目标是否有副动作
+                            end
+                        end
 
-                            -- -- ===== 第二级：可检查的物品 =====
-                            -- elseif canexamine and v:HasTag("inspectable") then
-                            --     -- 可检查的物品
-                            --     target = v
-                            --     target_score = score
+                        -- ===== 独立选择副目标（B键）=====
+                        if rmb ~= nil and lmb == nil then
+                            -- 只有副动作：候选为副目标
+                            -- 检查分数和穿透优先级
+                            if score > alternative_target_score or
+                                (score == alternative_target_score and
+                                    not (alternative_target ~= nil and alternative_target.CanMouseThrough ~= nil and not alternative_target:CanMouseThrough()) and
+                                    (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                -- 分数更高，或分数相同但优先级更高（不可穿透优先）
+                                alternative_target = v
+                                alternative_target_score = score
+                            end
+                        end
 
-                            -- ===== 第三级：光标物品可以对目标使用 =====
-                            else
-                                -- 检查手持物品是否可以对目标使用
-                                local inv_obj = self:GetCursorInventoryObject()
-                                if inv_obj ~= nil then
-                                    rmb = self:GetItemUseAction(inv_obj, v)
-                                    if rmb ~= nil and rmb.target == v then
+                        -- ===== 第三级：光标物品可以对目标使用 =====
+                        if lmb == nil and rmb == nil then
+                            -- 检查手持物品是否可以对目标使用
+                            local inv_obj = self:GetCursorInventoryObject()
+                            if inv_obj ~= nil then
+                                local item_rmb = self:GetItemUseAction(inv_obj, v)
+                                if item_rmb ~= nil and item_rmb.target == v then
+                                    -- 作为主目标
+                                    if score > target_score or
+                                        (score == target_score and
+                                            not (target ~= nil and target.CanMouseThrough ~= nil and not target:CanMouseThrough()) and
+                                            (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
                                         target = v
                                         target_score = score
                                     end
@@ -611,6 +646,18 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     if target ~= self.controller_target then
         self.controller_target = target
         self.controller_target_age = 0  -- 重置age，开始新的闪烁防护
+    end
+
+    -- ========== 第九步：更新副目标 ==========
+    -- 注意：这里需要直接使用局部变量 alternative_target 和 target_has_rmb
+    -- 副目标独立于主目标存在，但如果主目标已经支持副动作，则不需要副目标
+
+    if target_has_rmb then
+        -- 主目标已经支持副动作，清除副目标
+        self.controller_alternative_target = nil
+    else
+        -- 主目标不支持副动作（或没有主目标），使用找到的副目标
+        self.controller_alternative_target = alternative_target
     end
 end
 

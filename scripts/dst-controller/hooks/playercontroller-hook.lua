@@ -34,6 +34,23 @@ local function InstallOnControl(self)
             end
         end
 
+        -- Handle B button (CONTROL_CONTROLLER_ALTACTION) for alternative_target
+        if control == G.CONTROL_CONTROLLER_ALTACTION and down then
+            if self.controller_alternative_target ~= nil then
+                -- 临时替换 controller_target 为 alternative_target
+                local original_target = self.controller_target
+                self.controller_target = self.controller_alternative_target
+
+                -- 调用原方法处理 B 键
+                local result = old_OnControl(self, control, down)
+
+                -- 恢复原来的 controller_target
+                self.controller_target = original_target
+
+                return result
+            end
+        end
+
         -- Try to handle as button combination
         local handled = ButtonHandler.HandleButtonCombination(
             self.inst,
