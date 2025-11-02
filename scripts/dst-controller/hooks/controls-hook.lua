@@ -28,57 +28,94 @@ local function HookOnUpdate(self)
         end
 
         local alternative_target = controller.controller_alternative_target
-        if not alternative_target then
-            -- Hide alternative hint if no alternative target
+        local examine_target = controller.controller_examine_target
+
+        -- Don't show hints if menus are open
+        local menus_open = controls.inv.open or controls.commandwheel.isopen or
+           controls.craftingmenu:IsCraftingOpen() or controls.spellwheel:IsOpen()
+
+        -- ===== Handle alternative target hint =====
+        if not alternative_target or menus_open then
+            -- Hide alternative hint if no alternative target or menus open
             if controls.alternative_actionhint then
                 controls.alternative_actionhint:Hide()
             end
-            return
-        end
+        else
+            -- Get alternative target action
+            local _, alt_rmb = controller:GetSceneItemControllerAction(alternative_target)
+            if not alt_rmb then
+                if controls.alternative_actionhint then
+                    controls.alternative_actionhint:Hide()
+                end
+            else
+                -- Create alternative action hint widget if not exists
+                if not controls.alternative_actionhint then
+                    -- Use the same widget class as playeractionhint (FollowText)
+                    local FollowText = require("widgets/followtext")
+                    controls.alternative_actionhint = controls:AddChild(FollowText(G.TALKINGFONT, 28))
+                end
 
-        -- Don't show alternative hint if menus are open
-        if controls.inv.open or controls.commandwheel.isopen or
-           controls.craftingmenu:IsCraftingOpen() or controls.spellwheel:IsOpen() then
-            if controls.alternative_actionhint then
-                controls.alternative_actionhint:Hide()
+                -- Build hint text
+                local controller_id = G.TheInput:GetControllerID()
+                local hint_text = {}
+
+                -- Add target name
+                local adjective = alternative_target:GetAdjective()
+                table.insert(hint_text, adjective ~= nil and
+                    (adjective.." "..alternative_target:GetDisplayName()) or
+                    alternative_target:GetDisplayName())
+
+                -- Add B button action
+                table.insert(hint_text, G.TheInput:GetLocalizedControl(controller_id, G.CONTROL_CONTROLLER_ALTACTION) ..
+                    " " .. alt_rmb:GetActionString())
+
+                -- Show the hint
+                controls.alternative_actionhint:Show()
+                controls.alternative_actionhint:SetTarget(alternative_target)
+                controls.alternative_actionhint.text:SetString(table.concat(hint_text, "\n"))
             end
-            return
         end
 
-        -- Get alternative target action
-        local _, alt_rmb = controller:GetSceneItemControllerAction(alternative_target)
-        if not alt_rmb then
-            if controls.alternative_actionhint then
-                controls.alternative_actionhint:Hide()
+        -- ===== Handle examine target hint =====
+        if not examine_target or menus_open then
+            -- Hide examine hint if no examine target or menus open
+            if controls.examine_actionhint then
+                controls.examine_actionhint:Hide()
             end
-            return
+        else
+            -- Check if target is inspectable
+            if not examine_target:HasTag("inspectable") then
+                if controls.examine_actionhint then
+                    controls.examine_actionhint:Hide()
+                end
+            else
+                -- Create examine action hint widget if not exists
+                if not controls.examine_actionhint then
+                    -- Use the same widget class as playeractionhint (FollowText)
+                    local FollowText = require("widgets/followtext")
+                    controls.examine_actionhint = controls:AddChild(FollowText(G.TALKINGFONT, 28))
+                end
+
+                -- Build hint text
+                local controller_id = G.TheInput:GetControllerID()
+                local hint_text = {}
+
+                -- Add target name
+                local adjective = examine_target:GetAdjective()
+                table.insert(hint_text, adjective ~= nil and
+                    (adjective.." "..examine_target:GetDisplayName()) or
+                    examine_target:GetDisplayName())
+
+                -- Add Y button action (Examine)
+                table.insert(hint_text, G.TheInput:GetLocalizedControl(controller_id, G.CONTROL_INSPECT) ..
+                    " " .. G.STRINGS.ACTIONS.LOOKAT.GENERIC)
+
+                -- Show the hint
+                controls.examine_actionhint:Show()
+                controls.examine_actionhint:SetTarget(examine_target)
+                controls.examine_actionhint.text:SetString(table.concat(hint_text, "\n"))
+            end
         end
-
-        -- Create alternative action hint widget if not exists
-        if not controls.alternative_actionhint then
-            -- Use the same widget class as playeractionhint (FollowText)
-            local FollowText = require("widgets/followtext")
-            controls.alternative_actionhint = controls:AddChild(FollowText(G.TALKINGFONT, 28))
-        end
-
-        -- Build hint text
-        local controller_id = G.TheInput:GetControllerID()
-        local hint_text = {}
-
-        -- Add target name
-        local adjective = alternative_target:GetAdjective()
-        table.insert(hint_text, adjective ~= nil and
-            (adjective.." "..alternative_target:GetDisplayName()) or
-            alternative_target:GetDisplayName())
-
-        -- Add B button action
-        table.insert(hint_text, G.TheInput:GetLocalizedControl(controller_id, G.CONTROL_CONTROLLER_ALTACTION) ..
-            " " .. alt_rmb:GetActionString())
-
-        -- Show the hint
-        controls.alternative_actionhint:Show()
-        controls.alternative_actionhint:SetTarget(alternative_target)
-        controls.alternative_actionhint.text:SetString(table.concat(hint_text, "\n"))
     end
 end
 

@@ -51,6 +51,23 @@ local function InstallOnControl(self)
             end
         end
 
+        -- Handle Y button (CONTROL_INSPECT) for examine_target
+        if control == G.CONTROL_INSPECT and down then
+            if self.controller_examine_target ~= nil then
+                -- 临时替换 controller_target 为 examine_target
+                local original_target = self.controller_target
+                self.controller_target = self.controller_examine_target
+
+                -- 调用原方法处理 Y 键
+                local result = old_OnControl(self, control, down)
+
+                -- 恢复原来的 controller_target
+                self.controller_target = original_target
+
+                return result
+            end
+        end
+
         -- Try to handle as button combination
         local handled = ButtonHandler.HandleButtonCombination(
             self.inst,

@@ -472,6 +472,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     local target_has_rmb = false  -- 记录主目标是否有副动作
     local alternative_target = nil
     local alternative_target_score = 0
+    local inspect_target = nil
+    local inspect_target_score = 0
 
     -- 判断是否可以检查物品（需要满足多个条件）
     local canexamine = (self.inst.CanExamine == nil or self.inst:CanExamine())
@@ -618,6 +620,21 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                             end
                         end
 
+                        -- ===== 独立选择检查目标（Inspect键）=====
+                        -- 只有在 canexamine 为 true 且实体可检查时才候选
+                        if canexamine and v:HasTag("inspectable") and lmb == nil and rmb == nil then
+                            -- 可以检查且没有其他动作：候选为检查目标
+                            -- 检查分数和穿透优先级
+                            if score > inspect_target_score or
+                                (score == inspect_target_score and
+                                    not (inspect_target ~= nil and inspect_target.CanMouseThrough ~= nil and not inspect_target:CanMouseThrough()) and
+                                    (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                -- 分数更高，或分数相同但优先级更高（不可穿透优先）
+                                inspect_target = v
+                                inspect_target_score = score
+                            end
+                        end
+
                         -- ===== 第三级：光标物品可以对目标使用 =====
                         if lmb == nil and rmb == nil then
                             -- 检查手持物品是否可以对目标使用
@@ -658,6 +675,21 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     else
         -- 主目标不支持副动作（或没有主目标），使用找到的副目标
         self.controller_alternative_target = alternative_target
+    end
+
+    -- ========== 第十步：更新检查目标 ==========
+    -- 检查目标规则：
+    -- 1. 如果主目标或副目标可以被检查（有inspectable tag），则清除检查目标
+    -- 2. 否则，使用找到的检查目标
+    local target_can_inspect = target ~= nil and target:HasTag("inspectable")
+    local alt_target_can_inspect = self.controller_alternative_target ~= nil and self.controller_alternative_target:HasTag("inspectable")
+
+    if target_can_inspect or alt_target_can_inspect then
+        -- 主目标或副目标已经可以检查，清除检查目标
+        self.controller_examine_target = nil
+    else
+        -- 主目标和副目标都不能检查，使用找到的检查目标
+        self.controller_examine_target = inspect_target
     end
 end
 
