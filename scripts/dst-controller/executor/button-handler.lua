@@ -96,7 +96,7 @@ function ButtonHandler.HandleButtonCombination(player, control, down, execute_ca
                     local task = tasks[task_name]
                     if not task then
                         Helpers.DebugPrintf("Warning: Task '%s' not found", task_name)
-                        return false  -- Task not found, allow default behavior
+                        return false
                     end
 
                     -- Check if task has any actions configured

@@ -186,6 +186,7 @@ function TaskConfigScreen:BuildTasksContent()
     if #self.config_widgets > 0 then
         -- Tabs 向下到 ScrollableList
         self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, self.config_widgets[1])
+        self.tabs.menu:SetFocusChangeDir(G.MOVE_RIGHT, self.scroll_list)
 
         -- ScrollableList 向上到 Tabs，向下到底部按钮
         self.config_widgets[1]:SetFocusChangeDir(G.MOVE_UP, self.tabs.menu)
@@ -193,13 +194,11 @@ function TaskConfigScreen:BuildTasksContent()
 
         -- ScrollableList 向右到底部按钮, 向左到 tabs
         self.scroll_list:SetFocusChangeDir(G.MOVE_RIGHT, self.apply_button)
-        self.apply_button:SetFocusChangeDir(G.MOVE_LEFT, self.scroll_list)
         self.scroll_list:SetFocusChangeDir(G.MOVE_LEFT, self.tabs.menu)
-        self.tabs.menu:SetFocusChangeDir(G.MOVE_RIGHT, self.scroll_list)
 
         -- 底部按钮向上到 ScrollableList
-        self.apply_button:SetFocusChangeDir(G.MOVE_UP, self.config_widgets[#self.config_widgets])
-        self.close_button:SetFocusChangeDir(G.MOVE_UP, self.config_widgets[#self.config_widgets])
+        self.apply_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
+        self.close_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
     else
         -- 空列表时，tabs 直接连接到底部按钮
         self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
@@ -302,7 +301,7 @@ function TaskConfigScreen:BuildSettingsContent()
     interaction_angle_widget.interaction_angle_spinner = interaction_angle_spinner
     interaction_angle_widget.focus_forward = interaction_angle_spinner
 
-    -- 虚拟光标设置
+    -- 虚拟光标启用设置
     local vcursor_widget = self.content_panel:AddChild(Widget("virtual_cursor"))
     local vcursor_label = vcursor_widget:AddChild(Text(G.NEWFONT, 30, "虚拟光标"))
     vcursor_label:SetColour(1, 1, 1, 1)
@@ -312,9 +311,6 @@ function TaskConfigScreen:BuildSettingsContent()
     if not self.settings_data.virtual_cursor_settings then
         self.settings_data.virtual_cursor_settings = {
             enabled = true,
-            toggle_combo = {"LB", "RB", "RT"},
-            left_click_key = "RT",
-            right_click_key = "RB",
             cursor_speed = 1.0,
             dead_zone = 0.1,
             show_cursor = true,
@@ -344,11 +340,66 @@ function TaskConfigScreen:BuildSettingsContent()
     vcursor_widget.vcursor_spinner = vcursor_spinner
     vcursor_widget.focus_forward = vcursor_spinner
 
-    -- 布局四个设置项
-    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget, vcursor_widget}, {
-        spacing = 60,
+    -- 虚拟光标速度设置
+    local vcursor_speed_widget = self.content_panel:AddChild(Widget("virtual_cursor_speed"))
+    local vcursor_speed_label = vcursor_speed_widget:AddChild(Text(G.NEWFONT, 30, "光标移动速度"))
+    vcursor_speed_label:SetColour(1, 1, 1, 1)
+    vcursor_speed_label:SetHAlign(G.ANCHOR_LEFT)
+
+    local vcursor_speed_options = {
+        {text = "很慢 (0.5x)", data = 0.5},
+        {text = "慢 (0.75x)", data = 0.75},
+        {text = "正常 (1.0x)", data = 1.0},
+        {text = "快 (1.5x)", data = 1.5},
+        {text = "很快 (2.0x)", data = 2.0},
+    }
+    local vcursor_speed_spinner = vcursor_speed_widget:AddChild(Spinner(
+        vcursor_speed_options,
+        180, 45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true
+    ))
+
+    vcursor_speed_spinner:SetSelected(self.settings_data.virtual_cursor_settings.cursor_speed or 1.0)
+    vcursor_speed_spinner.onchangedfn = function(selected_data)
+        self.settings_data.virtual_cursor_settings.cursor_speed = selected_data
+        self.is_dirty = true
+    end
+
+    vcursor_speed_widget.vcursor_speed_spinner = vcursor_speed_spinner
+    vcursor_speed_widget.focus_forward = vcursor_speed_spinner
+
+    -- 虚拟光标显示设置
+    local vcursor_show_widget = self.content_panel:AddChild(Widget("virtual_cursor_show"))
+    local vcursor_show_label = vcursor_show_widget:AddChild(Text(G.NEWFONT, 30, "显示光标图标"))
+    vcursor_show_label:SetColour(1, 1, 1, 1)
+    vcursor_show_label:SetHAlign(G.ANCHOR_LEFT)
+
+    local vcursor_show_options = {
+        {text = "隐藏", data = false},
+        {text = "显示", data = true},
+    }
+    local vcursor_show_spinner = vcursor_show_widget:AddChild(Spinner(
+        vcursor_show_options,
+        120, 45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true
+    ))
+
+    vcursor_show_spinner:SetSelected(self.settings_data.virtual_cursor_settings.show_cursor)
+    vcursor_show_spinner.onchangedfn = function(selected_data)
+        self.settings_data.virtual_cursor_settings.show_cursor = selected_data
+        self.is_dirty = true
+    end
+
+    vcursor_show_widget.vcursor_show_spinner = vcursor_show_spinner
+    vcursor_show_widget.focus_forward = vcursor_show_spinner
+
+    -- 布局所有设置项
+    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget, vcursor_widget, vcursor_speed_widget, vcursor_show_widget}, {
+        spacing = 50,
         start_x = 0,
-        start_y = 60,
+        start_y = 0,
         anchor = "center"
     })
 
@@ -393,10 +444,32 @@ function TaskConfigScreen:BuildSettingsContent()
         anchor = "center"
     })
 
+    Layout.HorizontalRow({
+        {widget = vcursor_speed_label, width = 250},
+        {widget = vcursor_speed_spinner, width = 180},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
+    Layout.HorizontalRow({
+        {widget = vcursor_show_label, width = 250},
+        {widget = vcursor_show_spinner, width = 120},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
     table.insert(self.setting_widgets, attack_angle_widget)
     table.insert(self.setting_widgets, interaction_angle_widget)
     table.insert(self.setting_widgets, force_attack_widget)
     table.insert(self.setting_widgets, vcursor_widget)
+    table.insert(self.setting_widgets, vcursor_speed_widget)
+    table.insert(self.setting_widgets, vcursor_show_widget)
 
     -- 设置焦点导航
     attack_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, interaction_angle_widget)
@@ -409,11 +482,17 @@ function TaskConfigScreen:BuildSettingsContent()
     force_attack_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_widget)
 
     vcursor_widget:SetFocusChangeDir(G.MOVE_UP, force_attack_widget)
-    vcursor_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+    vcursor_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_speed_widget)
+
+    vcursor_speed_widget:SetFocusChangeDir(G.MOVE_UP, vcursor_widget)
+    vcursor_speed_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_show_widget)
+
+    vcursor_show_widget:SetFocusChangeDir(G.MOVE_UP, vcursor_speed_widget)
+    vcursor_show_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
 
     self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, attack_angle_widget)
-    self.apply_button:SetFocusChangeDir(G.MOVE_UP, vcursor_widget)
-    self.close_button:SetFocusChangeDir(G.MOVE_UP, vcursor_widget)
+    self.apply_button:SetFocusChangeDir(G.MOVE_UP, vcursor_show_widget)
+    self.close_button:SetFocusChangeDir(G.MOVE_UP, vcursor_show_widget)
 end
 
 function TaskConfigScreen:BuildConfigWidgets()
@@ -754,7 +833,14 @@ function ActionDetailScreen:RefreshActionsList()
         -- Tabs 向下到 ScrollableList
         if self.tabs and self.tabs.menu then
             self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, self.scroll_list)
+            self.tabs.menu:SetFocusChangeDir(G.MOVE_RIGHT, self.scroll_list)
         end
+
+        -- ScrollableList
+        self.action_widgets[1]:SetFocusChangeDir(G.MOVE_UP, self.tabs.menu)
+        self.action_widgets[#self.action_widgets]:SetFocusChangeDir(G.MOVE_DOWN, self.add_action_button)
+        self.scroll_list:SetFocusChangeDir(G.MOVE_LEFT, self.tabs.menu)
+        self.scroll_list:SetFocusChangeDir(G.MOVE_RIGHT, self.add_action_button)
 
         -- 底部按钮向上到 ScrollableList
         self.add_action_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)

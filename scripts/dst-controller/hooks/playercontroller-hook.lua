@@ -61,6 +61,7 @@ local function InstallOnControl(self)
             end
         )
 
+        print("control: " .. tostring(control) .. " on pressed: " .. tostring(down) .. " is handled: " .. tostring(handled))
         -- If handled, block default behavior
         if handled then
             return true
