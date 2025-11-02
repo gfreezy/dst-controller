@@ -136,7 +136,9 @@ function TaskConfigScreen:BuildTabs()
     self.tabs:SetPosition(0, 225)
 
     -- 设置 tabs 和底部按钮之间的导航（会在 SwitchTab 中动态更新）
-    self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+    self.tabs:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+    self.tabs:SetFocusChangeDir(G.MOVE_RIGHT, self.apply_button)
+    self.apply_button:SetFocusChangeDir(G.MOVE_LEFT, self.tabs)
     self.apply_button:SetFocusChangeDir(G.MOVE_UP, self.tabs)
     self.close_button:SetFocusChangeDir(G.MOVE_UP, self.tabs)
 end
@@ -185,23 +187,24 @@ function TaskConfigScreen:BuildTasksContent()
     -- 设置焦点导航
     if #self.config_widgets > 0 then
         -- Tabs 向下到 ScrollableList
-        self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, self.config_widgets[1])
-        self.tabs.menu:SetFocusChangeDir(G.MOVE_RIGHT, self.scroll_list)
+        self.tabs:SetFocusChangeDir(G.MOVE_DOWN, self.scroll_list)
+        self.tabs:SetFocusChangeDir(G.MOVE_RIGHT, self.scroll_list)
 
         -- ScrollableList 向上到 Tabs，向下到底部按钮
-        self.config_widgets[1]:SetFocusChangeDir(G.MOVE_UP, self.tabs.menu)
+        self.config_widgets[1]:SetFocusChangeDir(G.MOVE_UP, self.tabs)
         self.config_widgets[#self.config_widgets]:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
 
         -- ScrollableList 向右到底部按钮, 向左到 tabs
         self.scroll_list:SetFocusChangeDir(G.MOVE_RIGHT, self.apply_button)
-        self.scroll_list:SetFocusChangeDir(G.MOVE_LEFT, self.tabs.menu)
+        self.scroll_list:SetFocusChangeDir(G.MOVE_LEFT, self.tabs)
 
         -- 底部按钮向上到 ScrollableList
+        self.apply_button:SetFocusChangeDir(G.MOVE_LEFT, self.scroll_list)
         self.apply_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
         self.close_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
     else
         -- 空列表时，tabs 直接连接到底部按钮
-        self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+        self.tabs:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
     end
 end
 
@@ -843,6 +846,7 @@ function ActionDetailScreen:RefreshActionsList()
         self.scroll_list:SetFocusChangeDir(G.MOVE_RIGHT, self.add_action_button)
 
         -- 底部按钮向上到 ScrollableList
+        self.add_action_button:SetFocusChangeDir(G.MOVE_LEFT, self.scroll_list)
         self.add_action_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
         self.save_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
         self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.scroll_list)
