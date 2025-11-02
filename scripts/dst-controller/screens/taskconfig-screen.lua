@@ -11,6 +11,7 @@ local TEMPLATES = require("widgets/redux/templates")
 local ScrollableList = require("widgets/scrollablelist")
 local Spinner = require("widgets/spinner")
 local HeaderTabs = require("widgets/redux/headertabs")
+local ImageButton = require("widgets/imagebutton")
 
 -- 前置声明（避免循环引用警告）
 local ActionDetailScreen
@@ -85,6 +86,17 @@ local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, settings_dat
     self.is_dirty = false
     self.current_tab = "tasks"  -- "tasks" 或 "settings"
 
+    -- 添加全屏黑色背景阻挡层（模仿 PauseScreen）
+    -- 这会阻止玩家点击背景的游戏世界
+    self.black = self:AddChild(ImageButton("images/global.xml", "square.tex"))
+    self.black.image:SetVRegPoint(G.ANCHOR_MIDDLE)
+    self.black.image:SetHRegPoint(G.ANCHOR_MIDDLE)
+    self.black.image:SetVAnchor(G.ANCHOR_MIDDLE)
+    self.black.image:SetHAnchor(G.ANCHOR_MIDDLE)
+    self.black.image:SetScaleMode(G.SCALEMODE_FILLSCREEN)
+    self.black.image:SetTint(0, 0, 0, 0.5)  -- 半透明黑色背景
+    self.black:SetOnClick(function() end)  -- 捕获点击事件但不做任何事
+
     -- 主容器
     self.root = self:AddChild(Widget("ROOT"))
     self.root:SetVAnchor(G.ANCHOR_MIDDLE)
@@ -123,6 +135,8 @@ local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, settings_dat
     self:SwitchTab("tasks")
 
     self.default_focus = self.tabs
+    
+    G.SetAutopaused(true)
 end)
 
 function TaskConfigScreen:BuildTabs()
@@ -600,7 +614,16 @@ function TaskConfigScreen:Apply()
 end
 
 function TaskConfigScreen:Close()
-    TheFrontEnd:PopScreen(self)
+    if G.TheWorld then
+        G.TheWorld:PushEvent("continuefrompause")
+    end
+
+    G.TheFrontEnd:PopScreen(self)
+end
+
+function TaskConfigScreen:OnDestroy() 
+    G.SetAutopaused(false)
+    TaskConfigScreen._base.OnDestroy(self)
 end
 
 function TaskConfigScreen:OnControl(control, down)

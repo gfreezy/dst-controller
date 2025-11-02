@@ -13,13 +13,13 @@ local config_screen_open = false
 
 
 -- 处理手柄输入
-function TaskConfigHook.OnControl(control, down)
+function TaskConfigHook.OnControl(playerhud, control, down)
     -- 检查 LB+RB+Y 组合（当 Y 按下时检查）
     if down and Helpers.IsComboButtonPressed({"LB", "RB", "Y"}) then
         -- LB+RB+Y 同时按下，打开配置界面
         if not config_screen_open then
             print("[TaskConfigHook] Opening config screen via gamepad hotkey (LB+RB+Y)")
-            TaskConfigHook.OpenConfigScreen()
+            TaskConfigHook.OpenConfigScreen(playerhud)
             return true
         end
     end
@@ -28,7 +28,7 @@ function TaskConfigHook.OnControl(control, down)
 end
 
 -- 打开配置界面
-function TaskConfigHook.OpenConfigScreen()
+function TaskConfigHook.OpenConfigScreen(playerhud)
     print("[TaskConfigHook] OpenConfigScreen called")
 
     if config_screen_open then
@@ -50,11 +50,13 @@ function TaskConfigHook.OpenConfigScreen()
     end)
     print("[TaskConfigHook] Screen created:", screen ~= nil)
 
-    -- 推入屏幕栈
-    print("[TaskConfigHook] Pushing screen to frontend...")
-    G.TheFrontEnd:PushScreen(screen)
+    -- 使用 PlayerHUD 的 OpenScreenUnderPause 方法
+    -- 这会自动在暂停状态下打开屏幕（如果当前没有暂停，会先暂停）
+    print("[TaskConfigHook] Opening screen under pause...")
+    playerhud:OpenScreenUnderPause(screen)
+
     config_screen_open = true
-    print("[TaskConfigHook] Screen pushed successfully")
+    print("[TaskConfigHook] Screen opened successfully")
 
     -- 使用Hook监听界面关闭
     local old_OnDestroy = screen.OnDestroy

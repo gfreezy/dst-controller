@@ -219,6 +219,16 @@ function VirtualCursor.ToggleCursorMode(force_state)
             STATE.cursor_widget:Show()
         end
 
+        if G.ThePlayer and G.ThePlayer.HUD and G.ThePlayer.HUD.controls then
+            local inventorybar = G.ThePlayer.HUD.controls.inv
+            if inventorybar then
+                -- Clear active_slot to reset selection state
+                if inventorybar.active_slot then
+                    inventorybar.active_slot:DeHighlight()
+                end
+            end
+        end
+
         print("[VirtualCursor] Cursor mode activated")
     else
         -- Exiting cursor mode

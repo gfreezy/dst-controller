@@ -30,7 +30,7 @@ local function InstallOnControl(self)
 
     self.OnControl = function(hud_self, control, down)
         -- Check task config screen shortcut (LB+RB+Y)
-        if TaskConfigHook.OnControl(control, down) then
+        if TaskConfigHook.OnControl(hud_self, control, down) then
             return true
         end
 
