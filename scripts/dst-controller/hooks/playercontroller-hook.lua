@@ -10,7 +10,6 @@ local ConfigManager = require("dst-controller/utils/config_manager")
 local ACTIONS = require("dst-controller/actions/init")
 local TargetSelection = require("dst-controller/target-selection/core")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
-local HybridPathfinding = require("dst-controller/utils/auto_pathfinding_hybrid")
 
 local PlayerControllerHook = {}
 
@@ -27,26 +26,9 @@ local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(self, control, down)
-
-        -- 检测移动输入，如果正在自动寻路则取消
-        if down and HybridPathfinding.IsActive() then
-            -- 检查是否是移动控制（左摇杆或方向键）
-            local is_move_control = (control == G.CONTROL_MOVE_UP or
-                                     control == G.CONTROL_MOVE_DOWN or
-                                     control == G.CONTROL_MOVE_LEFT or
-                                     control == G.CONTROL_MOVE_RIGHT)
-
-            if is_move_control then
-                print("[PlayerController] Player movement detected, cancelling auto-pathfinding")
-                HybridPathfinding.Stop()
-            end
-        end
-
-        -- Block further actions for LB/RB when virtual cursor is not active, end event propagation
-        if not VirtualCursor.IsCursorModeActive() then
-            if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then
-                return true
-            end
+        --- Default behavior for virtual cursor mode is to rotate the camera, so we need to block LB/RB
+        if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then
+            return true
         end
 
         -- Handle B button (CONTROL_CONTROLLER_ALTACTION) for alternative_target
@@ -128,19 +110,6 @@ local function InstallUsingMouse(self)
     end
 end
 
--- Hook: OnUpdate (wrap)
-local function InstallOnUpdate(self)
-    local old_OnUpdate = self.OnUpdate
-
-    self.OnUpdate = function(self, dt)
-        -- Update auto pathfinding
-        HybridPathfinding.OnUpdate(dt)
-
-        -- Call original OnUpdate
-        return old_OnUpdate(self, dt)
-    end
-end
-
 -- Main Install function
 function PlayerControllerHook.Install()
     G.AddComponentPostInit("playercontroller", function(self)
@@ -167,7 +136,6 @@ function PlayerControllerHook.Install()
         InstallOnControl(self)
         InstallIsEnabled(self)
         InstallUsingMouse(self)
-        InstallOnUpdate(self)
 
         Helpers.DebugPrint("PlayerController hooks installed")
     end)
