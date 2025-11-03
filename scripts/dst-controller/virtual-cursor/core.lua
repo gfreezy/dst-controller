@@ -43,6 +43,12 @@ local STATE = {
     speed_transition_rate = 2.0,  -- Speed recovery rate (per second)
     is_hovering_ui = false,
     is_hovering_entity = false,
+
+    -- Magnetism state
+    tracking_target = nil,  -- Current magnetism target entity
+    clear_target_wait_time = nil,  -- Delay before clearing target
+    idle_state = false,  -- Whether stick is idle (magnitude < 0.5)
+    idle_wait_time = 0,  -- Time since stick became idle
 }
 
 -- Helper function to get config with validation
@@ -59,6 +65,10 @@ local function GetConfig()
         cursor_speed = math.max(0.1, math.min(3.0, config.cursor_speed or 1.0)),  -- Clamp 0.1-3.0
         dead_zone = math.max(0.0, math.min(0.5, config.dead_zone or DEAD_ZONE_DEFAULT)),  -- Clamp 0.0-0.5, default 0.2
         show_cursor = config.show_cursor ~= false,  -- Default true
+        -- Magnetism settings
+        cursor_magnetism = config.cursor_magnetism ~= false,  -- Default true
+        magnetism_range = math.max(1, math.min(3, config.magnetism_range or 2)),  -- Clamp 1-3, default 2
+        target_priority = config.target_priority == true,  -- Default false
     }
 end
 
@@ -315,6 +325,181 @@ local function GetAdjustedCursorSpeed(dt, config)
     return base_speed * STATE.current_speed_multiplier
 end
 
+-- ============================================================================
+-- Magnetism Functions
+-- ============================================================================
+
+-- Exclude tags for magnetism targets
+local MAGNETISM_EXCLUDE_TAGS = {"FX", "DECOR", "INLIMBO", "NOCLICK", "notarget"}
+
+-- Find nearest target for magnetism
+-- Returns: distance_sq, screen_pos, entity
+local function FindNearestTarget(center_pos, entities, exclude_entity)
+    local nearest_dist_sq = math.huge
+    local nearest_screen_pos = nil
+    local nearest_entity = nil
+
+    for _, entity in ipairs(entities) do
+        -- Skip invalid entities
+        if entity ~= exclude_entity and
+           entity ~= G.ThePlayer and
+           entity.entity:IsVisible() and
+           entity:IsValid() then
+
+            -- Check exclude tags
+            local has_exclude_tag = false
+            for _, tag in ipairs(MAGNETISM_EXCLUDE_TAGS) do
+                if entity:HasTag(tag) then
+                    has_exclude_tag = true
+                    break
+                end
+            end
+
+            if not has_exclude_tag then
+                -- Get screen position
+                local screen_pos = VirtualCursor.GetScreenPointFromEntity(entity)
+                if screen_pos then
+                    -- Calculate distance squared
+                    local dist_sq = entity:GetDistanceSqToPoint(center_pos)
+
+                    if dist_sq < nearest_dist_sq then
+                        nearest_dist_sq = dist_sq
+                        nearest_screen_pos = screen_pos
+                        nearest_entity = entity
+                    end
+                end
+            end
+        end
+    end
+
+    return nearest_dist_sq, nearest_screen_pos, nearest_entity
+end
+
+-- Get screen position from entity (helper for magnetism)
+function VirtualCursor.GetScreenPointFromEntity(entity)
+    if not entity or not entity:IsValid() then
+        return nil
+    end
+
+    local x, y, z = entity.Transform:GetWorldPosition()
+    local screen_x, screen_y = G.TheSim:GetScreenPos(x, y, z)
+
+    if screen_x and screen_y then
+        return {x = screen_x, y = screen_y}
+    end
+
+    return nil
+end
+
+-- Update magnetism cursor position
+-- Returns: new_screen_pos {x, y} or nil
+function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, current_screen_y)
+    local config = GetConfig()
+
+    -- Check if magnetism is enabled
+    if not config.cursor_magnetism then
+        return nil
+    end
+
+    -- Only apply magnetism when idle (stick magnitude < 0.5)
+    if not is_idle then
+        -- Not idle: clear target with delay
+        if STATE.tracking_target then
+            if not STATE.clear_target_wait_time then
+                STATE.clear_target_wait_time = 0.125  -- 0.125 second delay
+            elseif STATE.clear_target_wait_time > 0 then
+                STATE.clear_target_wait_time = STATE.clear_target_wait_time - dt
+            else
+                STATE.tracking_target = nil
+                STATE.clear_target_wait_time = nil
+            end
+        end
+        return nil
+    end
+
+    -- Reset clear delay
+    STATE.clear_target_wait_time = nil
+
+    -- ===== Step 1: Determine search center and radius =====
+    local search_center
+    local search_radius
+
+    if config.target_priority then
+        -- Priority mode: search around player
+        search_center = G.Vector3(G.ThePlayer.Transform:GetWorldPosition())
+        search_radius = 30  -- Large radius around player
+    else
+        -- Normal mode: search around cursor
+        local world_x, world_y, world_z = VirtualCursor.ProjectScreenPosition(current_screen_x, current_screen_y)
+        search_center = G.Vector3(world_x, world_y, world_z)
+
+        -- Calculate radius based on magnetism_range (1=0, 2=0.8, 3=1.6)
+        search_radius = (config.magnetism_range - 1) * 0.8
+
+        -- If already tracking, use minimum radius of 2
+        if STATE.tracking_target and search_radius < 2 then
+            search_radius = 2
+        end
+    end
+
+    -- ===== Step 2: Find entities in range =====
+    local entities = G.TheSim:FindEntities(
+        search_center.x, search_center.y, search_center.z,
+        search_radius,
+        nil,  -- No must_have_tags
+        MAGNETISM_EXCLUDE_TAGS  -- Exclude tags
+    )
+
+    -- ===== Step 3: Find nearest target =====
+    local current_target = STATE.tracking_target
+    local dist_sq, screen_pos, new_target
+
+    -- Check if current target is still valid and in range
+    if current_target and current_target:IsValid() then
+        local still_in_range = false
+        for _, entity in ipairs(entities) do
+            if entity == current_target then
+                still_in_range = true
+                break
+            end
+        end
+
+        if still_in_range then
+            -- Keep current target
+            dist_sq = current_target:GetDistanceSqToPoint(search_center)
+            screen_pos = VirtualCursor.GetScreenPointFromEntity(current_target)
+            new_target = current_target
+        else
+            -- Current target out of range, find new one
+            dist_sq, screen_pos, new_target = FindNearestTarget(search_center, entities, current_target)
+        end
+    else
+        -- No current target or invalid, find new one
+        dist_sq, screen_pos, new_target = FindNearestTarget(search_center, entities, nil)
+    end
+
+    -- Update tracking target
+    STATE.tracking_target = new_target
+
+    -- ===== Step 4: Calculate magnetism position =====
+    if new_target and screen_pos and dist_sq then
+        if dist_sq < 0.45 then
+            -- Very close: snap directly to target
+            return {x = screen_pos.x, y = screen_pos.y}
+        else
+            -- Far: smooth approach (渐进吸附)
+            local move_factor = dist_sq / 6  -- Slower movement for farther targets
+
+            return {
+                x = current_screen_x + (screen_pos.x - current_screen_x) / dist_sq * move_factor,
+                y = current_screen_y + (screen_pos.y - current_screen_y) / dist_sq * move_factor
+            }
+        end
+    end
+
+    return nil
+end
+
 -- Update cursor position based on right stick input (optimized algorithm from dst-mod)
 function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
     if not STATE.cursor_mode_active then
@@ -365,6 +550,14 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
     -- ===== Step 7: Calculate new position with floor() for pixel precision =====
     local new_x = math.floor(abs_x > 0 and old_x + delta_x or old_x)
     local new_y = math.floor(abs_y > 0 and old_y + delta_y or old_y)
+
+    -- ===== Step 7.5: Apply magnetism (if enabled and stick is idle) =====
+    local is_idle = stick_intensity < 0.5
+    local magnetism_pos = VirtualCursor.UpdateMagnetismCursor(dt, is_idle, new_x, new_y)
+    if magnetism_pos then
+        new_x = math.floor(magnetism_pos.x)
+        new_y = math.floor(magnetism_pos.y)
+    end
 
     -- ===== Step 8: Clamp to screen bounds =====
     local screen_w, screen_h = G.TheSim:GetScreenSize()

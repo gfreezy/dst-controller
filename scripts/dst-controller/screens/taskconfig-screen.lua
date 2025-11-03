@@ -331,7 +331,21 @@ function TaskConfigScreen:BuildSettingsContent()
             cursor_speed = 1.0,
             dead_zone = 0.1,
             show_cursor = true,
+            cursor_magnetism = true,
+            magnetism_range = 2,
+            target_priority = false,
         }
+    end
+
+    -- 确保磁吸设置存在（兼容旧配置）
+    if self.settings_data.virtual_cursor_settings.cursor_magnetism == nil then
+        self.settings_data.virtual_cursor_settings.cursor_magnetism = true
+    end
+    if self.settings_data.virtual_cursor_settings.magnetism_range == nil then
+        self.settings_data.virtual_cursor_settings.magnetism_range = 2
+    end
+    if self.settings_data.virtual_cursor_settings.target_priority == nil then
+        self.settings_data.virtual_cursor_settings.target_priority = false
     end
 
     local vcursor_options = {
@@ -412,8 +426,87 @@ function TaskConfigScreen:BuildSettingsContent()
     vcursor_show_widget.vcursor_show_spinner = vcursor_show_spinner
     vcursor_show_widget.focus_forward = vcursor_show_spinner
 
+    -- 光标磁吸启用设置
+    local magnetism_widget = self.content_panel:AddChild(Widget("magnetism_enable"))
+    local magnetism_label = magnetism_widget:AddChild(Text(G.NEWFONT, 30, "光标磁吸"))
+    magnetism_label:SetColour(1, 1, 1, 1)
+    magnetism_label:SetHAlign(G.ANCHOR_LEFT)
+
+    local magnetism_options = {
+        {text = "关闭", data = false},
+        {text = "开启", data = true},
+    }
+    local magnetism_spinner = magnetism_widget:AddChild(Spinner(
+        magnetism_options,
+        120, 45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true
+    ))
+
+    magnetism_spinner:SetSelected(self.settings_data.virtual_cursor_settings.cursor_magnetism)
+    magnetism_spinner.onchangedfn = function(selected_data)
+        self.settings_data.virtual_cursor_settings.cursor_magnetism = selected_data
+        self.is_dirty = true
+    end
+
+    magnetism_widget.magnetism_spinner = magnetism_spinner
+    magnetism_widget.focus_forward = magnetism_spinner
+
+    -- 磁吸范围设置
+    local magnetism_range_widget = self.content_panel:AddChild(Widget("magnetism_range"))
+    local magnetism_range_label = magnetism_range_widget:AddChild(Text(G.NEWFONT, 30, "磁吸范围"))
+    magnetism_range_label:SetColour(1, 1, 1, 1)
+    magnetism_range_label:SetHAlign(G.ANCHOR_LEFT)
+
+    local magnetism_range_options = {
+        {text = "近距离", data = 1},
+        {text = "中距离", data = 2},
+        {text = "远距离", data = 3},
+    }
+    local magnetism_range_spinner = magnetism_range_widget:AddChild(Spinner(
+        magnetism_range_options,
+        140, 45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true
+    ))
+
+    magnetism_range_spinner:SetSelected(self.settings_data.virtual_cursor_settings.magnetism_range or 2)
+    magnetism_range_spinner.onchangedfn = function(selected_data)
+        self.settings_data.virtual_cursor_settings.magnetism_range = selected_data
+        self.is_dirty = true
+    end
+
+    magnetism_range_widget.magnetism_range_spinner = magnetism_range_spinner
+    magnetism_range_widget.focus_forward = magnetism_range_spinner
+
+    -- 磁吸优先级设置
+    local magnetism_priority_widget = self.content_panel:AddChild(Widget("magnetism_priority"))
+    local magnetism_priority_label = magnetism_priority_widget:AddChild(Text(G.NEWFONT, 30, "磁吸优先级"))
+    magnetism_priority_label:SetColour(1, 1, 1, 1)
+    magnetism_priority_label:SetHAlign(G.ANCHOR_LEFT)
+
+    local magnetism_priority_options = {
+        {text = "光标优先", data = false},
+        {text = "玩家优先", data = true},
+    }
+    local magnetism_priority_spinner = magnetism_priority_widget:AddChild(Spinner(
+        magnetism_priority_options,
+        140, 45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true
+    ))
+
+    magnetism_priority_spinner:SetSelected(self.settings_data.virtual_cursor_settings.target_priority or false)
+    magnetism_priority_spinner.onchangedfn = function(selected_data)
+        self.settings_data.virtual_cursor_settings.target_priority = selected_data
+        self.is_dirty = true
+    end
+
+    magnetism_priority_widget.magnetism_priority_spinner = magnetism_priority_spinner
+    magnetism_priority_widget.focus_forward = magnetism_priority_spinner
+
     -- 布局所有设置项
-    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget, vcursor_widget, vcursor_speed_widget, vcursor_show_widget}, {
+    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget, vcursor_widget, vcursor_speed_widget, vcursor_show_widget, magnetism_widget, magnetism_range_widget, magnetism_priority_widget}, {
         spacing = 50,
         start_x = 0,
         start_y = 0,
@@ -481,12 +574,45 @@ function TaskConfigScreen:BuildSettingsContent()
         anchor = "center"
     })
 
+    Layout.HorizontalRow({
+        {widget = magnetism_label, width = 250},
+        {widget = magnetism_spinner, width = 120},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
+    Layout.HorizontalRow({
+        {widget = magnetism_range_label, width = 250},
+        {widget = magnetism_range_spinner, width = 140},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
+    Layout.HorizontalRow({
+        {widget = magnetism_priority_label, width = 250},
+        {widget = magnetism_priority_spinner, width = 140},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
     table.insert(self.setting_widgets, attack_angle_widget)
     table.insert(self.setting_widgets, interaction_angle_widget)
     table.insert(self.setting_widgets, force_attack_widget)
     table.insert(self.setting_widgets, vcursor_widget)
     table.insert(self.setting_widgets, vcursor_speed_widget)
     table.insert(self.setting_widgets, vcursor_show_widget)
+    table.insert(self.setting_widgets, magnetism_widget)
+    table.insert(self.setting_widgets, magnetism_range_widget)
+    table.insert(self.setting_widgets, magnetism_priority_widget)
 
     -- 设置焦点导航
     attack_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, interaction_angle_widget)
@@ -505,11 +631,20 @@ function TaskConfigScreen:BuildSettingsContent()
     vcursor_speed_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_show_widget)
 
     vcursor_show_widget:SetFocusChangeDir(G.MOVE_UP, vcursor_speed_widget)
-    vcursor_show_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+    vcursor_show_widget:SetFocusChangeDir(G.MOVE_DOWN, magnetism_widget)
+
+    magnetism_widget:SetFocusChangeDir(G.MOVE_UP, vcursor_show_widget)
+    magnetism_widget:SetFocusChangeDir(G.MOVE_DOWN, magnetism_range_widget)
+
+    magnetism_range_widget:SetFocusChangeDir(G.MOVE_UP, magnetism_widget)
+    magnetism_range_widget:SetFocusChangeDir(G.MOVE_DOWN, magnetism_priority_widget)
+
+    magnetism_priority_widget:SetFocusChangeDir(G.MOVE_UP, magnetism_range_widget)
+    magnetism_priority_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
 
     self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, attack_angle_widget)
-    self.apply_button:SetFocusChangeDir(G.MOVE_UP, vcursor_show_widget)
-    self.close_button:SetFocusChangeDir(G.MOVE_UP, vcursor_show_widget)
+    self.apply_button:SetFocusChangeDir(G.MOVE_UP, magnetism_priority_widget)
+    self.close_button:SetFocusChangeDir(G.MOVE_UP, magnetism_priority_widget)
 end
 
 function TaskConfigScreen:BuildConfigWidgets()
