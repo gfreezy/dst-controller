@@ -36,6 +36,9 @@ function HookRegistry.InstallAll()
     -- 6. Controls Widget (cursor widget injection)
     require("dst-controller/hooks/controls-hook").Install()
 
+    -- 7. MapScreen (path visualization on map)
+    require("dst-controller/hooks/mapscreen-hook").Install()
+
     print("[HookRegistry] All hooks installed successfully")
 end
 

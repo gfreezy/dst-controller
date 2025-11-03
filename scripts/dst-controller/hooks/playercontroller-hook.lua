@@ -10,6 +10,7 @@ local ConfigManager = require("dst-controller/utils/config_manager")
 local ACTIONS = require("dst-controller/actions/init")
 local TargetSelection = require("dst-controller/target-selection/core")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
+local HybridPathfinding = require("dst-controller/utils/auto_pathfinding_hybrid")
 
 local PlayerControllerHook = {}
 
@@ -114,6 +115,19 @@ local function InstallUsingMouse(self)
     end
 end
 
+-- Hook: OnUpdate (wrap)
+local function InstallOnUpdate(self)
+    local old_OnUpdate = self.OnUpdate
+
+    self.OnUpdate = function(self, dt)
+        -- Update auto pathfinding
+        HybridPathfinding.OnUpdate(dt)
+
+        -- Call original OnUpdate
+        return old_OnUpdate(self, dt)
+    end
+end
+
 -- Main Install function
 function PlayerControllerHook.Install()
     G.AddComponentPostInit("playercontroller", function(self)
@@ -140,6 +154,7 @@ function PlayerControllerHook.Install()
         InstallOnControl(self)
         InstallIsEnabled(self)
         InstallUsingMouse(self)
+        InstallOnUpdate(self)
 
         Helpers.DebugPrint("PlayerController hooks installed")
     end)
