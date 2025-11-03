@@ -177,8 +177,8 @@ function TaskConfigScreen:SwitchTab(tab_type)
     -- 恢复焦点到新内容的第一个可聚焦元素
     if self.scroll_list and tab_type == "tasks" then
         self.scroll_list:SetFocus()
-    elseif self.setting_widgets and #self.setting_widgets > 0 and tab_type == "settings" then
-        self.setting_widgets[1]:SetFocus()
+    elseif self.settings_scroll_list and tab_type == "settings" then
+        self.settings_scroll_list:SetFocus()
     end
 end
 
@@ -220,431 +220,6 @@ function TaskConfigScreen:BuildTasksContent()
         -- 空列表时，tabs 直接连接到底部按钮
         self.tabs:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
     end
-end
-
-function TaskConfigScreen:BuildSettingsContent()
-    -- 创建 Mod 设置界面
-    self.setting_widgets = {}
-
-    -- 攻击角度模式设置
-    local attack_angle_widget = self.content_panel:AddChild(Widget("attack_angle"))
-    local attack_angle_label = attack_angle_widget:AddChild(Text(G.NEWFONT, 30, "攻击目标选择范围"))
-    attack_angle_label:SetColour(1, 1, 1, 1)
-    attack_angle_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local attack_angle_options = {
-        {text = "仅前方", data = "forward_only"},
-        {text = "360度全方位", data = "all_around"},
-    }
-    local attack_angle_spinner = attack_angle_widget:AddChild(Spinner(
-        attack_angle_options,
-        200, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true  -- lean=true 使用简洁样式（透明背景）
-    ))
-    -- lean 样式默认已经是白色文字，不需要额外设置
-
-    -- 设置初始值
-    local current_attack_angle = self.settings_data.attack_angle_mode or "forward_only"
-    attack_angle_spinner:SetSelected(current_attack_angle)
-
-    -- 设置回调
-    attack_angle_spinner.onchangedfn = function(selected_data)
-        self.settings_data.attack_angle_mode = selected_data
-        self.is_dirty = true
-    end
-
-    attack_angle_widget.attack_angle_spinner = attack_angle_spinner
-    attack_angle_widget.focus_forward = attack_angle_spinner
-
-    -- 攻击目标过滤设置
-    local force_attack_widget = self.content_panel:AddChild(Widget("force_attack"))
-    local force_attack_label = force_attack_widget:AddChild(Text(G.NEWFONT, 30, "攻击目标过滤"))
-    force_attack_label:SetColour(1, 1, 1, 1)
-    force_attack_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local force_attack_options = {
-        {text = "仅敌对 (LB+X强攻)", data = "hostile_only"},
-        {text = "全部可攻击", data = "force_attack"},
-    }
-    local force_attack_spinner = force_attack_widget:AddChild(Spinner(
-        force_attack_options,
-        280, 45,  -- 增加宽度以容纳长文本
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true  -- lean=true 使用简洁样式（透明背景）
-    ))
-    -- lean 样式默认已经是白色文字，不需要额外设置
-
-    -- 设置初始值
-    local current_force_attack = self.settings_data.force_attack_mode or "hostile_only"
-    force_attack_spinner:SetSelected(current_force_attack)
-
-    -- 设置回调
-    force_attack_spinner.onchangedfn = function(selected_data)
-        self.settings_data.force_attack_mode = selected_data
-        self.is_dirty = true
-    end
-
-    force_attack_widget.force_attack_spinner = force_attack_spinner
-    force_attack_widget.focus_forward = force_attack_spinner
-
-    -- 交互目标选择范围设置
-    local interaction_angle_widget = self.content_panel:AddChild(Widget("interaction_angle"))
-    local interaction_angle_label = interaction_angle_widget:AddChild(Text(G.NEWFONT, 30, "交互目标选择范围"))
-    interaction_angle_label:SetColour(1, 1, 1, 1)
-    interaction_angle_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local interaction_angle_options = {
-        {text = "仅前方", data = "forward_only"},
-        {text = "360度全方位", data = "all_around"},
-    }
-    local interaction_angle_spinner = interaction_angle_widget:AddChild(Spinner(
-        interaction_angle_options,
-        200, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true  -- lean=true 使用简洁样式（透明背景）
-    ))
-
-    -- 设置初始值
-    local current_interaction_angle = self.settings_data.interaction_angle_mode or "forward_only"
-    interaction_angle_spinner:SetSelected(current_interaction_angle)
-
-    -- 设置回调
-    interaction_angle_spinner.onchangedfn = function(selected_data)
-        self.settings_data.interaction_angle_mode = selected_data
-        self.is_dirty = true
-    end
-
-    interaction_angle_widget.interaction_angle_spinner = interaction_angle_spinner
-    interaction_angle_widget.focus_forward = interaction_angle_spinner
-
-    -- 虚拟光标启用设置
-    local vcursor_widget = self.content_panel:AddChild(Widget("virtual_cursor"))
-    local vcursor_label = vcursor_widget:AddChild(Text(G.NEWFONT, 30, "虚拟光标"))
-    vcursor_label:SetColour(1, 1, 1, 1)
-    vcursor_label:SetHAlign(G.ANCHOR_LEFT)
-
-    -- 确保 virtual_cursor_settings 存在
-    if not self.settings_data.virtual_cursor_settings then
-        self.settings_data.virtual_cursor_settings = {
-            enabled = true,
-            cursor_speed = 1.0,
-            dead_zone = 0.1,
-            show_cursor = true,
-            cursor_magnetism = true,
-            magnetism_range = 2,
-            target_priority = false,
-        }
-    end
-
-    -- 确保磁吸设置存在（兼容旧配置）
-    if self.settings_data.virtual_cursor_settings.cursor_magnetism == nil then
-        self.settings_data.virtual_cursor_settings.cursor_magnetism = true
-    end
-    if self.settings_data.virtual_cursor_settings.magnetism_range == nil then
-        self.settings_data.virtual_cursor_settings.magnetism_range = 2
-    end
-    if self.settings_data.virtual_cursor_settings.target_priority == nil then
-        self.settings_data.virtual_cursor_settings.target_priority = false
-    end
-
-    local vcursor_options = {
-        {text = "禁用", data = false},
-        {text = "启用", data = true},
-    }
-    local vcursor_spinner = vcursor_widget:AddChild(Spinner(
-        vcursor_options,
-        120, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true
-    ))
-
-    -- 设置初始值
-    vcursor_spinner:SetSelected(self.settings_data.virtual_cursor_settings.enabled)
-
-    -- 设置回调
-    vcursor_spinner.onchangedfn = function(selected_data)
-        self.settings_data.virtual_cursor_settings.enabled = selected_data
-        self.is_dirty = true
-    end
-
-    vcursor_widget.vcursor_spinner = vcursor_spinner
-    vcursor_widget.focus_forward = vcursor_spinner
-
-    -- 虚拟光标速度设置
-    local vcursor_speed_widget = self.content_panel:AddChild(Widget("virtual_cursor_speed"))
-    local vcursor_speed_label = vcursor_speed_widget:AddChild(Text(G.NEWFONT, 30, "光标移动速度"))
-    vcursor_speed_label:SetColour(1, 1, 1, 1)
-    vcursor_speed_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local vcursor_speed_options = {
-        {text = "很慢 (0.5x)", data = 0.5},
-        {text = "慢 (0.75x)", data = 0.75},
-        {text = "正常 (1.0x)", data = 1.0},
-        {text = "快 (1.5x)", data = 1.5},
-        {text = "很快 (2.0x)", data = 2.0},
-    }
-    local vcursor_speed_spinner = vcursor_speed_widget:AddChild(Spinner(
-        vcursor_speed_options,
-        180, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true
-    ))
-
-    vcursor_speed_spinner:SetSelected(self.settings_data.virtual_cursor_settings.cursor_speed or 1.0)
-    vcursor_speed_spinner.onchangedfn = function(selected_data)
-        self.settings_data.virtual_cursor_settings.cursor_speed = selected_data
-        self.is_dirty = true
-    end
-
-    vcursor_speed_widget.vcursor_speed_spinner = vcursor_speed_spinner
-    vcursor_speed_widget.focus_forward = vcursor_speed_spinner
-
-    -- 虚拟光标显示设置
-    local vcursor_show_widget = self.content_panel:AddChild(Widget("virtual_cursor_show"))
-    local vcursor_show_label = vcursor_show_widget:AddChild(Text(G.NEWFONT, 30, "显示光标图标"))
-    vcursor_show_label:SetColour(1, 1, 1, 1)
-    vcursor_show_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local vcursor_show_options = {
-        {text = "隐藏", data = false},
-        {text = "显示", data = true},
-    }
-    local vcursor_show_spinner = vcursor_show_widget:AddChild(Spinner(
-        vcursor_show_options,
-        120, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true
-    ))
-
-    vcursor_show_spinner:SetSelected(self.settings_data.virtual_cursor_settings.show_cursor)
-    vcursor_show_spinner.onchangedfn = function(selected_data)
-        self.settings_data.virtual_cursor_settings.show_cursor = selected_data
-        self.is_dirty = true
-    end
-
-    vcursor_show_widget.vcursor_show_spinner = vcursor_show_spinner
-    vcursor_show_widget.focus_forward = vcursor_show_spinner
-
-    -- 光标磁吸启用设置
-    local magnetism_widget = self.content_panel:AddChild(Widget("magnetism_enable"))
-    local magnetism_label = magnetism_widget:AddChild(Text(G.NEWFONT, 30, "光标磁吸"))
-    magnetism_label:SetColour(1, 1, 1, 1)
-    magnetism_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local magnetism_options = {
-        {text = "关闭", data = false},
-        {text = "开启", data = true},
-    }
-    local magnetism_spinner = magnetism_widget:AddChild(Spinner(
-        magnetism_options,
-        120, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true
-    ))
-
-    magnetism_spinner:SetSelected(self.settings_data.virtual_cursor_settings.cursor_magnetism)
-    magnetism_spinner.onchangedfn = function(selected_data)
-        self.settings_data.virtual_cursor_settings.cursor_magnetism = selected_data
-        self.is_dirty = true
-    end
-
-    magnetism_widget.magnetism_spinner = magnetism_spinner
-    magnetism_widget.focus_forward = magnetism_spinner
-
-    -- 磁吸范围设置
-    local magnetism_range_widget = self.content_panel:AddChild(Widget("magnetism_range"))
-    local magnetism_range_label = magnetism_range_widget:AddChild(Text(G.NEWFONT, 30, "磁吸范围"))
-    magnetism_range_label:SetColour(1, 1, 1, 1)
-    magnetism_range_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local magnetism_range_options = {
-        {text = "近距离", data = 1},
-        {text = "中距离", data = 2},
-        {text = "远距离", data = 3},
-    }
-    local magnetism_range_spinner = magnetism_range_widget:AddChild(Spinner(
-        magnetism_range_options,
-        140, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true
-    ))
-
-    magnetism_range_spinner:SetSelected(self.settings_data.virtual_cursor_settings.magnetism_range or 2)
-    magnetism_range_spinner.onchangedfn = function(selected_data)
-        self.settings_data.virtual_cursor_settings.magnetism_range = selected_data
-        self.is_dirty = true
-    end
-
-    magnetism_range_widget.magnetism_range_spinner = magnetism_range_spinner
-    magnetism_range_widget.focus_forward = magnetism_range_spinner
-
-    -- 磁吸优先级设置
-    local magnetism_priority_widget = self.content_panel:AddChild(Widget("magnetism_priority"))
-    local magnetism_priority_label = magnetism_priority_widget:AddChild(Text(G.NEWFONT, 30, "磁吸优先级"))
-    magnetism_priority_label:SetColour(1, 1, 1, 1)
-    magnetism_priority_label:SetHAlign(G.ANCHOR_LEFT)
-
-    local magnetism_priority_options = {
-        {text = "光标优先", data = false},
-        {text = "玩家优先", data = true},
-    }
-    local magnetism_priority_spinner = magnetism_priority_widget:AddChild(Spinner(
-        magnetism_priority_options,
-        140, 45,
-        {font = G.NEWFONT, size = 28},
-        nil, nil, nil, true
-    ))
-
-    magnetism_priority_spinner:SetSelected(self.settings_data.virtual_cursor_settings.target_priority or false)
-    magnetism_priority_spinner.onchangedfn = function(selected_data)
-        self.settings_data.virtual_cursor_settings.target_priority = selected_data
-        self.is_dirty = true
-    end
-
-    magnetism_priority_widget.magnetism_priority_spinner = magnetism_priority_spinner
-    magnetism_priority_widget.focus_forward = magnetism_priority_spinner
-
-    -- 布局所有设置项
-    Layout.Vertical({attack_angle_widget, interaction_angle_widget, force_attack_widget, vcursor_widget, vcursor_speed_widget, vcursor_show_widget, magnetism_widget, magnetism_range_widget, magnetism_priority_widget}, {
-        spacing = 50,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    -- 每个设置项内部的布局
-    Layout.HorizontalRow({
-        {widget = attack_angle_label, width = 250},
-        {widget = attack_angle_spinner, width = 200},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = interaction_angle_label, width = 250},
-        {widget = interaction_angle_spinner, width = 200},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = force_attack_label, width = 250},
-        {widget = force_attack_spinner, width = 280},  -- 更新宽度匹配 Spinner
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = vcursor_label, width = 250},
-        {widget = vcursor_spinner, width = 120},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = vcursor_speed_label, width = 250},
-        {widget = vcursor_speed_spinner, width = 180},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = vcursor_show_label, width = 250},
-        {widget = vcursor_show_spinner, width = 120},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = magnetism_label, width = 250},
-        {widget = magnetism_spinner, width = 120},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = magnetism_range_label, width = 250},
-        {widget = magnetism_range_spinner, width = 140},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    Layout.HorizontalRow({
-        {widget = magnetism_priority_label, width = 250},
-        {widget = magnetism_priority_spinner, width = 140},
-    }, {
-        spacing = 30,
-        start_x = 0,
-        start_y = 0,
-        anchor = "center"
-    })
-
-    table.insert(self.setting_widgets, attack_angle_widget)
-    table.insert(self.setting_widgets, interaction_angle_widget)
-    table.insert(self.setting_widgets, force_attack_widget)
-    table.insert(self.setting_widgets, vcursor_widget)
-    table.insert(self.setting_widgets, vcursor_speed_widget)
-    table.insert(self.setting_widgets, vcursor_show_widget)
-    table.insert(self.setting_widgets, magnetism_widget)
-    table.insert(self.setting_widgets, magnetism_range_widget)
-    table.insert(self.setting_widgets, magnetism_priority_widget)
-
-    -- 设置焦点导航
-    attack_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, interaction_angle_widget)
-    attack_angle_widget:SetFocusChangeDir(G.MOVE_UP, self.tabs)
-
-    interaction_angle_widget:SetFocusChangeDir(G.MOVE_UP, attack_angle_widget)
-    interaction_angle_widget:SetFocusChangeDir(G.MOVE_DOWN, force_attack_widget)
-
-    force_attack_widget:SetFocusChangeDir(G.MOVE_UP, interaction_angle_widget)
-    force_attack_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_widget)
-
-    vcursor_widget:SetFocusChangeDir(G.MOVE_UP, force_attack_widget)
-    vcursor_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_speed_widget)
-
-    vcursor_speed_widget:SetFocusChangeDir(G.MOVE_UP, vcursor_widget)
-    vcursor_speed_widget:SetFocusChangeDir(G.MOVE_DOWN, vcursor_show_widget)
-
-    vcursor_show_widget:SetFocusChangeDir(G.MOVE_UP, vcursor_speed_widget)
-    vcursor_show_widget:SetFocusChangeDir(G.MOVE_DOWN, magnetism_widget)
-
-    magnetism_widget:SetFocusChangeDir(G.MOVE_UP, vcursor_show_widget)
-    magnetism_widget:SetFocusChangeDir(G.MOVE_DOWN, magnetism_range_widget)
-
-    magnetism_range_widget:SetFocusChangeDir(G.MOVE_UP, magnetism_widget)
-    magnetism_range_widget:SetFocusChangeDir(G.MOVE_DOWN, magnetism_priority_widget)
-
-    magnetism_priority_widget:SetFocusChangeDir(G.MOVE_UP, magnetism_range_widget)
-    magnetism_priority_widget:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
-
-    self.tabs.menu:SetFocusChangeDir(G.MOVE_DOWN, attack_angle_widget)
-    self.apply_button:SetFocusChangeDir(G.MOVE_UP, magnetism_priority_widget)
-    self.close_button:SetFocusChangeDir(G.MOVE_UP, magnetism_priority_widget)
 end
 
 function TaskConfigScreen:BuildConfigWidgets()
@@ -703,6 +278,226 @@ function TaskConfigScreen:BuildConfigWidgets()
     end
 end
 
+-- 辅助函数：创建单个设置项widget
+local function CreateSettingItem(label_text, spinner_options, initial_value, on_change_callback, spinner_width)
+    local container = Widget("setting_item")
+
+    -- 创建标签
+    local label = container:AddChild(Text(G.NEWFONT, 30, label_text))
+    label:SetColour(1, 1, 1, 1)
+    label:SetHAlign(G.ANCHOR_LEFT)
+
+    -- 创建Spinner
+    local spinner = container:AddChild(Spinner(
+        spinner_options,
+        spinner_width or 200,
+        45,
+        {font = G.NEWFONT, size = 28},
+        nil, nil, nil, true  -- lean = true: 透明背景，白色文字
+    ))
+
+    -- 设置初始值
+    spinner:SetSelected(initial_value)
+
+    -- 设置回调
+    spinner.onchangedfn = on_change_callback
+
+    -- 布局：标签在左，Spinner在右
+    Layout.HorizontalRow({
+        {widget = label, width = 250},
+        {widget = spinner, width = spinner_width or 200},
+    }, {
+        spacing = 30,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
+    -- 设置焦点转发
+    container.focus_forward = spinner
+
+    return container
+end
+
+function TaskConfigScreen:BuildSettingsContent()
+    -- 创建 Mod 设置界面
+    self.setting_widgets = {}
+
+    -- 确保 virtual_cursor_settings 存在
+    if not self.settings_data.virtual_cursor_settings then
+        self.settings_data.virtual_cursor_settings = {
+            enabled = true,
+            cursor_speed = 1.0,
+            dead_zone = 0.1,
+            show_cursor = true,
+            cursor_magnetism = true,
+            magnetism_range = 2,
+            target_priority = false,
+        }
+    end
+
+    -- 确保磁吸设置存在（兼容旧配置）
+    local vc_settings = self.settings_data.virtual_cursor_settings
+    if vc_settings.cursor_magnetism == nil then vc_settings.cursor_magnetism = true end
+    if vc_settings.magnetism_range == nil then vc_settings.magnetism_range = 2 end
+    if vc_settings.target_priority == nil then vc_settings.target_priority = false end
+
+    -- 创建临时设置副本（用于编辑，只有点击应用时才保存）
+    self.temp_settings = {
+        attack_angle_mode = self.settings_data.attack_angle_mode,
+        interaction_angle_mode = self.settings_data.interaction_angle_mode,
+        force_attack_mode = self.settings_data.force_attack_mode,
+        virtual_cursor_settings = {
+            enabled = vc_settings.enabled,
+            cursor_speed = vc_settings.cursor_speed,
+            dead_zone = vc_settings.dead_zone,
+            show_cursor = vc_settings.show_cursor,
+            cursor_magnetism = vc_settings.cursor_magnetism,
+            magnetism_range = vc_settings.magnetism_range,
+            target_priority = vc_settings.target_priority,
+        }
+    }
+
+    -- 创建所有设置项
+    local function MakeSettingItemWidgets()
+        local items = {}
+
+        -- 1. 攻击角度模式设置
+        table.insert(items, CreateSettingItem(
+            "攻击目标选择范围",
+            {{text = "仅前方", data = "forward_only"}, {text = "360度全方位", data = "all_around"}},
+            self.temp_settings.attack_angle_mode or "forward_only",
+            function(data) self.temp_settings.attack_angle_mode = data end,
+            200
+        ))
+
+        -- 2. 交互目标选择范围设置
+        table.insert(items, CreateSettingItem(
+            "交互目标选择范围",
+            {{text = "仅前方", data = "forward_only"}, {text = "360度全方位", data = "all_around"}},
+            self.temp_settings.interaction_angle_mode or "forward_only",
+            function(data) self.temp_settings.interaction_angle_mode = data end,
+            200
+        ))
+
+        -- 3. 攻击目标过滤设置
+        table.insert(items, CreateSettingItem(
+            "攻击目标过滤",
+            {{text = "仅敌对 (LB+X强攻)", data = "hostile_only"}, {text = "全部可攻击", data = "force_attack"}},
+            self.temp_settings.force_attack_mode or "hostile_only",
+            function(data) self.temp_settings.force_attack_mode = data end,
+            280
+        ))
+
+        -- 4. 虚拟光标启用设置
+        local temp_vc = self.temp_settings.virtual_cursor_settings
+        table.insert(items, CreateSettingItem(
+            "虚拟光标",
+            {{text = "禁用", data = false}, {text = "启用", data = true}},
+            temp_vc.enabled,
+            function(data) temp_vc.enabled = data end,
+            120
+        ))
+
+        -- 5. 虚拟光标速度设置
+        table.insert(items, CreateSettingItem(
+            "光标移动速度",
+            {
+                {text = "很慢 (0.5x)", data = 0.5},
+                {text = "慢 (0.75x)", data = 0.75},
+                {text = "正常 (1.0x)", data = 1.0},
+                {text = "快 (1.5x)", data = 1.5},
+                {text = "很快 (2.0x)", data = 2.0},
+            },
+            temp_vc.cursor_speed or 1.0,
+            function(data) temp_vc.cursor_speed = data end,
+            180
+        ))
+
+        -- 6. 虚拟光标显示设置
+        table.insert(items, CreateSettingItem(
+            "显示光标图标",
+            {{text = "隐藏", data = false}, {text = "显示", data = true}},
+            temp_vc.show_cursor,
+            function(data) temp_vc.show_cursor = data end,
+            120
+        ))
+
+        -- 7. 光标磁吸启用设置
+        table.insert(items, CreateSettingItem(
+            "光标磁吸",
+            {{text = "关闭", data = false}, {text = "开启", data = true}},
+            temp_vc.cursor_magnetism,
+            function(data) temp_vc.cursor_magnetism = data end,
+            120
+        ))
+
+        -- 8. 磁吸范围设置
+        table.insert(items, CreateSettingItem(
+            "磁吸范围",
+            {{text = "近距离", data = 1}, {text = "中距离", data = 2}, {text = "远距离", data = 3}},
+            temp_vc.magnetism_range or 2,
+            function(data) temp_vc.magnetism_range = data end,
+            140
+        ))
+
+        -- 9. 磁吸优先级设置
+        table.insert(items, CreateSettingItem(
+            "磁吸优先级",
+            {{text = "光标优先", data = false}, {text = "玩家优先", data = true}},
+            temp_vc.target_priority or false,
+            function(data) temp_vc.target_priority = data end,
+            140
+        ))
+
+        return items
+    end
+
+    -- 创建ScrollableList
+    local items = MakeSettingItemWidgets()
+
+    self.settings_scroll_list = self.content_panel:AddChild(
+        ScrollableList(
+            items,
+            600,  -- width
+            400,  -- height
+            70,   -- item height
+            4,   -- item padding
+            nil,  -- update function
+            nil,  -- widgets to update
+            300,  -- widget X offset (centering)
+            nil, nil, nil, nil, nil,
+            "GOLD"
+        )
+    )
+
+    self.settings_scroll_list:SetPosition(0, 0)
+    self.settings_scroll_list:DoFocusHookups()
+
+    -- 设置焦点导航（参考 BuildTasksContent）
+    if #items > 0 then
+        -- Tabs 向下到 ScrollableList
+        self.tabs:SetFocusChangeDir(G.MOVE_DOWN, self.settings_scroll_list)
+        self.tabs:SetFocusChangeDir(G.MOVE_RIGHT, self.settings_scroll_list)
+
+        -- ScrollableList 向上到 Tabs，向下到底部按钮
+        items[1]:SetFocusChangeDir(G.MOVE_UP, self.tabs)
+        items[#items]:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+
+        -- ScrollableList 向右到底部按钮, 向左到 tabs
+        self.settings_scroll_list:SetFocusChangeDir(G.MOVE_RIGHT, self.apply_button)
+        self.settings_scroll_list:SetFocusChangeDir(G.MOVE_LEFT, self.tabs)
+
+        -- 底部按钮向上到 ScrollableList
+        self.apply_button:SetFocusChangeDir(G.MOVE_LEFT, self.settings_scroll_list)
+        self.apply_button:SetFocusChangeDir(G.MOVE_UP, self.settings_scroll_list)
+        self.close_button:SetFocusChangeDir(G.MOVE_UP, self.settings_scroll_list)
+    else
+        -- 空列表时，tabs 直接连接到底部按钮
+        self.tabs:SetFocusChangeDir(G.MOVE_DOWN, self.apply_button)
+    end
+end
+
 -- 打开详细配置对话框
 function TaskConfigScreen:OpenDetailConfig(combo_key)
     local task_config = self.tasks_data[combo_key] or {
@@ -731,6 +526,7 @@ function TaskConfigScreen:RefreshConfigWidgets()
     for _, widget in ipairs(self.config_widgets) do
         widget:Kill()
     end
+
     self.config_widgets = {}
 
     -- 重新构建
@@ -739,6 +535,27 @@ function TaskConfigScreen:RefreshConfigWidgets()
 end
 
 function TaskConfigScreen:Apply()
+    -- 将临时设置保存到正式设置数据
+    if self.temp_settings then
+        -- 复制基础设置
+        self.settings_data.attack_angle_mode = self.temp_settings.attack_angle_mode
+        self.settings_data.interaction_angle_mode = self.temp_settings.interaction_angle_mode
+        self.settings_data.force_attack_mode = self.temp_settings.force_attack_mode
+
+        -- 复制虚拟光标设置
+        local temp_vc = self.temp_settings.virtual_cursor_settings
+        local vc_settings = self.settings_data.virtual_cursor_settings
+        vc_settings.enabled = temp_vc.enabled
+        vc_settings.cursor_speed = temp_vc.cursor_speed
+        vc_settings.dead_zone = temp_vc.dead_zone
+        vc_settings.show_cursor = temp_vc.show_cursor
+        vc_settings.cursor_magnetism = temp_vc.cursor_magnetism
+        vc_settings.magnetism_range = temp_vc.magnetism_range
+        vc_settings.target_priority = temp_vc.target_priority
+
+        self.is_dirty = true
+    end
+
     -- 保存任务配置和设置数据
     if self.on_apply_cb then
         self.on_apply_cb(self.tasks_data, self.settings_data)
@@ -872,7 +689,7 @@ ActionDetailScreen = G.Class(Screen, function(self, combo_key, combo_name, task_
     self.scroll_list = self.root:AddChild(
         ScrollableList(
             self.action_widgets,
-            600, 300, 70, 10,
+            600, 300, 70, 4,
             nil, nil, 600/2, nil, nil, nil, nil, nil,
             "GOLD"
         )

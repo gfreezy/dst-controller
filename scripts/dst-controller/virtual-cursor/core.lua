@@ -430,7 +430,7 @@ function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, curr
         search_radius = 30  -- Large radius around player
     else
         -- Normal mode: search around cursor
-        local world_x, world_y, world_z = VirtualCursor.ProjectScreenPosition(current_screen_x, current_screen_y)
+        local world_x, world_y, world_z = G.TheSim:ProjectScreenPos(current_screen_x, current_screen_y)
         search_center = G.Vector3(world_x, world_y, world_z)
 
         -- Calculate radius based on magnetism_range (1=0, 2=0.8, 3=1.6)
@@ -689,6 +689,11 @@ function VirtualCursor.SetCursorWidget(widget)
     STATE.cursor_widget = widget
 end
 
+-- Get cursor widget
+function VirtualCursor.GetCursorWidget()
+    return STATE.cursor_widget
+end
+
 -- Get current cursor position
 function VirtualCursor.GetCursorPosition()
     return STATE.cursor_position
@@ -719,28 +724,13 @@ end
 -- ============================================================================
 
 -- Handle virtual cursor control inputs
--- This is called from playercontroller:OnControl hook
+-- This is called from thefrontend:OnControl hook
 -- @param control - The control input
 -- @param down - Whether the control is pressed (true) or released (false)
 -- @return true if input was handled, false otherwise
 function VirtualCursor.OnControl(control, down)
-    -- Check for toggle combo (LB + RB + RT by default)
-    -- Need to use raw input check because when cursor is active, ControllerAttached() returns false
-    -- which might interfere with button detection
-    local combo_config = GetConfig().toggle_combo or {"LB", "RB", "RT"}
-    local combo_pressed = Helpers.IsComboButtonPressed(combo_config)
-
-    if combo_pressed and down then
-        -- Combo pressed, toggle cursor mode (no parameter = toggle behavior)
-        VirtualCursor.ToggleCursorMode()
-        return true  -- Intercept
-    end
-
     -- If cursor mode is active, handle cursor controls
     if STATE.cursor_mode_active then
-        -- Check if LB is pressed
-        local lb_pressed = Helpers.IsButtonPressed("LB")
-
         -- Handle left-click button
         local left_click_control_name = VirtualCursor.GetClickButtonName("left")
         if Helpers.IsControlNamedButton(control, left_click_control_name) then
@@ -763,6 +753,19 @@ function VirtualCursor.OnControl(control, down)
     return false
 end
 
+-- This is called from playhud:OnControl hook
+function VirtualCursor.ToggleOnControl(control, down)
+    local combo_config = GetConfig().toggle_combo or {"LB", "RB", "RT"}
+    local combo_pressed = Helpers.IsComboButtonPressed(combo_config)
+    if combo_pressed and down then
+        VirtualCursor.ToggleCursorMode()
+        return true
+    end
+    return false
+end
+
+
+-- This is called from thefrontend:OnUpdate hook
 function VirtualCursor.OnUpdate(self, dt)
     -- If cursor mode is active, update cursor position from right stick
     if not STATE.cursor_mode_active then

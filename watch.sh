@@ -20,6 +20,8 @@ echo -e "${YELLOW}监控目录: $MOD_SOURCE_DIR${NC}"
 echo -e "${BLUE}按 Ctrl+C 停止监控${NC}"
 echo ""
 
+bash "$MOD_SOURCE_DIR/sync.sh"
+
 # 检查是否安装了 fswatch (Mac) 或 inotifywait (Linux)
 if command -v fswatch &> /dev/null; then
     # macOS

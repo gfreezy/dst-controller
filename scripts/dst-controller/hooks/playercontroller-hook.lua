@@ -28,6 +28,20 @@ local function InstallOnControl(self)
 
     self.OnControl = function(self, control, down)
 
+        -- 检测移动输入，如果正在自动寻路则取消
+        if down and HybridPathfinding.IsActive() then
+            -- 检查是否是移动控制（左摇杆或方向键）
+            local is_move_control = (control == G.CONTROL_MOVE_UP or
+                                     control == G.CONTROL_MOVE_DOWN or
+                                     control == G.CONTROL_MOVE_LEFT or
+                                     control == G.CONTROL_MOVE_RIGHT)
+
+            if is_move_control then
+                print("[PlayerController] Player movement detected, cancelling auto-pathfinding")
+                HybridPathfinding.Stop()
+            end
+        end
+
         -- Block further actions for LB/RB when virtual cursor is not active, end event propagation
         if not VirtualCursor.IsCursorModeActive() then
             if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then
@@ -79,7 +93,6 @@ local function InstallOnControl(self)
             end
         )
 
-        print("control: " .. tostring(control) .. " on pressed: " .. tostring(down) .. " is handled: " .. tostring(handled))
         -- If handled, block default behavior
         if handled then
             return true

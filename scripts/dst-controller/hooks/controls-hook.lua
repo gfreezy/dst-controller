@@ -1,10 +1,8 @@
 -- Controls Widget Hook
--- Injects cursor widget into HUD and handles alternative target display
--- Extracted from virtual-cursor-hook.lua
+-- Handles alternative target display
+-- Note: cursor_widget is now created in TheFrontEnd hook
 
 local G = require("dst-controller/global")
-local VirtualCursor = require("dst-controller/virtual-cursor/core")
-local CursorWidget = require("dst-controller/virtual-cursor/cursor_widget")
 
 local ControlsHook = {}
 
@@ -121,20 +119,10 @@ end
 
 -- Install Controls widget hook
 function ControlsHook.Install()
-    -- Hook into HUD to add cursor widget and alternative target display
+    -- Hook into HUD for alternative target display
     G.AddClassPostConstruct("widgets/controls", function(self)
-        -- Create cursor widget and add to HUD
-        local cursor_widget = self:AddChild(CursorWidget())
-        cursor_widget:SetScaleMode(G.SCALEMODE_PROPORTIONAL)
-        cursor_widget:MoveToFront()  -- Ensure cursor is always on top
-
-        -- Register widget with VirtualCursor core
-        VirtualCursor.SetCursorWidget(cursor_widget)
-
-        -- Store reference in playercontroller for updates
-        if G.ThePlayer and G.ThePlayer.components.playercontroller then
-            G.ThePlayer.components.playercontroller._cursor_widget = cursor_widget
-        end
+        -- Note: cursor_widget is now created in TheFrontEnd hook (overlayroot)
+        -- to ensure it's always above all screens
 
         -- Hook OnUpdate for alternative target display
         HookOnUpdate(self)

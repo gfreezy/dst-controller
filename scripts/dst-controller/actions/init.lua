@@ -8,7 +8,6 @@ local Equipment = require("dst-controller/actions/equipment")
 local Items = require("dst-controller/actions/items")
 local Crafting = require("dst-controller/actions/crafting")
 local Character = require("dst-controller/actions/character")
-local Utility = require("dst-controller/actions/utility")
 
 -- Create the aggregated ACTIONS table
 local ACTIONS = {}
@@ -62,11 +61,6 @@ ACTIONS.craft_item = Crafting.craft_item
 ACTIONS.willow_cast_spell = Character.willow_cast_spell
 ACTIONS.start_channeling = Character.start_channeling
 ACTIONS.stop_channeling = Character.stop_channeling
-
--- ============================================================================
--- Utility Actions
--- ============================================================================
-ACTIONS.none = Utility.none
 
 -- ============================================================================
 -- Special Exports

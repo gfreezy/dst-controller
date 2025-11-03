@@ -101,13 +101,10 @@ end
 
 -- 检查位置是否在迷雾中
 local function IsPositionInFog(x, y, z)
-    local map = G.TheWorld.Map
-    if not map then return false end
-
-    local tile_x, tile_z = map:GetTileCoordsAtPoint(x, y, z)
-    if tile_x and tile_z then
-        return not map:IsExplored(tile_x, tile_z)
-    end
+    -- Note: DST's Map object doesn't have IsExplored method
+    -- Fog of war is handled client-side and cannot be easily queried server-side
+    -- For pathfinding purposes, we assume all positions are visible
+    -- If you need fog detection, you would need to use TheWorld.minimap.MiniMap methods
     return false
 end
 

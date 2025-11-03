@@ -54,8 +54,9 @@ function MapScreenHook.Install()
         -- Hook OnControl - 检测虚拟光标点击启动寻路
         local old_OnControl = self.OnControl
         self.OnControl = function(self, control, down)
+            print("MapScreen OnControl control: " .. tostring(control) .. " down: " .. tostring(down))
             -- 检查是否是虚拟光标模式下的左键点击
-            if VirtualCursor.IsCursorModeActive() and control == G.CONTROL_PRIMARY and down then
+            if VirtualCursor.IsCursorModeActive() and control == G.CONTROL_ACCEPT and down then
                 -- 获取光标位置的世界坐标
                 local wx, wy, wz = self:GetWorldPositionAtCursor()
 

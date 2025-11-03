@@ -62,10 +62,10 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
             local sx, sy = WorldPosToScreenPos(current_mapscreen, wx, wz)
 
             if sx and sy then
-                local dot = current_mapscreen.decorationrootstatic:AddChild(Image("images/hud.xml", "turnarrow.tex"))
+                local dot = current_mapscreen.decorationrootstatic:AddChild(Image("images/global.xml", "square.tex"))
                 dot:SetTint(0, 1, 0, 0.6)  -- 绿色半透明
                 dot:SetPosition(sx, sy)
-                dot:SetScale(zoomscale * 0.3, zoomscale * 0.3, 1)
+                dot:SetScale(zoomscale * 0.02, zoomscale * 0.02, 1)  -- 使用小方块代替箭头
 
                 local guid = string.format("path_line_0_%d", i)
                 path_decorations[guid] = {
@@ -91,10 +91,10 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
             local sx, sy = WorldPosToScreenPos(current_mapscreen, wx, wz)
 
             if sx and sy then
-                local dot = current_mapscreen.decorationrootstatic:AddChild(Image("images/hud.xml", "turnarrow.tex"))
+                local dot = current_mapscreen.decorationrootstatic:AddChild(Image("images/global.xml", "square.tex"))
                 dot:SetTint(0, 1, 0, 0.6)  -- 绿色半透明
                 dot:SetPosition(sx, sy)
-                dot:SetScale(zoomscale * 0.3, zoomscale * 0.3, 1)
+                dot:SetScale(zoomscale * 0.02, zoomscale * 0.02, 1)  -- 使用小方块代替箭头
 
                 local guid = string.format("path_line_%d_%d", i, j)
                 path_decorations[guid] = {
@@ -111,10 +111,10 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
         local sx, sy = WorldPosToScreenPos(current_mapscreen, point.x, point.z)
 
         if sx and sy then
-            local marker = current_mapscreen.decorationrootstatic:AddChild(Image("images/hud.xml", "turnarrow.tex"))
+            local marker = current_mapscreen.decorationrootstatic:AddChild(Image("images/global.xml", "square.tex"))
             marker:SetTint(1, 1, 0, 0.9)  -- 黄色
             marker:SetPosition(sx, sy)
-            marker:SetScale(zoomscale * 0.8, zoomscale * 0.8, 1)
+            marker:SetScale(zoomscale * 0.05, zoomscale * 0.05, 1)  -- 关键点稍大
 
             local guid = string.format("path_keypoint_%d", i)
             path_decorations[guid] = {
