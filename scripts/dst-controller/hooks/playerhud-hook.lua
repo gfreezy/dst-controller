@@ -21,6 +21,22 @@ local function InstallOnControl(self)
             return true
         end
 
+        -- 当有 examine_target 时，阻止 PlayerHud 的 InspectSelf 逻辑
+        -- PlayerHud 的默认逻辑：如果 controller_target 为 nil，会调用 InspectSelf 打开玩家信息界面
+        -- 但我们在 PlayerController 中已经处理了 examine_target 的情况，所以这里需要阻止
+        if control == CONTROL_INSPECT and down then
+            if self:IsVisible() and
+                self:IsPlayerInfoPopUpOpen() and
+                self.owner.components.playercontroller:IsEnabled() then
+                self:TogglePlayerInfoPopup()
+                return true
+            elseif self.controls.votedialog:CheckControl(control, down) then
+                return true
+            elseif self.owner.components.playercontroller:GetControllerExamineTarget() ~= nil then
+                return false
+            end
+        end
+
         return old_OnControl(hud_self, control, down)
     end
 end

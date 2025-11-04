@@ -19,6 +19,14 @@ local function InstallUpdateControllerTargets(self)
         -- Delegate to target selection module
         TargetSelection.UpdateControllerTargets(self, dt)
     end
+
+    self.GetControllerAlternativeTarget = function(self)
+        return self.controller_alternative_target
+    end
+
+    self.GetControllerExamineTarget = function(self)
+        return self.controller_examine_target
+    end
 end
 
 -- Hook: OnControl (wrap)
@@ -32,7 +40,7 @@ local function InstallOnControl(self)
         end
 
         -- Handle B button (CONTROL_CONTROLLER_ALTACTION) for alternative_target
-        if control == G.CONTROL_CONTROLLER_ALTACTION and down then
+        if control == G.CONTROL_CONTROLLER_ALTACTION then
             if self.controller_alternative_target ~= nil then
                 -- 临时替换 controller_target 为 alternative_target
                 local original_target = self.controller_target

@@ -19,6 +19,9 @@ local STRINGS_TABLE = {
         BUTTON_CANCEL = "Cancel",
         BUTTON_SAVE = "Save",
         BUTTON_ADD_ACTION = "+ Add Action",
+        BUTTON_EDIT = "Edit",
+        BUTTON_DELETE = "Delete",
+        BUTTON_CONFIG = "Config",
 
         -- 按钮组合配置
         PRESS_COUNT = "Press:%d  Release:%d",
@@ -75,11 +78,13 @@ local STRINGS_TABLE = {
         ACTION_CRAFT_ITEM = "Craft Item [Needs Param]",
 
         -- 动作详情界面
+        DETAIL_TITLE_SUFFIX = " - Action Config",
         EMPTY_ACTION_LIST = "No actions\nClick [+ Add Action] button below",
         TAB_ON_PRESS = "On Press",
         TAB_ON_RELEASE = "On Release",
 
         -- 动作编辑对话框
+        EDITOR_TITLE = "Edit Action",
         LABEL_ACTION_TYPE = "Action Type:",
         LABEL_PARAM = "Parameter:",
         LABEL_CUSTOM_PARAM = "Custom Parameter:",
@@ -115,6 +120,9 @@ local STRINGS_TABLE = {
         BUTTON_CANCEL = "取消",
         BUTTON_SAVE = "保存",
         BUTTON_ADD_ACTION = "+ 添加动作",
+        BUTTON_EDIT = "编辑",
+        BUTTON_DELETE = "删除",
+        BUTTON_CONFIG = "配置",
 
         -- 按钮组合配置
         PRESS_COUNT = "按下:%d  松开:%d",
@@ -171,11 +179,13 @@ local STRINGS_TABLE = {
         ACTION_CRAFT_ITEM = "制作物品 [需要参数]",
 
         -- 动作详情界面
+        DETAIL_TITLE_SUFFIX = " - 动作配置",
         EMPTY_ACTION_LIST = "暂无动作\n点击下方 [+ 添加动作] 按钮",
         TAB_ON_PRESS = "按下动作",
         TAB_ON_RELEASE = "松开动作",
 
         -- 动作编辑对话框
+        EDITOR_TITLE = "编辑动作",
         LABEL_ACTION_TYPE = "动作类型:",
         LABEL_PARAM = "参数:",
         LABEL_CUSTOM_PARAM = "自定义参数:",

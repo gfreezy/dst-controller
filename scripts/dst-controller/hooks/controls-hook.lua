@@ -26,7 +26,6 @@ local function HookOnUpdate(self)
         end
 
         local alternative_target = controller.controller_alternative_target
-        local examine_target = controller.controller_examine_target
 
         -- Don't show hints if menus are open
         local menus_open = controls.inv.open or controls.commandwheel.isopen or
@@ -73,46 +72,41 @@ local function HookOnUpdate(self)
                 controls.alternative_actionhint.text:SetString(table.concat(hint_text, "\n"))
             end
         end
+        
+        local examine_target = controller.controller_examine_target ~= nil and controller.controller_examine_target:HasTag("inspectable") and controller.controller_examine_target or nil
 
         -- ===== Handle examine target hint =====
-        if not examine_target or menus_open then
+        if menus_open or not examine_target then
             -- Hide examine hint if no examine target or menus open
             if controls.examine_actionhint then
                 controls.examine_actionhint:Hide()
             end
         else
-            -- Check if target is inspectable
-            if not examine_target:HasTag("inspectable") then
-                if controls.examine_actionhint then
-                    controls.examine_actionhint:Hide()
-                end
-            else
-                -- Create examine action hint widget if not exists
-                if not controls.examine_actionhint then
-                    -- Use the same widget class as playeractionhint (FollowText)
-                    local FollowText = require("widgets/followtext")
-                    controls.examine_actionhint = controls:AddChild(FollowText(G.TALKINGFONT, 28))
-                end
-
-                -- Build hint text
-                local controller_id = G.TheInput:GetControllerID()
-                local hint_text = {}
-
-                -- Add target name
-                local adjective = examine_target:GetAdjective()
-                table.insert(hint_text, adjective ~= nil and
-                    (adjective.." "..examine_target:GetDisplayName()) or
-                    examine_target:GetDisplayName())
-
-                -- Add Y button action (Examine)
-                table.insert(hint_text, G.TheInput:GetLocalizedControl(controller_id, G.CONTROL_INSPECT) ..
-                    " " .. G.STRINGS.ACTIONS.LOOKAT.GENERIC)
-
-                -- Show the hint
-                controls.examine_actionhint:Show()
-                controls.examine_actionhint:SetTarget(examine_target)
-                controls.examine_actionhint.text:SetString(table.concat(hint_text, "\n"))
+            -- Create examine action hint widget if not exists
+            if not controls.examine_actionhint then
+                -- Use the same widget class as playeractionhint (FollowText)
+                local FollowText = require("widgets/followtext")
+                controls.examine_actionhint = controls:AddChild(FollowText(G.TALKINGFONT, 28))
             end
+
+            -- Build hint text
+            local controller_id = G.TheInput:GetControllerID()
+            local hint_text = {}
+
+            -- Add target name
+            local adjective = examine_target:GetAdjective()
+            table.insert(hint_text, adjective ~= nil and
+                (adjective.." "..examine_target:GetDisplayName()) or
+                examine_target:GetDisplayName())
+
+            -- Add Y button action (Examine)
+            table.insert(hint_text, G.TheInput:GetLocalizedControl(controller_id, G.CONTROL_INSPECT) ..
+                " " .. G.STRINGS.ACTIONS.LOOKAT.GENERIC)
+
+            -- Show the hint
+            controls.examine_actionhint:Show()
+            controls.examine_actionhint:SetTarget(examine_target)
+            controls.examine_actionhint.text:SetString(table.concat(hint_text, "\n"))
         end
     end
 end

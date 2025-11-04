@@ -709,22 +709,22 @@ local function UpdateControllerConflictingTargets(self)
     if target == nil or attacktarget == nil then
         return
     end
-    -- NOTES(JBK): This is for handling when there are two targets on a controller but one should take super priority over the other.
-    -- Most of this will be workarounds in appearance as there are no sure fire ways to guarantee what two entities should be prioritized by actions alone as they need additional context.
-    if target ~= attacktarget then
-        if target:HasTag("mermthrone") and attacktarget:HasTag("merm") then
-            -- Inspecting a throne but could interact with a Merm, Merm takes priority.
-            target = attacktarget
-            self.controller_target_age = 0
-        elseif target:HasTag("crabking_claw") and attacktarget:HasTag("crabking_claw") then
-            -- Two claws let us try targeting the closest one because it will most likely be the one next to a boat.
-            if self.inst:GetDistanceSqToInst(target) < self.inst:GetDistanceSqToInst(attacktarget) then
-                attacktarget = target
-            else
+        -- NOTES(JBK): This is for handling when there are two targets on a controller but one should take super priority over the other.
+        -- Most of this will be workarounds in appearance as there are no sure fire ways to guarantee what two entities should be prioritized by actions alone as they need additional context.
+        if target ~= attacktarget then
+            if target:HasTag("mermthrone") and attacktarget:HasTag("merm") then
+                -- Inspecting a throne but could interact with a Merm, Merm takes priority.
                 target = attacktarget
                 self.controller_target_age = 0
+            elseif target:HasTag("crabking_claw") and attacktarget:HasTag("crabking_claw") then
+                -- Two claws let us try targeting the closest one because it will most likely be the one next to a boat.
+                if self.inst:GetDistanceSqToInst(target) < self.inst:GetDistanceSqToInst(attacktarget) then
+                    attacktarget = target
+                else
+                    target = attacktarget
+                    self.controller_target_age = 0
+                end
             end
-        end
     end
 
     self.controller_target, self.controller_attack_target = target, attacktarget
@@ -750,6 +750,10 @@ function TargetSelection.UpdateControllerTargets(controller, dt)
 		(controller.classified and controller.classified.inmightygym:value() > 0) then
         controller.controller_target = nil
         controller.controller_target_age = 0
+        controller.controller_alternative_target = nil
+        controller.controller_alternative_target_age = 0
+        controller.controller_examine_target = nil
+        controller.controller_examine_target_age = 0
         controller.controller_attack_target = nil
         controller.controller_attack_target_ally_cd = nil
         controller.controller_targeting_lock_target = nil

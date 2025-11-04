@@ -263,7 +263,7 @@ function TaskConfigScreen:BuildConfigWidgets()
             -- 配置按钮
             local config_btn = widget:AddChild(TEMPLATES.StandardButton(
                 function() self:OpenDetailConfig(combo_key) end,
-                "配置",
+                L("BUTTON_CONFIG"),
                 {120, 45}
             ))
 
@@ -679,7 +679,7 @@ ActionDetailScreen = G.Class(Screen, function(self, combo_key, combo_name, task_
     }
     self.bg = self.root:AddChild(TEMPLATES.CurlyWindow(
         750, 550,
-        combo_name .. " - 动作配置",  -- title_text：显示在顶部装饰区
+        combo_name .. L("DETAIL_TITLE_SUFFIX"),  -- title_text：显示在顶部装饰区
         bottom_buttons,
         nil,  -- button_spacing：使用默认间距
         nil   -- body_text：不需要 body text
@@ -900,14 +900,14 @@ function ActionDetailScreen:CreateActionWidget(action, index)
     -- 编辑按钮
     local edit_btn = widget:AddChild(TEMPLATES.StandardButton(
         function() self:EditAction(index) end,
-        "编辑",
+        L("BUTTON_EDIT"),
         {75, 40}
     ))
 
     -- 删除按钮
     local delete_btn = widget:AddChild(TEMPLATES.StandardButton(
         function() self:DeleteAction(index) end,
-        "删除",
+        L("BUTTON_DELETE"),
         {75, 40}
     ))
 
@@ -1143,7 +1143,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     }
     self.bg = self.root:AddChild(TEMPLATES.CurlyWindow(
         600, 400,
-        "编辑动作",  -- title_text：显示在顶部装饰区
+        L("EDITOR_TITLE"),  -- title_text：显示在顶部装饰区
         bottom_buttons,
         nil,  -- button_spacing：使用默认间距
         nil   -- body_text：不需要 body text
