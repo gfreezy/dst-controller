@@ -622,16 +622,22 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
                         -- ===== 独立选择检查目标（Inspect键）=====
                         -- 只有在 canexamine 为 true 且实体可检查时才候选
+                        -- 注意：inspect_target 始终只选择前方目标，不受 interaction_angle_mode 配置影响
                         if canexamine and v:HasTag("inspectable") and lmb == nil and rmb == nil then
-                            -- 可以检查且没有其他动作：候选为检查目标
-                            -- 检查分数和穿透优先级
-                            if score > inspect_target_score or
-                                (score == inspect_target_score and
-                                    not (inspect_target ~= nil and inspect_target.CanMouseThrough ~= nil and not inspect_target:CanMouseThrough()) and
-                                    (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
-                                -- 分数更高，或分数相同但优先级更高（不可穿透优先）
-                                inspect_target = v
-                                inspect_target_score = score
+                            -- 检查目标必须在前方（点积 > 0）
+                            local is_forward = (dx * dirx + dz * dirz > 0)
+
+                            if is_forward then
+                                -- 可以检查且没有其他动作：候选为检查目标
+                                -- 检查分数和穿透优先级
+                                if score > inspect_target_score or
+                                    (score == inspect_target_score and
+                                        not (inspect_target ~= nil and inspect_target.CanMouseThrough ~= nil and not inspect_target:CanMouseThrough()) and
+                                        (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                    -- 分数更高，或分数相同但优先级更高（不可穿透优先）
+                                    inspect_target = v
+                                    inspect_target_score = score
+                                end
                             end
                         end
 
