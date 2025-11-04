@@ -7,7 +7,14 @@
 ---  GetAnalogControlValue: fun(self: InputHandler, control: number): number,
 ---  IsControlPressed: fun(self: InputHandler, control: number): boolean,
 ---  ControllerAttached: fun(self: InputHandler): boolean,
----  EnableMouse: fun(self: InputHandler, enable: boolean)
+---  EnableMouse: fun(self: InputHandler, enable: boolean),
+---  GetActiveControlScheme: fun(self: InputHandler): any,
+---  GetControllerID: fun(self: InputHandler): any,
+---  GetLocalizedControl: fun(self: InputHandler, controller_id: any, control: number, allow_secondary: boolean|nil): string,
+---  OnControl: fun(self: InputHandler, control: number, down: boolean),
+---  UpdatePosition: fun(self: InputHandler, x: number, y: number),
+---  OnMouseMove: fun(self: InputHandler, x: number, y: number, from_touch: boolean|nil),
+---  OnPosition: fun(self: InputHandler, x: number, y: number)
 ---} DST input handler
 ---@alias Vector3 table DST Vector3 type
 
@@ -120,6 +127,11 @@
 ---@field anglediff fun(angle1: number, angle2: number): number
 ---@field GetGameModeProperty fun(property: string): any
 ---@field GetTime fun(): number
+---@field GetStaticTime fun(): number
+---@field Remap fun(value: number, in_min: number, in_max: number, out_min: number, out_max: number): number
+---@field Lerp fun(a: number, b: number, t: number): number
+---@field SetAutopaused fun(paused: boolean)
+---@field Profile table
 ---
 --- Action System (from GLOBAL)
 ---@field BufferedAction table BufferedAction constructor

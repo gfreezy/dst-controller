@@ -118,7 +118,7 @@ function MapScreenHook.Install()
             -- 缩放插值处理
             if self.zoom_target_time > 0 then
                 self.zoom_target_time = math.max(0, self.zoom_target_time - dt)
-                local Lerp = _G.Lerp or G.Lerp
+                local Lerp = G.Lerp
                 local zoom_desired = Lerp(self.zoom_old, self.zoom_target, 1.0 - self.zoom_target_time / TIMETOZOOM)
                 local zoom_delta = zoom_desired - self.minimap:GetZoom()
                 if zoom_delta < 0 then
@@ -136,9 +136,9 @@ function MapScreenHook.Install()
 
             -- ===== 新增：LB + 右摇杆水平轴控制相机旋转 =====
             if Helpers.IsButtonPressed("LB") then
-                local GetStaticTime = _G.GetStaticTime or G.GetStaticTime
-                local Profile = _G.Profile or G.Profile
-                local Remap = _G.Remap or G.Remap
+                local GetStaticTime = G.GetStaticTime
+                local Profile = G.Profile
+                local Remap = G.Remap
                 local controller = G.ThePlayer and G.ThePlayer.components.playercontroller
 
                 if controller then
