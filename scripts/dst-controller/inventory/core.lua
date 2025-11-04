@@ -8,6 +8,9 @@ local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local InventoryBarHook = {}
 
 function InventoryBarHook.OnUpdate(self, dt)
+    if self.autopaused then
+        return
+    end
     self:UpdatePosition()
 
     self.hint_update_check = self.hint_update_check - dt
@@ -19,6 +22,10 @@ function InventoryBarHook.OnUpdate(self, dt)
             self.openhint:SetString(G.TheInput:GetLocalizedControl(G.TheInput:GetControllerID(), G.CONTROL_OPEN_INVENTORY))
         end
         self.hint_update_check = G.HINT_UPDATE_INTERVAL
+    end
+
+    if not self.owner.HUD.shown or self.owner.HUD ~= TheFrontEnd:GetActiveScreen() then
+        return
     end
 
     if self.rebuild_pending then

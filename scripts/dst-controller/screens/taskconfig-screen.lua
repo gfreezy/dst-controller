@@ -3,6 +3,8 @@
 
 local G = require("dst-controller/global")
 local Layout = require("dst-controller/utils/layout")
+local L10N = require("dst-controller/localization")
+local L = L10N.L
 
 local Screen = require("widgets/screen")
 local Widget = require("widgets/widget")
@@ -31,47 +33,54 @@ local BUTTON_NAMES = {
     RB_Y = "RB + Y", RB_LT = "RB + LT", RB_RT = "RB + RT",
 }
 
--- 可用的动作列表（Spinner 使用 text 字段显示）
-local AVAILABLE_ACTIONS = {
-    -- 无参数动作
-    {data = "", text = "【无动作】", has_param = false},
-    {data = "attack", text = "攻击", has_param = false},
-    {data = "force_attack", text = "强制攻击", has_param = false},
-    {data = "examine", text = "检查", has_param = false},
-    {data = "inspect_self", text = "检查自己", has_param = false},
-    {data = "save_hand_item", text = "保存手持物品", has_param = false},
-    {data = "restore_hand_item", text = "恢复手持物品", has_param = false},
-    {data = "start_channeling", text = "开始持续动作", has_param = false},
-    {data = "stop_channeling", text = "停止持续动作", has_param = false},
-    {data = "cycle_head", text = "切换头部装备", has_param = false},
-    {data = "cycle_hand", text = "切换手部装备", has_param = false},
-    {data = "cycle_body", text = "切换身体装备", has_param = false},
+-- 动态生成本地化的动作列表和预设（在模块加载时执行一次）
+local function GetAvailableActions()
+    return {
+        -- 无参数动作
+        {data = "", text = L("ACTION_NONE"), has_param = false},
+        {data = "attack", text = L("ACTION_ATTACK"), has_param = false},
+        {data = "force_attack", text = L("ACTION_FORCE_ATTACK"), has_param = false},
+        {data = "examine", text = L("ACTION_EXAMINE"), has_param = false},
+        {data = "inspect_self", text = L("ACTION_INSPECT_SELF"), has_param = false},
+        {data = "save_hand_item", text = L("ACTION_SAVE_HAND_ITEM"), has_param = false},
+        {data = "restore_hand_item", text = L("ACTION_RESTORE_HAND_ITEM"), has_param = false},
+        {data = "start_channeling", text = L("ACTION_START_CHANNELING"), has_param = false},
+        {data = "stop_channeling", text = L("ACTION_STOP_CHANNELING"), has_param = false},
+        {data = "cycle_head", text = L("ACTION_CYCLE_HEAD"), has_param = false},
+        {data = "cycle_hand", text = L("ACTION_CYCLE_HAND"), has_param = false},
+        {data = "cycle_body", text = L("ACTION_CYCLE_BODY"), has_param = false},
 
-    -- 需要参数的动作
-    {data = "equip_item", text = "装备物品 [需要参数]", has_param = true},
-    {data = "use_item", text = "使用物品 [需要参数]", has_param = true},
-    {data = "use_item_on_self", text = "对自己使用物品 [需要参数]", has_param = true},
-    {data = "craft_item", text = "制作物品 [需要参数]", has_param = true},
-}
+        -- 需要参数的动作
+        {data = "equip_item", text = L("ACTION_EQUIP_ITEM"), has_param = true},
+        {data = "use_item", text = L("ACTION_USE_ITEM"), has_param = true},
+        {data = "use_item_on_self", text = L("ACTION_USE_ITEM_ON_SELF"), has_param = true},
+        {data = "craft_item", text = L("ACTION_CRAFT_ITEM"), has_param = true},
+    }
+end
 
--- 常用物品参数预设（Spinner 使用 text 字段显示）
-local ITEM_PRESETS = {
-    {data = "", text = "【自定义输入】"},
-    {data = "lighter", text = "打火机 (lighter)"},
-    {data = "torch", text = "火把 (torch)"},
-    {data = "lantern", text = "提灯 (lantern)"},
-    {data = "pickaxe", text = "镐子 (pickaxe)"},
-    {data = "axe", text = "斧头 (axe)"},
-    {data = "shovel", text = "铲子 (shovel)"},
-    {data = "hammer", text = "锤子 (hammer)"},
-    {data = "spear", text = "长矛 (spear)"},
-    {data = "log", text = "木头 (log)"},
-    {data = "cutgrass", text = "草 (cutgrass)"},
-    {data = "twigs", text = "树枝 (twigs)"},
-    {data = "rocks", text = "石头 (rocks)"},
-    {data = "flint", text = "燧石 (flint)"},
-    {data = "goldnugget", text = "金块 (goldnugget)"},
-}
+local function GetItemPresets()
+    return {
+        {data = "", text = L("PRESET_CUSTOM")},
+        {data = "lighter", text = L("PRESET_LIGHTER")},
+        {data = "torch", text = L("PRESET_TORCH")},
+        {data = "lantern", text = L("PRESET_LANTERN")},
+        {data = "pickaxe", text = L("PRESET_PICKAXE")},
+        {data = "axe", text = L("PRESET_AXE")},
+        {data = "shovel", text = L("PRESET_SHOVEL")},
+        {data = "hammer", text = L("PRESET_HAMMER")},
+        {data = "spear", text = L("PRESET_SPEAR")},
+        {data = "log", text = L("PRESET_LOG")},
+        {data = "cutgrass", text = L("PRESET_CUTGRASS")},
+        {data = "twigs", text = L("PRESET_TWIGS")},
+        {data = "rocks", text = L("PRESET_ROCKS")},
+        {data = "flint", text = L("PRESET_FLINT")},
+        {data = "goldnugget", text = L("PRESET_GOLDNUGGET")},
+    }
+end
+
+-- 首次加载时生成
+local AVAILABLE_ACTIONS = GetAvailableActions()
+local ITEM_PRESETS = GetItemPresets()
 
 local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, settings_data, on_apply_cb)
     Screen._ctor(self, "TaskConfigScreen")
@@ -106,12 +115,12 @@ local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, settings_dat
 
     -- 背景面板（增大窗口）
     local bottom_buttons = {
-        {text = "应用", cb = function() self:Apply() end},
-        {text = "关闭", cb = function() self:Close() end},
+        {text = L("BUTTON_APPLY"), cb = function() self:Apply() end},
+        {text = L("BUTTON_CLOSE"), cb = function() self:Close() end},
     }
     self.bg = self.root:AddChild(TEMPLATES.CurlyWindow(
         700, 500,
-        "控制器配置",
+        L("TITLE"),
         bottom_buttons,
         nil
     ))
@@ -142,8 +151,8 @@ end)
 function TaskConfigScreen:BuildTabs()
     -- 使用 HeaderTabs 创建标签页
     local tab_items = {
-        {text = "任务配置", cb = function() self:SwitchTab("tasks") end},
-        {text = "Mod设置", cb = function() self:SwitchTab("settings") end},
+        {text = L("TAB_TASKS"), cb = function() self:SwitchTab("tasks") end},
+        {text = L("TAB_SETTINGS"), cb = function() self:SwitchTab("settings") end},
     }
 
     self.tabs = self.root:AddChild(HeaderTabs(tab_items, false))
@@ -247,7 +256,7 @@ function TaskConfigScreen:BuildConfigWidgets()
             -- 显示当前配置的动作数量
             local press_count = #task_config.on_press
             local release_count = #task_config.on_release
-            local info_text = string.format("按下:%d  松开:%d", press_count, release_count)
+            local info_text = L("PRESS_COUNT", press_count, release_count)
             local info_label = widget:AddChild(Text(G.NEWFONT, 28, info_text))
             info_label:SetColour(0.4, 0.4, 0.4, 1)  -- 稍微深一点的灰色，提高对比度
 
@@ -364,8 +373,8 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 1. 攻击角度模式设置
         table.insert(items, CreateSettingItem(
-            "攻击目标选择范围",
-            {{text = "仅前方", data = "forward_only"}, {text = "360度全方位", data = "all_around"}},
+            L("SETTING_ATTACK_ANGLE"),
+            {{text = L("OPT_FORWARD_ONLY"), data = "forward_only"}, {text = L("OPT_ALL_AROUND"), data = "all_around"}},
             self.temp_settings.attack_angle_mode or "forward_only",
             function(data) self.temp_settings.attack_angle_mode = data end,
             200
@@ -373,8 +382,8 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 2. 交互目标选择范围设置
         table.insert(items, CreateSettingItem(
-            "交互目标选择范围",
-            {{text = "仅前方", data = "forward_only"}, {text = "360度全方位", data = "all_around"}},
+            L("SETTING_INTERACTION_ANGLE"),
+            {{text = L("OPT_FORWARD_ONLY"), data = "forward_only"}, {text = L("OPT_ALL_AROUND"), data = "all_around"}},
             self.temp_settings.interaction_angle_mode or "forward_only",
             function(data) self.temp_settings.interaction_angle_mode = data end,
             200
@@ -382,8 +391,8 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 3. 攻击目标过滤设置
         table.insert(items, CreateSettingItem(
-            "攻击目标过滤",
-            {{text = "仅敌对 (LB+X强攻)", data = "hostile_only"}, {text = "全部可攻击", data = "force_attack"}},
+            L("SETTING_FORCE_ATTACK"),
+            {{text = L("OPT_HOSTILE_ONLY"), data = "hostile_only"}, {text = L("OPT_FORCE_ATTACK"), data = "force_attack"}},
             self.temp_settings.force_attack_mode or "hostile_only",
             function(data) self.temp_settings.force_attack_mode = data end,
             280
@@ -392,8 +401,8 @@ function TaskConfigScreen:BuildSettingsContent()
         -- 4. 虚拟光标启用设置
         local temp_vc = self.temp_settings.virtual_cursor_settings
         table.insert(items, CreateSettingItem(
-            "虚拟光标",
-            {{text = "禁用", data = false}, {text = "启用", data = true}},
+            L("SETTING_VIRTUAL_CURSOR"),
+            {{text = L("OPT_DISABLED"), data = false}, {text = L("OPT_ENABLED"), data = true}},
             temp_vc.enabled,
             function(data) temp_vc.enabled = data end,
             120
@@ -401,13 +410,13 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 5. 虚拟光标速度设置
         table.insert(items, CreateSettingItem(
-            "光标移动速度",
+            L("SETTING_CURSOR_SPEED"),
             {
-                {text = "很慢 (0.5x)", data = 0.5},
-                {text = "慢 (0.75x)", data = 0.75},
-                {text = "正常 (1.0x)", data = 1.0},
-                {text = "快 (1.5x)", data = 1.5},
-                {text = "很快 (2.0x)", data = 2.0},
+                {text = L("OPT_SPEED_SLOW"), data = 0.5},
+                {text = L("OPT_SPEED_SLOWER"), data = 0.75},
+                {text = L("OPT_SPEED_NORMAL"), data = 1.0},
+                {text = L("OPT_SPEED_FAST"), data = 1.5},
+                {text = L("OPT_SPEED_FASTER"), data = 2.0},
             },
             temp_vc.cursor_speed or 1.0,
             function(data) temp_vc.cursor_speed = data end,
@@ -416,8 +425,8 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 6. 虚拟光标显示设置
         table.insert(items, CreateSettingItem(
-            "显示光标图标",
-            {{text = "隐藏", data = false}, {text = "显示", data = true}},
+            L("SETTING_SHOW_CURSOR"),
+            {{text = L("OPT_HIDE"), data = false}, {text = L("OPT_SHOW"), data = true}},
             temp_vc.show_cursor,
             function(data) temp_vc.show_cursor = data end,
             120
@@ -425,8 +434,8 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 7. 光标磁吸启用设置
         table.insert(items, CreateSettingItem(
-            "光标磁吸",
-            {{text = "关闭", data = false}, {text = "开启", data = true}},
+            L("SETTING_DRAG_WALK"),
+            {{text = L("OPT_OFF"), data = false}, {text = L("OPT_ON"), data = true}},
             temp_vc.cursor_magnetism,
             function(data) temp_vc.cursor_magnetism = data end,
             120
@@ -434,8 +443,8 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 8. 磁吸范围设置
         table.insert(items, CreateSettingItem(
-            "磁吸范围",
-            {{text = "近距离", data = 1}, {text = "中距离", data = 2}, {text = "远距离", data = 3}},
+            L("SETTING_TARGET_RANGE"),
+            {{text = L("OPT_RANGE_SHORT"), data = 1}, {text = L("OPT_RANGE_MEDIUM"), data = 2}, {text = L("OPT_RANGE_LONG"), data = 3}},
             temp_vc.magnetism_range or 2,
             function(data) temp_vc.magnetism_range = data end,
             140
@@ -443,8 +452,8 @@ function TaskConfigScreen:BuildSettingsContent()
 
         -- 9. 磁吸优先级设置
         table.insert(items, CreateSettingItem(
-            "磁吸优先级",
-            {{text = "光标优先", data = false}, {text = "玩家优先", data = true}},
+            L("SETTING_TARGET_PRIORITY"),
+            {{text = L("OPT_CURSOR_PRIORITY"), data = false}, {text = L("OPT_PLAYER_PRIORITY"), data = true}},
             temp_vc.target_priority or false,
             function(data) temp_vc.target_priority = data end,
             140
@@ -664,9 +673,9 @@ ActionDetailScreen = G.Class(Screen, function(self, combo_key, combo_name, task_
     -- 背景面板（增大窗口）
     -- CurlyWindow 参数：sizeX, sizeY, title_text, bottom_buttons, button_spacing, body_text
     local bottom_buttons = {
-        {text = "+ 添加动作", cb = function() self:AddNewAction() end},
-        {text = "确定", cb = function() self:Save() end},
-        {text = "取消", cb = function() self:Close() end},
+        {text = L("BUTTON_ADD_ACTION"), cb = function() self:AddNewAction() end},
+        {text = L("BUTTON_CONFIRM"), cb = function() self:Save() end},
+        {text = L("BUTTON_CANCEL"), cb = function() self:Close() end},
     }
     self.bg = self.root:AddChild(TEMPLATES.CurlyWindow(
         750, 550,
@@ -697,7 +706,7 @@ ActionDetailScreen = G.Class(Screen, function(self, combo_key, combo_name, task_
     self.scroll_list:SetPosition(0, 50)
 
     -- 空状态提示文本（当列表为空时显示）
-    self.empty_text = self.root:AddChild(Text(G.NEWFONT, 28, "暂无动作\n点击下方 [+ 添加动作] 按钮"))
+    self.empty_text = self.root:AddChild(Text(G.NEWFONT, 28, L("EMPTY_ACTION_LIST")))
     self.empty_text:SetColour(0.7, 0.7, 0.7, 1)
     self.empty_text:SetRegionSize(500, 100)
     self.empty_text:SetHAlign(ANCHOR_MIDDLE)
@@ -742,8 +751,8 @@ end
 function ActionDetailScreen:BuildTabs()
     -- 使用 HeaderTabs 创建标签页
     local tab_items = {
-        {text = "按下动作", cb = function() self:SwitchTab("on_press") end},
-        {text = "松开动作", cb = function() self:SwitchTab("on_release") end},
+        {text = L("TAB_ON_PRESS"), cb = function() self:SwitchTab("on_press") end},
+        {text = L("TAB_ON_RELEASE"), cb = function() self:SwitchTab("on_release") end},
     }
 
     self.tabs = self.root:AddChild(HeaderTabs(tab_items, false))  -- false = 不循环 focus
@@ -1129,8 +1138,8 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     -- 背景面板（增大窗口）
     -- CurlyWindow 参数：sizeX, sizeY, title_text, bottom_buttons, button_spacing, body_text
     local bottom_buttons = {
-        {text = "确定", cb = function() self:Save() end},
-        {text = "取消", cb = function() self:Close() end},
+        {text = L("BUTTON_CONFIRM"), cb = function() self:Save() end},
+        {text = L("BUTTON_CANCEL"), cb = function() self:Close() end},
     }
     self.bg = self.root:AddChild(TEMPLATES.CurlyWindow(
         600, 400,
@@ -1145,7 +1154,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.cancel_button = self.bg.actions.items[2]
 
     -- 动作类型选择
-    local action_label = self.root:AddChild(Text(G.NEWFONT, 32, "动作类型:"))
+    local action_label = self.root:AddChild(Text(G.NEWFONT, 32, L("LABEL_ACTION_TYPE")))
     action_label:SetColour(1, 1, 1, 1)  -- 白色文字，适应深色背景
 
     self.action_spinner = self.root:AddChild(
@@ -1177,7 +1186,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.param_panel = self.root:AddChild(Widget("param_panel"))
     self.param_panel:SetPosition(0, 30, 0)
 
-    local param_label = self.param_panel:AddChild(Text(G.NEWFONT, 32, "参数:"))
+    local param_label = self.param_panel:AddChild(Text(G.NEWFONT, 32, L("LABEL_PARAM")))
     param_label:SetColour(1, 1, 1, 1)  -- 白色文字
 
     self.param_spinner = self.param_panel:AddChild(
@@ -1215,7 +1224,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.custom_input_panel:SetPosition(0, -40, 0)
     self.custom_input_panel:Hide()
 
-    local custom_label = self.custom_input_panel:AddChild(Text(G.NEWFONT, 22, "自定义参数:"))
+    local custom_label = self.custom_input_panel:AddChild(Text(G.NEWFONT, 22, L("LABEL_CUSTOM_PARAM")))
     custom_label:SetColour(1, 1, 1, 1)  -- 白色文字
 
     -- 这里使用文本显示代替TextEdit（DST的TextEdit比较复杂）
@@ -1239,7 +1248,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.custom_input:SetPosition(input_bg:GetPosition())
 
     -- 提示：由于DST限制，这里简化为显示文本
-    local hint = self.custom_input_panel:AddChild(Text(G.NEWFONT, 16, "提示：请在参数下拉中选择或在配置文件中手动编辑"))
+    local hint = self.custom_input_panel:AddChild(Text(G.NEWFONT, 16, L("HINT_CUSTOM_PARAM")))
     hint:SetColour(0.6, 0.6, 0.6, 1)
 
     Layout.Vertical({hint}, {

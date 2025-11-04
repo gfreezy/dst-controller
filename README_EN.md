@@ -2,9 +2,21 @@
 
 English | [简体中文](README.md)
 
-A powerful controller enhancement mod for Don't Starve Together with custom button combinations, virtual cursor, in-game configuration UI, and more.
+A powerful controller enhancement mod for Don't Starve Together with custom button combinations, virtual cursor, map auto-pathfinding, in-game configuration UI, and more.
 
 ## ✨ Core Features
+
+### 🌟 Feature Highlights
+
+- 🎮 **12 Custom Button Combos** - Fully configurable gamepad button mapping
+- 🖱️ **Virtual Cursor System** - Gamepad-controlled mouse cursor, full screen interaction
+- 🗺️ **Map Auto-Pathfinding** - Click map to auto-navigate, intelligent path planning
+- ⚙️ **In-Game Configuration** - No restart needed, adjust all settings in real-time
+- 🌍 **Multi-Language Support** - Chinese/English auto-detection
+- 🎯 **Smart Target Selection** - Triple target system (main/alt/examine)
+- 📐 **Enhanced Camera Control** - Smooth zoom and rotation
+
+---
 
 ### 🎮 Custom Button Combinations
 
@@ -78,6 +90,37 @@ Press **Ctrl+K** (keyboard) or **LB+RB+Y** (controller) to open the config UI:
 - **LB + Right Stick Left/Right**: Rotate camera
 - **LB + Right Stick Up/Down**: Zoom camera
 - Configurable rotation and zoom speeds
+
+### 🗺️ Map Auto-Pathfinding
+
+Use virtual cursor on the map screen to quickly navigate to target locations:
+
+**Features**:
+- ✅ Virtual cursor click on map to start auto-pathfinding
+- ✅ Hybrid pathfinding system (A* algorithm for long distance + direct walk for short distance)
+- ✅ Real-time path visualization (path points shown on map)
+- ✅ Manual movement auto-cancels pathfinding
+- ✅ Automatic obstacle avoidance
+
+**How to Use**:
+1. Press `M` key to open map
+2. Press `LB+RB+RT` to enable virtual cursor mode
+3. Use right stick to move cursor to target location
+4. Press `RT` (left mouse click) to click on map
+5. Close map, character will auto-pathfind to target location
+
+**Map Controls**:
+- **Left Stick**: Pan map
+- **LB + Right Stick Vertical**: Zoom map
+- **LB + Right Stick Horizontal**: Rotate camera
+- **RT**: Click map to set pathfinding target
+- **RB**: Right click (cancel/other actions)
+
+**Pathfinding Algorithm**:
+- Distance > 30 units: Use A* algorithm for full path planning
+- Distance ≤ 30 units: Direct walk to target
+- Automatic obstacle and impassable terrain avoidance
+- Path points displayed in real-time on map
 
 ## 🎬 Available Actions
 
@@ -245,6 +288,7 @@ dst-controller/
 ├── modmain.lua                 # Entry point
 ├── scripts/dst-controller/
 │   ├── global.lua             # Global references
+│   ├── localization.lua       # Multi-language support
 │   ├── actions/               # Action implementations
 │   ├── core/                  # Core logic
 │   │   ├── button-handler.lua
@@ -252,17 +296,22 @@ dst-controller/
 │   ├── hooks/                 # Game hooks
 │   │   ├── registry.lua       # Hook registry
 │   │   ├── playercontroller-hook.lua
+│   │   ├── mapscreen-hook.lua # Map screen hooks
 │   │   ├── input-system-hook.lua
 │   │   └── controls-hook.lua
 │   ├── screens/               # UI screens
-│   │   ├── taskconfig-screen.lua
-│   │   └── taskconfig-actions.lua
+│   │   └── taskconfig-screen.lua
 │   ├── virtual-cursor/        # Virtual cursor
 │   │   ├── core.lua
 │   │   └── cursor_widget.lua
 │   ├── target-selection/      # Target selection
 │   │   └── core.lua
+│   ├── pathfinding/           # Pathfinding system
+│   │   ├── astar.lua          # A* algorithm
+│   │   └── auto_pathfinding_hybrid.lua
 │   └── utils/                 # Utility functions
+│       ├── map_path_drawer.lua # Path drawing
+│       └── helpers.lua
 └── CLAUDE.md                  # Development docs
 ```
 
@@ -288,7 +337,34 @@ A: Delete `client_save/enhanced_controller_config.json` and restart game.
 
 A: Try lowering virtual cursor speed or disabling cursor display.
 
+**Q: Auto-pathfinding not working?**
+
+A: Make sure you enable virtual cursor on the map screen and click on a valid ground location. Pathfinding will fail if the path is completely blocked by obstacles.
+
+**Q: Pathfinding stops midway?**
+
+A: Any manual movement (stick input) will automatically cancel pathfinding. This is by design to prevent conflicts.
+
+**Q: Can't see path on map?**
+
+A: Path visualization only shows when the map is open. After closing the map, the character will follow the planned path, but path points won't be visible.
+
 ## 📝 Changelog
+
+### v2.1.0 (2025-01-XX)
+- ✨ Added map auto-pathfinding feature
+  - Virtual cursor click on map to start pathfinding
+  - Hybrid pathfinding algorithm (A* + direct walk)
+  - Real-time path visualization
+  - Manual movement auto-cancels
+- ✨ Added multi-language support (Chinese/English)
+  - Auto-detect game language
+  - Full UI localization
+- 🔧 Optimized map screen controls
+  - LB + Right Stick Vertical for zoom
+  - LB + Right Stick Horizontal for rotation
+  - Left Stick for map panning
+- 🐛 Fixed multiple issues with virtual cursor mode
 
 ### v2.0.0 (2025-01-XX)
 
