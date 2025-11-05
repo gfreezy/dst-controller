@@ -172,10 +172,9 @@ local function CycleEquipment(player, equipslot, direction)
         next_item = items[next_index]
     end
 
-    -- If only one item and it's already equipped, unequip it
+    -- If only one item and it's already equipped, do nothing (keep it equipped)
     if #items == 1 and current_equipped then
-        player.components.inventory:Unequip(equipslot)
-        return nil
+        return current_equipped.prefab
     end
 
     if next_item then
@@ -393,6 +392,42 @@ function EquipmentActions.restore_body_item(player)
         player._saved_body_item = nil
     else
         print("[Enhanced Controller] Action: No saved body item to restore")
+    end
+end
+
+-- ============================================================================
+-- Unequip Item Action
+-- ============================================================================
+
+-- Unequip item from specified slot
+-- param: "hand", "head", or "body"
+function EquipmentActions.unequip_item(player, slot_type)
+    if not player or not player:IsValid() then
+        return
+    end
+
+    if not player.components.inventory then
+        return
+    end
+
+    local equipslot
+    if slot_type == "hand" then
+        equipslot = G.EQUIPSLOTS.HANDS
+    elseif slot_type == "head" then
+        equipslot = G.EQUIPSLOTS.HEAD
+    elseif slot_type == "body" then
+        equipslot = G.EQUIPSLOTS.BODY
+    else
+        print(string.format("[Enhanced Controller] Invalid slot type: %s (must be hand/head/body)", tostring(slot_type)))
+        return
+    end
+
+    local equipped_item = player.components.inventory:GetEquippedItem(equipslot)
+    if equipped_item then
+        player.components.inventory:Unequip(equipslot)
+        print(string.format("[Enhanced Controller] Action: Unequipped %s from %s slot", equipped_item.prefab, slot_type))
+    else
+        print(string.format("[Enhanced Controller] Action: No item equipped in %s slot", slot_type))
     end
 end
 

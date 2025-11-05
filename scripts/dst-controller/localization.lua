@@ -74,9 +74,11 @@ local STRINGS_TABLE = {
         ACTION_CYCLE_HAND = "Cycle Hand Slot",
         ACTION_CYCLE_BODY = "Cycle Body Slot",
         ACTION_EQUIP_ITEM = "Equip Item [Needs Param]",
+        ACTION_UNEQUIP_ITEM = "Unequip Item [Needs Param]",
         ACTION_USE_ITEM = "Use Item [Needs Param]",
         ACTION_USE_ITEM_ON_SELF = "Use Item on Self [Needs Param]",
         ACTION_CRAFT_ITEM = "Craft Item [Needs Param]",
+        ACTION_TRIGGER_KEY = "Trigger Key [Needs Param]",
 
         -- 动作详情界面
         DETAIL_TITLE_SUFFIX = " - Action Config",
@@ -107,6 +109,18 @@ local STRINGS_TABLE = {
         PRESET_ROCKS = "Rocks (rocks)",
         PRESET_FLINT = "Flint (flint)",
         PRESET_GOLDNUGGET = "Gold Nugget (goldnugget)",
+
+        -- 键盘按键
+        KEY_SPACE = "Space",
+        KEY_ENTER = "Enter",
+        KEY_ESCAPE = "Escape",
+        KEY_TAB = "Tab",
+        KEY_BACKSPACE = "Backspace",
+
+        -- 装备槽位
+        SLOT_HAND = "Hand",
+        SLOT_HEAD = "Head",
+        SLOT_BODY = "Body",
     },
 
     -- 中文（简体）
@@ -176,9 +190,11 @@ local STRINGS_TABLE = {
         ACTION_CYCLE_HAND = "切换手部装备",
         ACTION_CYCLE_BODY = "切换身体装备",
         ACTION_EQUIP_ITEM = "装备物品 [需要参数]",
+        ACTION_UNEQUIP_ITEM = "卸下装备 [需要参数]",
         ACTION_USE_ITEM = "使用物品 [需要参数]",
         ACTION_USE_ITEM_ON_SELF = "对自己使用物品 [需要参数]",
         ACTION_CRAFT_ITEM = "制作物品 [需要参数]",
+        ACTION_TRIGGER_KEY = "触发按键 [需要参数]",
 
         -- 动作详情界面
         DETAIL_TITLE_SUFFIX = " - 动作配置",
@@ -209,6 +225,18 @@ local STRINGS_TABLE = {
         PRESET_ROCKS = "石头 (rocks)",
         PRESET_FLINT = "燧石 (flint)",
         PRESET_GOLDNUGGET = "金块 (goldnugget)",
+
+        -- 键盘按键
+        KEY_SPACE = "空格",
+        KEY_ENTER = "回车",
+        KEY_ESCAPE = "Esc",
+        KEY_TAB = "Tab",
+        KEY_BACKSPACE = "退格",
+
+        -- 装备槽位
+        SLOT_HAND = "手部",
+        SLOT_HEAD = "头部",
+        SLOT_BODY = "身体",
     },
 }
 

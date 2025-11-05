@@ -4,6 +4,7 @@
 local G = require("dst-controller/global")
 local TaskConfigHook = require("dst-controller.screens.taskconfig-actions")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
+local ButtonHandler = require("dst-controller/executor/button-handler")
 
 local PlayerHudHook = {}
 
@@ -19,6 +20,14 @@ local function InstallOnControl(self)
 
         if VirtualCursor.ToggleOnControl(control, down) then
             return true
+        end
+
+        -- Check if this control is part of a button combination that can be handled
+        -- If so, block it from default PlayerHud handling to avoid conflicts
+        local _, need_handle = ButtonHandler.GetButtonCombinationActions(control, down)
+        if need_handle then
+            print("[PlayerHudHook] Blocking control: " .. control)
+            return false
         end
 
         -- 当有 examine_target 时，阻止 PlayerHud 的 InspectSelf 逻辑

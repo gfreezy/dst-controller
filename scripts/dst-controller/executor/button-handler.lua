@@ -4,6 +4,7 @@
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
 local ConfigManager = require("dst-controller/utils/config_manager")
+local VirtualCursor = require("dst-controller/virtual-cursor/core")
 
 local ButtonHandler = {}
 
@@ -74,18 +75,13 @@ function ButtonHandler.GetPressedControls()
     return pressed
 end
 
--- Handle button combination events
--- Returns true if a combination was handled, false otherwise
-function ButtonHandler.HandleButtonCombination(player, control, down, execute_callback)
-    local guid = player.GUID
-
-    -- Initialize if needed
-    if not button_states[guid] then
-        ButtonHandler.InitializePlayer(player)
-    end
-
+-- Get the action list for a button combination (internal helper)
+-- Returns the action list and task info if the control is part of a button combination
+-- @param control: the control input
+-- @param down: button state (true=press, false=release)
+-- @return actions, modifier_name, face_button (all nil if not a combination)
+local function GetButtonCombinationActions(control, down)
     -- 检测是否在虚拟光标模式
-    local VirtualCursor = require("dst-controller/virtual-cursor/core")
     local is_virtual_cursor = VirtualCursor.IsCursorModeActive()
 
     -- 根据模式选择对应的配置
@@ -99,46 +95,72 @@ function ButtonHandler.HandleButtonCombination(player, control, down, execute_ca
                 if ButtonHandler.IsButton(control, face_button) then
                     -- This is a button combination event
                     local task = tasks[task_name]
-                    if not task then
-                        Helpers.DebugPrintf("Warning: Task '%s' not found", task_name)
-                        return false
+                    if task then
+                        -- Return the appropriate action list based on down state
+                        local actions = down and task.on_press or task.on_release
+                        local need_handle = task.on_press or task.on_release
+                        return actions, need_handle, modifier_name, face_button
                     end
-
-                    -- Check if task has any actions configured
-                    local has_actions = (task.on_press and #task.on_press > 0) or (task.on_release and #task.on_release > 0)
-
-                    if not has_actions then
-                        -- No actions configured, allow default behavior (e.g., LB+X for force attack)
-                        return false
-                    end
-
-                    local state = button_states[guid][modifier_name][face_button]
-
-                    if down then
-                        -- Button press event
-                        if not state.pressed then
-                            Helpers.DebugPrintf("%s + %s pressed -> executing %d actions",
-                                modifier_name, face_button, #task.on_press)
-                            execute_callback(player, task.on_press)
-                            state.pressed = true
-                        end
-                    else
-                        -- Button release event
-                        if state.pressed then
-                            Helpers.DebugPrintf("%s + %s released -> executing %d actions",
-                                modifier_name, face_button, #task.on_release)
-                            execute_callback(player, task.on_release)
-                            state.pressed = false
-                        end
-                    end
-
-                    return true  -- Combination handled
+                    return nil, false, nil, nil  -- No task or no actions
                 end
             end
         end
     end
 
-    return false
+    return nil, false, nil, nil  -- Not a button combination
+end
+
+-- Get the action list for a button combination
+-- Returns the action list if the control is part of a button combination that has actions configured
+-- @param control: the control input
+-- @param down: button state (true=press, false=release)
+-- @return actions table or nil
+function ButtonHandler.GetButtonCombinationActions(control, down)
+    local actions, need_handle = GetButtonCombinationActions(control, down)
+    return actions, need_handle
+end
+
+-- Handle button combination events
+-- Returns true if a combination was handled, false otherwise
+function ButtonHandler.HandleButtonCombination(player, control, down, execute_callback)
+    local guid = player.GUID
+
+    -- Initialize if needed
+    if not button_states[guid] then
+        ButtonHandler.InitializePlayer(player)
+    end
+
+    -- Get the actions for this button combination
+    local actions, need_handle, modifier_name, face_button = GetButtonCombinationActions(control, down)
+
+    if not need_handle then
+        return false  -- Not a button combination or no actions
+    end
+
+    -- Handle button state to prevent repeated execution
+    local state = button_states[guid][modifier_name][face_button]
+
+    print("[ButtonHandler] Handling button combination: " .. modifier_name .. " + " .. face_button, "down: " .. tostring(down), "state: " .. table.inspect(state))
+
+    if down then
+        -- Button press event
+        if not state.pressed then
+            Helpers.DebugPrintf("%s + %s pressed -> executing %d actions",
+                modifier_name, face_button, #actions)
+            execute_callback(player, actions)
+            state.pressed = true
+        end
+    else
+        -- Button release event
+        if state.pressed then
+            Helpers.DebugPrintf("%s + %s released -> executing %d actions",
+                modifier_name, face_button, #actions)
+            execute_callback(player, actions)
+            state.pressed = false
+        end
+    end
+
+    return true  -- Combination handled
 end
 
 return ButtonHandler

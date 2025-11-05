@@ -52,9 +52,11 @@ local function GetAvailableActions()
 
         -- 需要参数的动作
         {data = "equip_item", text = L("ACTION_EQUIP_ITEM"), has_param = true},
+        {data = "unequip_item", text = L("ACTION_UNEQUIP_ITEM"), has_param = true},
         {data = "use_item", text = L("ACTION_USE_ITEM"), has_param = true},
         {data = "use_item_on_self", text = L("ACTION_USE_ITEM_ON_SELF"), has_param = true},
         {data = "craft_item", text = L("ACTION_CRAFT_ITEM"), has_param = true},
+        {data = "trigger_key", text = L("ACTION_TRIGGER_KEY"), has_param = true},
     }
 end
 
@@ -78,9 +80,57 @@ local function GetItemPresets()
     }
 end
 
+local function GetKeyboardPresets()
+    return {
+        {data = "", text = L("PRESET_CUSTOM")},
+        -- 修饰键
+        {data = "ctrl", text = "Ctrl"},
+        {data = "shift", text = "Shift"},
+        {data = "alt", text = "Alt"},
+        {data = "space", text = L("KEY_SPACE")},
+        -- 常用组合键
+        {data = "ctrl+s", text = "Ctrl+S"},
+        {data = "ctrl+shift+s", text = "Ctrl+Shift+S"},
+        {data = "ctrl+c", text = "Ctrl+C"},
+        {data = "ctrl+v", text = "Ctrl+V"},
+        {data = "ctrl+z", text = "Ctrl+Z"},
+        {data = "ctrl+y", text = "Ctrl+Y"},
+        {data = "ctrl+a", text = "Ctrl+A"},
+        {data = "ctrl+f", text = "Ctrl+F"},
+        -- 功能键
+        {data = "f1", text = "F1"},
+        {data = "f2", text = "F2"},
+        {data = "f3", text = "F3"},
+        {data = "f4", text = "F4"},
+        {data = "f5", text = "F5"},
+        {data = "f6", text = "F6"},
+        {data = "f7", text = "F7"},
+        {data = "f8", text = "F8"},
+        {data = "f9", text = "F9"},
+        {data = "f10", text = "F10"},
+        {data = "f11", text = "F11"},
+        {data = "f12", text = "F12"},
+        -- 特殊键
+        {data = "enter", text = L("KEY_ENTER")},
+        {data = "escape", text = L("KEY_ESCAPE")},
+        {data = "tab", text = L("KEY_TAB")},
+        {data = "backspace", text = L("KEY_BACKSPACE")},
+    }
+end
+
+local function GetEquipSlotPresets()
+    return {
+        {data = "hand", text = L("SLOT_HAND")},
+        {data = "head", text = L("SLOT_HEAD")},
+        {data = "body", text = L("SLOT_BODY")},
+    }
+end
+
 -- 首次加载时生成
 local AVAILABLE_ACTIONS = GetAvailableActions()
 local ITEM_PRESETS = GetItemPresets()
+local KEYBOARD_PRESETS = GetKeyboardPresets()
+local EQUIPSLOT_PRESETS = GetEquipSlotPresets()
 
 local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, virtual_cursor_tasks_data, settings_data, on_apply_cb)
     Screen._ctor(self, "TaskConfigScreen")
@@ -1149,6 +1199,9 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.action_name = ""
     self.action_param = ""
 
+    -- 缓存每个动作的自定义输入内容
+    self.custom_input_cache = {}
+
     -- 解析现有action
     if action then
         if type(action) == "string" then
@@ -1237,38 +1290,40 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
         anchor = "center"
     })
 
-    -- 设置初始值
-    self.param_spinner:SetSelected(self.action_param)
-
-    -- 设置回调
-    self.param_spinner.onchangedfn = function(selected_data)
-        if selected_data == "" then
-            -- 显示自定义输入框
-            self:ShowCustomInput()
-        else
-            self.action_param = selected_data
-            self:HideCustomInput()
-        end
-    end
-
     -- 自定义参数输入框（初始隐藏）
+    -- 必须在 ShowCustomInput/HideCustomInput 调用之前初始化
     self.custom_input_panel = self.root:AddChild(Widget("custom_input"))
     self.custom_input_panel:SetPosition(0, -40, 0)
     self.custom_input_panel:Hide()
 
-    local custom_label = self.custom_input_panel:AddChild(Text(G.NEWFONT, 22, L("LABEL_CUSTOM_PARAM")))
+    local custom_label = self.custom_input_panel:AddChild(Text(G.NEWFONT, 28, L("LABEL_CUSTOM_PARAM")))
     custom_label:SetColour(1, 1, 1, 1)  -- 白色文字
 
-    -- 这里使用文本显示代替TextEdit（DST的TextEdit比较复杂）
-    local input_bg = self.custom_input_panel:AddChild(Image("images/fepanels.xml", "panel_upsell.tex"))
+    -- 使用 TEMPLATES.StandardSingleLineTextEntry 创建文本输入框
+    self.custom_textbox_root = self.custom_input_panel:AddChild(TEMPLATES.StandardSingleLineTextEntry(nil, 300, 45))
+    self.custom_textbox = self.custom_textbox_root.textbox
+    self.custom_textbox:SetTextLengthLimit(50)
+    self.custom_textbox:SetForceEdit(false)
+    self.custom_textbox:EnableWordWrap(false)
+    self.custom_textbox:EnableScrollEditWindow(true)
+    self.custom_textbox:SetHelpTextEdit("")
+    self.custom_textbox:SetHelpTextApply("")
+    self.custom_textbox:SetString(self.action_param ~= "" and self.action_param or "")
 
-    self.custom_input = self.custom_input_panel:AddChild(Text(G.NEWFONT, 20, self.action_param))
-    self.custom_input:SetColour(1, 1, 1, 1)  -- 白色文字
+    -- 文本输入回调
+    self.custom_textbox.OnTextInputted = function()
+        local input_text = self.custom_textbox:GetString()
+        self.action_param = input_text
+        -- 保存到缓存
+        if self.action_name and self.action_name ~= "" then
+            self.custom_input_cache[self.action_name] = input_text
+        end
+    end
 
     -- 使用水平布局
     Layout.HorizontalRow({
-        {widget = custom_label, width = 120},
-        {widget = input_bg, width = 200},
+        {widget = custom_label, width = 140},
+        {widget = self.custom_textbox_root, width = 300},
     }, {
         spacing = 20,
         start_x = 0,
@@ -1276,19 +1331,43 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
         anchor = "center"
     })
 
-    -- 让 custom_input 和 input_bg 重叠（input_bg 是背景）
-    self.custom_input:SetPosition(input_bg:GetPosition())
+    -- 焦点管理
+    self.custom_input_panel:SetOnGainFocus(function() self.custom_textbox:OnGainFocus() end)
+    self.custom_input_panel:SetOnLoseFocus(function() self.custom_textbox:OnLoseFocus() end)
+    self.custom_input_panel.focus_forward = self.custom_textbox
 
-    -- 提示：由于DST限制，这里简化为显示文本
-    local hint = self.custom_input_panel:AddChild(Text(G.NEWFONT, 16, L("HINT_CUSTOM_PARAM")))
-    hint:SetColour(0.6, 0.6, 0.6, 1)
+    -- 设置初始值
+    self.param_spinner:SetSelected(self.action_param)
+    if self.action_param == "" then
+        self:ShowCustomInput()
+    else
+        self:HideCustomInput()
+    end
 
-    Layout.Vertical({hint}, {
-        spacing = 0,
-        start_x = 0,
-        start_y = -20,
-        anchor = "top"
-    })
+    -- 设置回调
+    self.param_spinner.onchangedfn = function(selected_data)
+        if selected_data == "" then
+            -- 恢复该动作的缓存输入内容
+            local cached_input = self.custom_input_cache[self.action_name] or ""
+            self.action_param = cached_input
+            self.custom_textbox:SetString(cached_input)
+            -- 显示自定义输入框
+            self:ShowCustomInput()
+            -- 更新焦点导航：param_spinner -> custom_input_panel -> save_button
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_input_panel)
+            self.custom_input_panel:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            self.custom_input_panel:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+        else
+            self.action_param = selected_data
+            self:HideCustomInput()
+            -- 更新焦点导航：param_spinner -> save_button
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+        end
+    end
 
     -- 初始化参数面板显示状态
     self:OnActionChanged(self.action_name)
@@ -1299,12 +1378,15 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.save_button:SetFocusChangeDir(G.MOVE_RIGHT, self.cancel_button)
     self.cancel_button:SetFocusChangeDir(G.MOVE_LEFT, self.save_button)
 
-    -- 设置 spinners 和底部按钮的导航关系
+    -- 设置 spinners、文本输入框和底部按钮的导航关系
+    -- 注意：这些是初始设置，会在 OnActionChanged 中根据显示状态动态调整
     self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
     self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
-    self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
-    self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
-    self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+    self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_input_panel)
+    self.custom_input_panel:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+    self.custom_input_panel:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
+    self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+    self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
 
     self.default_focus = self.action_spinner
 end)
@@ -1320,13 +1402,49 @@ function ActionEditorDialog:OnActionChanged(action_name)
     end
 
     if needs_param then
+        -- 根据动作类型更新参数选择器的选项
+        local presets = ITEM_PRESETS  -- 默认使用物品预设
+        if action_name == "trigger_key" then
+            presets = KEYBOARD_PRESETS
+        elseif action_name == "unequip_item" then
+            presets = EQUIPSLOT_PRESETS
+        end
+
+        -- 更新 spinner 的选项
+        self.param_spinner:SetOptions(presets)
+
+        -- 选中第一个参数选项
+        local first_param = presets[1] and presets[1].data or ""
+        self.param_spinner:SetSelected(first_param)
+        self.action_param = first_param
+
+        -- 恢复该动作的缓存输入内容
+        local cached_input = self.custom_input_cache[action_name] or ""
+        self.custom_textbox:SetString(cached_input)
+
+        -- 根据第一个参数是否为空来决定是否显示输入框
+        if first_param == "" then
+            -- 第一个参数为空，显示自定义输入框
+            self:ShowCustomInput()
+            -- 设置焦点导航：param_spinner -> custom_input_panel -> save_button
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_input_panel)
+            self.custom_input_panel:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            self.custom_input_panel:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+        else
+            -- 第一个参数不为空，隐藏自定义输入框
+            self:HideCustomInput()
+            -- 设置焦点导航：param_spinner -> save_button
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+        end
+
         self.param_panel:Show()
         -- 有参数时，action_spinner 向下到 param_spinner
         self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
         self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
-        self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
-        self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
-        self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
     else
         self.param_panel:Hide()
         self.custom_input_panel:Hide()

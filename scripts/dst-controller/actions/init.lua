@@ -8,6 +8,7 @@ local Equipment = require("dst-controller/actions/equipment")
 local Items = require("dst-controller/actions/items")
 local Crafting = require("dst-controller/actions/crafting")
 local Character = require("dst-controller/actions/character")
+local Keyboard = require("dst-controller/actions/keyboard")
 
 -- Create the aggregated ACTIONS table
 local ACTIONS = {}
@@ -28,6 +29,7 @@ ACTIONS.inspect_self = Inspection.inspect_self
 -- Equipment Actions
 -- ============================================================================
 ACTIONS.equip_item = Equipment.equip_item
+ACTIONS.unequip_item = Equipment.unequip_item
 ACTIONS.cycle_hand = Equipment.cycle_hand
 ACTIONS.cycle_hand_prev = Equipment.cycle_hand_prev
 ACTIONS.cycle_head = Equipment.cycle_head
@@ -61,6 +63,11 @@ ACTIONS.craft_item = Crafting.craft_item
 ACTIONS.willow_cast_spell = Character.willow_cast_spell
 ACTIONS.start_channeling = Character.start_channeling
 ACTIONS.stop_channeling = Character.stop_channeling
+
+-- ============================================================================
+-- Keyboard Actions
+-- ============================================================================
+ACTIONS.trigger_key = Keyboard.trigger_key
 
 -- ============================================================================
 -- Special Exports

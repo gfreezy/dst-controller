@@ -4,12 +4,13 @@
 
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
-local ButtonHandler = require("dst-controller.executor.button-handler")
-local ActionExecutor = require("dst-controller.executor.action-executor")
+local ButtonHandler = require("dst-controller/executor/button-handler")
+local ActionExecutor = require("dst-controller/executor/action-executor")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local ACTIONS = require("dst-controller/actions/init")
 local TargetSelection = require("dst-controller/target-selection/core")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
+local debugtools = require("debugtools")
 
 local PlayerControllerHook = {}
 
@@ -34,7 +35,26 @@ local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(self, control, down)
-        --- Default behavior for virtual cursor mode is to rotate the camera, so we need to block LB/RB
+        print("[PlayerControllerHook] OnControl: " .. control, "down: " .. tostring(down))
+        
+        -- Try to handle as button combination
+        local handled = ButtonHandler.HandleButtonCombination(
+            self.inst,
+            control,
+            down,
+            function(p, action_list)
+                print("[PlayerControllerHook] Handling button combination: " .. control, "action_list: " .. table.inspect(action_list))
+                ActionExecutor.ExecuteTaskActions(p, action_list, ACTIONS)
+            end
+        )
+
+        -- If handled, block default behavior
+        if handled then
+            return true
+        end
+
+        -- Block LB/RB to prevent default camera rotation
+        -- (Button combinations with LB/RB are handled by ButtonHandler)
         if Helpers.IsControlAnyOf(control, {"LB", "RB"}) then
             return true
         end
@@ -71,21 +91,6 @@ local function InstallOnControl(self)
 
                 return result
             end
-        end
-
-        -- Try to handle as button combination
-        local handled = ButtonHandler.HandleButtonCombination(
-            self.inst,
-            control,
-            down,
-            function(p, action_list)
-                ActionExecutor.ExecuteTaskActions(p, action_list, ACTIONS)
-            end
-        )
-
-        -- If handled, block default behavior
-        if handled then
-            return true
         end
 
         -- Otherwise, use default behavior
