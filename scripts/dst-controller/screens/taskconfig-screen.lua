@@ -618,14 +618,28 @@ function TaskConfigScreen:OnControl(control, down)
             return true
         -- LT/RT 快捷切换标签页
         elseif control == G.CONTROL_MENU_L2 then  -- LT (向左切换)
-            -- 循环切换：tasks <- settings
-            local new_tab = (self.current_tab == "tasks") and "settings" or "tasks"
+            -- 循环切换：tasks <- virtual_cursor <- settings <- tasks
+            local new_tab
+            if self.current_tab == "tasks" then
+                new_tab = "settings"
+            elseif self.current_tab == "virtual_cursor" then
+                new_tab = "tasks"
+            else  -- settings
+                new_tab = "virtual_cursor"
+            end
             self:SwitchTab(new_tab)
             G.TheFrontEnd:GetSound():PlaySound("dontstarve/HUD/click_move")
             return true
         elseif control == G.CONTROL_MENU_R2 then  -- RT (向右切换)
-            -- 循环切换：tasks -> settings
-            local new_tab = (self.current_tab == "tasks") and "settings" or "tasks"
+            -- 循环切换：tasks -> virtual_cursor -> settings -> tasks
+            local new_tab
+            if self.current_tab == "tasks" then
+                new_tab = "virtual_cursor"
+            elseif self.current_tab == "virtual_cursor" then
+                new_tab = "settings"
+            else  -- settings
+                new_tab = "tasks"
+            end
             self:SwitchTab(new_tab)
             G.TheFrontEnd:GetSound():PlaySound("dontstarve/HUD/click_move")
             return true
