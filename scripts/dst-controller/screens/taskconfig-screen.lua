@@ -1210,6 +1210,10 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
             self.action_name = action[1]
             if #action >= 2 then
                 self.action_param = action[2]
+                -- 将初始参数保存到缓存（如果是自定义参数）
+                if self.action_name ~= "" then
+                    self.custom_input_cache[self.action_name] = self.action_param
+                end
             end
         end
     end
@@ -1428,9 +1432,11 @@ function ActionEditorDialog:OnActionChanged(action_name)
         end
 
         -- 如果现有参数不在 presets 中（自定义参数），则选中空值（"自定义"选项）
+        local should_show_input = false
         if not param_in_presets and selected_param ~= "" then
             self.param_spinner:SetSelected("")
             self.custom_textbox:SetString(selected_param)
+            should_show_input = true
         elseif selected_param == "" then
             -- 如果没有现有参数，选中第一个选项
             local first_param = presets[1] and presets[1].data or ""
@@ -1439,15 +1445,17 @@ function ActionEditorDialog:OnActionChanged(action_name)
             -- 恢复该动作的缓存输入内容
             local cached_input = self.custom_input_cache[action_name] or ""
             self.custom_textbox:SetString(cached_input)
+            -- 如果第一个选项是空值，则显示输入框
+            should_show_input = (first_param == "")
         else
             -- 现有参数在 presets 中，直接选中
             self.param_spinner:SetSelected(selected_param)
             self.custom_textbox:SetString("")
+            should_show_input = false
         end
 
-        -- 根据最终选中的参数是否为空来决定是否显示输入框
-        local final_selected = self.param_spinner:GetSelected()
-        if final_selected == "" then
+        -- 根据判断结果决定是否显示输入框
+        if should_show_input then
             -- 第一个参数为空，显示自定义输入框
             self:ShowCustomInput()
             -- 设置焦点导航：param_spinner -> custom_input_panel -> save_button
