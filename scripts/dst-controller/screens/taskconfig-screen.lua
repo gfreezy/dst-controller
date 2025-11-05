@@ -1413,17 +1413,41 @@ function ActionEditorDialog:OnActionChanged(action_name)
         -- 更新 spinner 的选项
         self.param_spinner:SetOptions(presets)
 
-        -- 选中第一个参数选项
-        local first_param = presets[1] and presets[1].data or ""
-        self.param_spinner:SetSelected(first_param)
-        self.action_param = first_param
+        -- 确定要选中的参数：优先使用现有参数，否则选中第一个选项
+        local selected_param = self.action_param or ""
 
-        -- 恢复该动作的缓存输入内容
-        local cached_input = self.custom_input_cache[action_name] or ""
-        self.custom_textbox:SetString(cached_input)
+        -- 检查现有参数是否在 presets 中
+        local param_in_presets = false
+        if selected_param ~= "" then
+            for _, preset in ipairs(presets) do
+                if preset.data == selected_param then
+                    param_in_presets = true
+                    break
+                end
+            end
+        end
 
-        -- 根据第一个参数是否为空来决定是否显示输入框
-        if first_param == "" then
+        -- 如果现有参数不在 presets 中（自定义参数），则选中空值（"自定义"选项）
+        if not param_in_presets and selected_param ~= "" then
+            self.param_spinner:SetSelected("")
+            self.custom_textbox:SetString(selected_param)
+        elseif selected_param == "" then
+            -- 如果没有现有参数，选中第一个选项
+            local first_param = presets[1] and presets[1].data or ""
+            self.param_spinner:SetSelected(first_param)
+            self.action_param = first_param
+            -- 恢复该动作的缓存输入内容
+            local cached_input = self.custom_input_cache[action_name] or ""
+            self.custom_textbox:SetString(cached_input)
+        else
+            -- 现有参数在 presets 中，直接选中
+            self.param_spinner:SetSelected(selected_param)
+            self.custom_textbox:SetString("")
+        end
+
+        -- 根据最终选中的参数是否为空来决定是否显示输入框
+        local final_selected = self.param_spinner:GetSelected()
+        if final_selected == "" then
             -- 第一个参数为空，显示自定义输入框
             self:ShowCustomInput()
             -- 设置焦点导航：param_spinner -> custom_input_panel -> save_button
