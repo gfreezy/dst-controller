@@ -8,27 +8,38 @@ local PERSISTENT_FILE_NAME = "enhanced_controller_config.json"
 local CONFIG_VERSION = "1.0.0"
 
 -- 运行时缓存
-local RUNTIME_TASKS = nil
+local RUNTIME_TASKS = nil  -- 默认模式的按键配置
+local RUNTIME_VIRTUAL_CURSOR_TASKS = nil  -- 虚拟光标模式的按键配置
 local RUNTIME_SETTINGS = nil
 
 -- 加载TASKS配置
----@return table tasks
+---@return table tasks (default mode)
+---@return table virtual_cursor_tasks (virtual cursor mode)
 function ConfigManager.LoadTasks()
-    if RUNTIME_TASKS then
-        return RUNTIME_TASKS
+    if RUNTIME_TASKS and RUNTIME_VIRTUAL_CURSOR_TASKS then
+        return RUNTIME_TASKS, RUNTIME_VIRTUAL_CURSOR_TASKS
     end
 
-    local success, tasks = pcall(function()
+    local success, config = pcall(function()
         return require("dst-controller/config/tasks")
     end)
 
-    if success and tasks then
-        RUNTIME_TASKS = ConfigManager.DeepCopy(tasks)
-        return RUNTIME_TASKS
+    if success and config then
+        if config.TASKS then
+            -- 新格式：返回 {TASKS = ..., VIRTUAL_CURSOR_TASKS = ...}
+            RUNTIME_TASKS = ConfigManager.DeepCopy(config.TASKS)
+            RUNTIME_VIRTUAL_CURSOR_TASKS = ConfigManager.DeepCopy(config.VIRTUAL_CURSOR_TASKS or config.TASKS)
+        else
+            -- 旧格式：直接返回 tasks 表
+            RUNTIME_TASKS = ConfigManager.DeepCopy(config)
+            RUNTIME_VIRTUAL_CURSOR_TASKS = ConfigManager.DeepCopy(config)
+        end
+        return RUNTIME_TASKS, RUNTIME_VIRTUAL_CURSOR_TASKS
     else
         print("[ConfigManager] Failed to load tasks config, using empty config")
         RUNTIME_TASKS = {}
-        return RUNTIME_TASKS
+        RUNTIME_VIRTUAL_CURSOR_TASKS = {}
+        return RUNTIME_TASKS, RUNTIME_VIRTUAL_CURSOR_TASKS
     end
 end
 
@@ -70,16 +81,18 @@ function ConfigManager.DeepCopy(orig)
     return copy
 end
 
--- 保存配置到持久化文件（tasks 和 settings）
-function ConfigManager.SaveConfigToFile(tasks, settings, callback)
+-- 保存配置到持久化文件（tasks、virtual_cursor_tasks 和 settings）
+function ConfigManager.SaveConfigToFile(tasks, virtual_cursor_tasks, settings, callback)
     -- 更新运行时配置
     RUNTIME_TASKS = ConfigManager.DeepCopy(tasks)
+    RUNTIME_VIRTUAL_CURSOR_TASKS = ConfigManager.DeepCopy(virtual_cursor_tasks or tasks)
     RUNTIME_SETTINGS = ConfigManager.DeepCopy(settings)
 
     -- 创建数据结构
     local data = {
         version = CONFIG_VERSION,
         tasks = tasks,
+        virtual_cursor_tasks = virtual_cursor_tasks or tasks,
         settings = settings or ConfigManager.LoadDefaultSettings(),
         timestamp = os.time()
     }
@@ -111,7 +124,8 @@ end
 
 -- 兼容旧方法名
 function ConfigManager.SaveTasksToFile(tasks, callback)
-    ConfigManager.SaveConfigToFile(tasks, ConfigManager.LoadDefaultSettings(), callback)
+    local _, default_vc_tasks = ConfigManager.LoadDefaultTasks()
+    ConfigManager.SaveConfigToFile(tasks, default_vc_tasks, ConfigManager.LoadDefaultSettings(), callback)
 end
 
 -- 从持久化文件加载配置
@@ -128,9 +142,10 @@ function ConfigManager.LoadTasksFromFile(callback)
 
                     -- 更新运行时缓存
                     RUNTIME_TASKS = ConfigManager.DeepCopy(data.tasks)
+                    RUNTIME_VIRTUAL_CURSOR_TASKS = ConfigManager.DeepCopy(data.virtual_cursor_tasks or data.tasks)
                     RUNTIME_SETTINGS = ConfigManager.DeepCopy(data.settings or ConfigManager.LoadDefaultSettings())
 
-                    if callback then callback(true, data.tasks, data.settings) end
+                    if callback then callback(true, data.tasks, data.virtual_cursor_tasks, data.settings) end
                     return
                 else
                     print("[ConfigManager] Failed to decode saved configuration")
@@ -140,24 +155,33 @@ function ConfigManager.LoadTasksFromFile(callback)
             end
 
             -- 加载失败，使用默认配置
-            local default_tasks = ConfigManager.LoadDefaultTasks()
+            local default_tasks, default_vc_tasks = ConfigManager.LoadDefaultTasks()
             local default_settings = ConfigManager.LoadDefaultSettings()
-            if callback then callback(false, default_tasks, default_settings) end
+            if callback then callback(false, default_tasks, default_vc_tasks, default_settings) end
         end
     )
 end
 
 -- 加载默认TASKS配置（从tasks.lua）
+---@return table tasks (default mode)
+---@return table virtual_cursor_tasks (virtual cursor mode)
 function ConfigManager.LoadDefaultTasks()
-    local success, tasks = pcall(function()
+    local success, config = pcall(function()
         return require("dst-controller/config/tasks")
     end)
 
-    if success and tasks then
-        return ConfigManager.DeepCopy(tasks)
+    if success and config then
+        if config.TASKS then
+            -- 新格式：返回 {TASKS = ..., VIRTUAL_CURSOR_TASKS = ...}
+            return ConfigManager.DeepCopy(config.TASKS), ConfigManager.DeepCopy(config.VIRTUAL_CURSOR_TASKS or config.TASKS)
+        else
+            -- 旧格式：直接返回 tasks 表
+            return ConfigManager.DeepCopy(config), ConfigManager.DeepCopy(config)
+        end
     else
         print("[ConfigManager] Failed to load default tasks config, using empty config")
-        return ConfigManager.CreateEmptyTasks()
+        local empty = ConfigManager.CreateEmptyTasks()
+        return empty, ConfigManager.DeepCopy(empty)
     end
 end
 
@@ -285,18 +309,37 @@ function ConfigManager.DeleteSavedConfig(callback)
 end
 
 -- 获取当前运行时的TASKS配置
+---@param is_virtual_cursor boolean 是否为虚拟光标模式
 ---@return table tasks
-function ConfigManager.GetRuntimeTasks()
-    if not RUNTIME_TASKS then
+function ConfigManager.GetRuntimeTasks(is_virtual_cursor)
+    if not RUNTIME_TASKS or not RUNTIME_VIRTUAL_CURSOR_TASKS then
         ConfigManager.LoadTasks()
     end
-    ---@type table
-    return RUNTIME_TASKS
+
+    if is_virtual_cursor then
+        return RUNTIME_VIRTUAL_CURSOR_TASKS or RUNTIME_TASKS
+    else
+        return RUNTIME_TASKS
+    end
 end
 
 -- 更新运行时的TASKS配置
-function ConfigManager.UpdateRuntimeTasks(tasks)
+---@param tasks table 默认模式配置
+---@param virtual_cursor_tasks table 虚拟光标模式配置（可选）
+function ConfigManager.UpdateRuntimeTasks(tasks, virtual_cursor_tasks)
     RUNTIME_TASKS = ConfigManager.DeepCopy(tasks)
+    if virtual_cursor_tasks then
+        RUNTIME_VIRTUAL_CURSOR_TASKS = ConfigManager.DeepCopy(virtual_cursor_tasks)
+    end
+end
+
+-- 获取虚拟光标模式的TASKS配置
+---@return table virtual_cursor_tasks
+function ConfigManager.GetRuntimeVirtualCursorTasks()
+    if not RUNTIME_VIRTUAL_CURSOR_TASKS then
+        ConfigManager.LoadTasks()
+    end
+    return RUNTIME_VIRTUAL_CURSOR_TASKS or RUNTIME_TASKS
 end
 
 -- 获取当前运行时的设置

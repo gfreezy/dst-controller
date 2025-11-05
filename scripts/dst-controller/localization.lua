@@ -12,6 +12,7 @@ local STRINGS_TABLE = {
         -- 主界面
         TITLE = "Enhanced Controller Configuration",
         TAB_TASKS = "Button Config",
+        TAB_VIRTUAL_CURSOR = "Virtual Cursor",
         TAB_SETTINGS = "Mod Settings",
         BUTTON_APPLY = "Apply",
         BUTTON_CLOSE = "Close",
@@ -112,7 +113,8 @@ local STRINGS_TABLE = {
     zh = {
         -- 主界面
         TITLE = "增强手柄配置",
-        TAB_TASKS = "任务配置",
+        TAB_TASKS = "按键配置",
+        TAB_VIRTUAL_CURSOR = "虚拟光标",
         TAB_SETTINGS = "Mod设置",
         BUTTON_APPLY = "应用",
         BUTTON_CLOSE = "关闭",

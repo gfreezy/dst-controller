@@ -84,7 +84,12 @@ function ButtonHandler.HandleButtonCombination(player, control, down, execute_ca
         ButtonHandler.InitializePlayer(player)
     end
 
-    local tasks = ConfigManager.GetRuntimeTasks()
+    -- 检测是否在虚拟光标模式
+    local VirtualCursor = require("dst-controller/virtual-cursor/core")
+    local is_virtual_cursor = VirtualCursor.IsCursorModeActive()
+
+    -- 根据模式选择对应的配置
+    local tasks = ConfigManager.GetRuntimeTasks(is_virtual_cursor)
 
     -- Check if this is a modifier button (LB or RB)
     for modifier_name, face_buttons in pairs(BUTTON_COMBINATIONS) do

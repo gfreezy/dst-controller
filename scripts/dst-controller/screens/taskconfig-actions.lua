@@ -36,17 +36,19 @@ function TaskConfigHook.OpenConfigScreen(playerhud)
         return
     end
 
-    -- 加载当前TASKS配置和设置
+    -- 加载当前TASKS配置和设置（包括两套按键配置）
     print("[TaskConfigHook] Loading runtime tasks...")
-    local tasks = ConfigManager.GetRuntimeTasks()
+    local tasks = ConfigManager.GetRuntimeTasks(false)  -- 默认模式
+    local virtual_cursor_tasks = ConfigManager.GetRuntimeVirtualCursorTasks()  -- 虚拟光标模式
     local settings = ConfigManager.GetRuntimeSettings()
     print("[TaskConfigHook] Tasks loaded:", tasks ~= nil)
+    print("[TaskConfigHook] Virtual cursor tasks loaded:", virtual_cursor_tasks ~= nil)
     print("[TaskConfigHook] Settings loaded:", settings ~= nil)
 
     -- 创建配置界面
     print("[TaskConfigHook] Creating TaskConfigScreen...")
-    local screen = TaskConfigScreen(tasks, settings, function(updated_tasks, updated_settings)
-        TaskConfigHook.OnApplyConfig(updated_tasks, updated_settings)
+    local screen = TaskConfigScreen(tasks, virtual_cursor_tasks, settings, function(updated_tasks, updated_virtual_cursor_tasks, updated_settings)
+        TaskConfigHook.OnApplyConfig(updated_tasks, updated_virtual_cursor_tasks, updated_settings)
     end)
     print("[TaskConfigHook] Screen created:", screen ~= nil)
 
@@ -70,13 +72,13 @@ function TaskConfigHook.OpenConfigScreen(playerhud)
 end
 
 -- 应用配置
-function TaskConfigHook.OnApplyConfig(updated_tasks, updated_settings)
+function TaskConfigHook.OnApplyConfig(updated_tasks, updated_virtual_cursor_tasks, updated_settings)
     -- 更新运行时配置（立即生效）
-    ConfigManager.UpdateRuntimeTasks(updated_tasks)
+    ConfigManager.UpdateRuntimeTasks(updated_tasks, updated_virtual_cursor_tasks)
     ConfigManager.UpdateRuntimeSettings(updated_settings)
 
-    -- 保存到持久化文件
-    ConfigManager.SaveConfigToFile(updated_tasks, updated_settings, function(success)
+    -- 保存到持久化文件（包括两套按键配置）
+    ConfigManager.SaveConfigToFile(updated_tasks, updated_virtual_cursor_tasks, updated_settings, function(success)
         if success then
             print("[TaskConfigHook] Configuration saved and applied successfully")
         else

@@ -82,10 +82,11 @@ end
 local AVAILABLE_ACTIONS = GetAvailableActions()
 local ITEM_PRESETS = GetItemPresets()
 
-local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, settings_data, on_apply_cb)
+local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, virtual_cursor_tasks_data, settings_data, on_apply_cb)
     Screen._ctor(self, "TaskConfigScreen")
 
     self.tasks_data = tasks_data or {}
+    self.virtual_cursor_tasks_data = virtual_cursor_tasks_data or {}
     self.settings_data = settings_data or {
         attack_angle_mode = "forward_only",
         interaction_angle_mode = "forward_only",
@@ -93,7 +94,7 @@ local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, settings_dat
     }
     self.on_apply_cb = on_apply_cb
     self.is_dirty = false
-    self.current_tab = "tasks"  -- "tasks" 或 "settings"
+    self.current_tab = "tasks"  -- "tasks", "virtual_cursor", or "settings"
 
     -- 添加全屏黑色背景阻挡层（模仿 PauseScreen）
     -- 这会阻止玩家点击背景的游戏世界
@@ -152,6 +153,7 @@ function TaskConfigScreen:BuildTabs()
     -- 使用 HeaderTabs 创建标签页
     local tab_items = {
         {text = L("TAB_TASKS"), cb = function() self:SwitchTab("tasks") end},
+        {text = L("TAB_VIRTUAL_CURSOR"), cb = function() self:SwitchTab("virtual_cursor") end},
         {text = L("TAB_SETTINGS"), cb = function() self:SwitchTab("settings") end},
     }
 
@@ -177,23 +179,27 @@ function TaskConfigScreen:SwitchTab(tab_type)
     -- 使用 HeaderTabs 的 SelectButton 方法
     if tab_type == "tasks" then
         self.tabs:SelectButton(1)
-        self:BuildTasksContent()
-    else
+        self:BuildTasksContent("tasks")
+    elseif tab_type == "virtual_cursor" then
         self.tabs:SelectButton(2)
+        self:BuildTasksContent("virtual_cursor")
+    else
+        self.tabs:SelectButton(3)
         self:BuildSettingsContent()
     end
 
     -- 恢复焦点到新内容的第一个可聚焦元素
-    if self.scroll_list and tab_type == "tasks" then
+    if self.scroll_list and (tab_type == "tasks" or tab_type == "virtual_cursor") then
         self.scroll_list:SetFocus()
     elseif self.settings_scroll_list and tab_type == "settings" then
         self.settings_scroll_list:SetFocus()
     end
 end
 
-function TaskConfigScreen:BuildTasksContent()
-    -- 创建任务配置界面（原有功能）
-    self:BuildConfigWidgets()
+function TaskConfigScreen:BuildTasksContent(mode)
+    -- mode: "tasks" 或 "virtual_cursor"
+    -- 创建任务配置界面
+    self:BuildConfigWidgets(mode)
 
     -- 创建滚动列表
     self.scroll_list = self.content_panel:AddChild(
@@ -231,8 +237,12 @@ function TaskConfigScreen:BuildTasksContent()
     end
 end
 
-function TaskConfigScreen:BuildConfigWidgets()
+function TaskConfigScreen:BuildConfigWidgets(mode)
+    -- mode: "tasks" 或 "virtual_cursor"
     self.config_widgets = {}
+
+    -- 根据模式选择数据源
+    local data_source = mode == "virtual_cursor" and self.virtual_cursor_tasks_data or self.tasks_data
 
     for _, combo_key in ipairs(BUTTON_COMBOS) do
         -- 如果是 HOSTILE_ONLY 模式，跳过 LB_X（用于强制攻击）
@@ -243,7 +253,7 @@ function TaskConfigScreen:BuildConfigWidgets()
             -- 在容器内创建内容 widget
             local widget = container:AddChild(Widget("combo_" .. combo_key))
 
-            local task_config = self.tasks_data[combo_key] or {
+            local task_config = data_source[combo_key] or {
                 on_press = {},
                 on_release = {}
             }
@@ -262,7 +272,7 @@ function TaskConfigScreen:BuildConfigWidgets()
 
             -- 配置按钮
             local config_btn = widget:AddChild(TEMPLATES.StandardButton(
-                function() self:OpenDetailConfig(combo_key) end,
+                function() self:OpenDetailConfig(combo_key, mode) end,
                 L("BUTTON_CONFIG"),
                 {120, 45}
             ))
@@ -508,8 +518,11 @@ function TaskConfigScreen:BuildSettingsContent()
 end
 
 -- 打开详细配置对话框
-function TaskConfigScreen:OpenDetailConfig(combo_key)
-    local task_config = self.tasks_data[combo_key] or {
+function TaskConfigScreen:OpenDetailConfig(combo_key, mode)
+    -- mode: "tasks" 或 "virtual_cursor"
+    local data_source = mode == "virtual_cursor" and self.virtual_cursor_tasks_data or self.tasks_data
+
+    local task_config = data_source[combo_key] or {
         on_press = {},
         on_release = {}
     }
@@ -520,9 +533,13 @@ function TaskConfigScreen:OpenDetailConfig(combo_key)
         BUTTON_NAMES[combo_key],
         task_config,
         function(updated_config)
-            self.tasks_data[combo_key] = updated_config
+            if mode == "virtual_cursor" then
+                self.virtual_cursor_tasks_data[combo_key] = updated_config
+            else
+                self.tasks_data[combo_key] = updated_config
+            end
             self.is_dirty = true
-            self:RefreshConfigWidgets()
+            self:RefreshConfigWidgets(mode)
         end
     )
 
@@ -530,7 +547,8 @@ function TaskConfigScreen:OpenDetailConfig(combo_key)
 end
 
 -- 刷新配置列表显示
-function TaskConfigScreen:RefreshConfigWidgets()
+function TaskConfigScreen:RefreshConfigWidgets(mode)
+    -- mode: "tasks" 或 "virtual_cursor"
     -- 清空当前列表
     for _, widget in ipairs(self.config_widgets) do
         widget:Kill()
@@ -539,7 +557,7 @@ function TaskConfigScreen:RefreshConfigWidgets()
     self.config_widgets = {}
 
     -- 重新构建
-    self:BuildConfigWidgets()
+    self:BuildConfigWidgets(mode)
     self.scroll_list:SetList(self.config_widgets)
 end
 
@@ -565,9 +583,9 @@ function TaskConfigScreen:Apply()
         self.is_dirty = true
     end
 
-    -- 保存任务配置和设置数据
+    -- 保存任务配置和设置数据（包括两套按键配置）
     if self.on_apply_cb then
-        self.on_apply_cb(self.tasks_data, self.settings_data)
+        self.on_apply_cb(self.tasks_data, self.virtual_cursor_tasks_data, self.settings_data)
     end
 
     self.is_dirty = false
