@@ -49,6 +49,7 @@ function ConfigManager.LoadDefaultSettings()
         attack_angle_mode = "forward_only",
         force_attack_mode = "hostile_only",
         interaction_angle_mode = "forward_only",
+        allow_air_attack = true,            -- 是否允许对着空气攻击（默认开启）
         virtual_cursor_settings = {
             enabled = true,
             toggle_combo = {"LB", "RB", "RT"},

@@ -192,6 +192,7 @@ end
 -- Equip item by name (item_name is required)
 function EquipmentActions.equip_item(player, item_name)
     if not player.components.inventory then return end
+    if not player.components.playercontroller then return end
 
     if not item_name then
         print("[Enhanced Controller] Error: equip_item requires item name parameter")
@@ -204,12 +205,15 @@ function EquipmentActions.equip_item(player, item_name)
         return
     end
 
-    if target_item.components.equippable then
-        player.components.inventory:Equip(target_item)
-        print(string.format("[Enhanced Controller] Action: Equip Item (%s)", target_item.prefab))
-    else
+    if not target_item.components.equippable then
         print(string.format("[Enhanced Controller] Item '%s' is not equippable", item_name))
+        return
     end
+
+    -- Use DST's official DoControllerUseItemOnSelfFromInvTile
+    -- This automatically handles equip/unequip based on item state
+    player.components.playercontroller:DoControllerUseItemOnSelfFromInvTile(target_item)
+    print(string.format("[Enhanced Controller] Action: Equip Item (%s)", target_item.prefab))
 end
 
 -- ============================================================================
@@ -424,8 +428,13 @@ function EquipmentActions.unequip_item(player, slot_type)
 
     local equipped_item = player.components.inventory:GetEquippedItem(equipslot)
     if equipped_item then
-        player.components.inventory:Unequip(equipslot)
-        print(string.format("[Enhanced Controller] Action: Unequipped %s from %s slot", equipped_item.prefab, slot_type))
+        -- Use DST's official DoControllerUseItemOnSelfFromInvTile
+        -- For equipped items, it automatically creates UNEQUIP action
+        -- This handles all edge cases: prevention checks, heavy items, etc.
+        if player.components.playercontroller then
+            player.components.playercontroller:DoControllerUseItemOnSelfFromInvTile(equipped_item)
+            print(string.format("[Enhanced Controller] Action: Unequipping %s from %s slot", equipped_item.prefab, slot_type))
+        end
     else
         print(string.format("[Enhanced Controller] Action: No item equipped in %s slot", slot_type))
     end

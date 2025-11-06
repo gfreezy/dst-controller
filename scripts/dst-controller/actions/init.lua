@@ -2,7 +2,6 @@
 -- Aggregates all action modules into a single ACTIONS table
 
 -- Load all action modules
-local Combat = require("dst-controller/actions/combat")
 local Inspection = require("dst-controller/actions/inspection")
 local Equipment = require("dst-controller/actions/equipment")
 local Items = require("dst-controller/actions/items")
@@ -12,12 +11,6 @@ local Keyboard = require("dst-controller/actions/keyboard")
 
 -- Create the aggregated ACTIONS table
 local ACTIONS = {}
-
--- ============================================================================
--- Combat Actions
--- ============================================================================
-ACTIONS.attack = Combat.attack
-ACTIONS.force_attack = Combat.force_attack
 
 -- ============================================================================
 -- Inspection Actions
@@ -49,8 +42,10 @@ ACTIONS.restore_body_item = Equipment.restore_body_item
 -- ============================================================================
 -- Item Usage Actions
 -- ============================================================================
-ACTIONS.use_item = Items.use_item
 ACTIONS.use_item_on_self = Items.use_item_on_self
+ACTIONS.use_item_on_scene = Items.use_item_on_scene
+ACTIONS.use_active_item_on_self = Items.use_active_item_on_self
+ACTIONS.use_active_item_on_scene = Items.use_active_item_on_scene
 
 -- ============================================================================
 -- Crafting Actions

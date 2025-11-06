@@ -123,6 +123,26 @@ local function InstallUsingMouse(self)
     end
 end
 
+-- Hook: DoControllerAttackButton (wrap)
+local function InstallDoControllerAttackButton(self)
+    local old_DoControllerAttackButton = self.DoControllerAttackButton
+
+    self.DoControllerAttackButton = function(self, target)
+        -- Check if air attack is disabled
+        local settings = ConfigManager.GetRuntimeSettings()
+        if settings and settings.allow_air_attack == false then
+            -- If air attack is disabled and there's no target, don't attack
+            if target == nil and self.controller_attack_target == nil then
+                Helpers.DebugPrint("[DoControllerAttackButton] Air attack disabled, no target - blocking attack")
+                return
+            end
+        end
+
+        -- Call original method
+        return old_DoControllerAttackButton(self, target)
+    end
+end
+
 -- Main Install function
 function PlayerControllerHook.Install()
     G.AddComponentPostInit("playercontroller", function(self)
@@ -149,6 +169,7 @@ function PlayerControllerHook.Install()
         InstallOnControl(self)
         InstallIsEnabled(self)
         InstallUsingMouse(self)
+        InstallDoControllerAttackButton(self)
 
         Helpers.DebugPrint("PlayerController hooks installed")
     end)

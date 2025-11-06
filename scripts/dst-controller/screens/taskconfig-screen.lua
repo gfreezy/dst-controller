@@ -38,10 +38,10 @@ local function GetAvailableActions()
     return {
         -- 无参数动作
         {data = "", text = L("ACTION_NONE"), has_param = false},
-        {data = "attack", text = L("ACTION_ATTACK"), has_param = false},
-        {data = "force_attack", text = L("ACTION_FORCE_ATTACK"), has_param = false},
         {data = "examine", text = L("ACTION_EXAMINE"), has_param = false},
         {data = "inspect_self", text = L("ACTION_INSPECT_SELF"), has_param = false},
+        {data = "use_active_item_on_self", text = L("ACTION_USE_ACTIVE_ITEM_ON_SELF"), has_param = false},
+        {data = "use_active_item_on_scene", text = L("ACTION_USE_ACTIVE_ITEM_ON_SCENE"), has_param = false},
         {data = "save_hand_item", text = L("ACTION_SAVE_HAND_ITEM"), has_param = false},
         {data = "restore_hand_item", text = L("ACTION_RESTORE_HAND_ITEM"), has_param = false},
         {data = "start_channeling", text = L("ACTION_START_CHANNELING"), has_param = false},
@@ -53,8 +53,8 @@ local function GetAvailableActions()
         -- 需要参数的动作
         {data = "equip_item", text = L("ACTION_EQUIP_ITEM"), has_param = true},
         {data = "unequip_item", text = L("ACTION_UNEQUIP_ITEM"), has_param = true},
-        {data = "use_item", text = L("ACTION_USE_ITEM"), has_param = true},
         {data = "use_item_on_self", text = L("ACTION_USE_ITEM_ON_SELF"), has_param = true},
+        {data = "use_item_on_scene", text = L("ACTION_USE_ITEM_ON_SCENE"), has_param = true},
         {data = "craft_item", text = L("ACTION_CRAFT_ITEM"), has_param = true},
         {data = "trigger_key", text = L("ACTION_TRIGGER_KEY"), has_param = true},
     }
@@ -416,6 +416,7 @@ function TaskConfigScreen:BuildSettingsContent()
         attack_angle_mode = self.settings_data.attack_angle_mode,
         interaction_angle_mode = self.settings_data.interaction_angle_mode,
         force_attack_mode = self.settings_data.force_attack_mode,
+        allow_air_attack = self.settings_data.allow_air_attack ~= false,  -- 默认为 true
         virtual_cursor_settings = {
             enabled = vc_settings.enabled,
             cursor_speed = vc_settings.cursor_speed,
@@ -458,7 +459,16 @@ function TaskConfigScreen:BuildSettingsContent()
             280
         ))
 
-        -- 4. 虚拟光标启用设置
+        -- 4. 空气攻击设置
+        table.insert(items, CreateSettingItem(
+            L("SETTING_AIR_ATTACK"),
+            {{text = L("OPT_DISABLED"), data = false}, {text = L("OPT_ENABLED"), data = true}},
+            self.temp_settings.allow_air_attack,
+            function(data) self.temp_settings.allow_air_attack = data end,
+            120
+        ))
+
+        -- 5. 虚拟光标启用设置
         local temp_vc = self.temp_settings.virtual_cursor_settings
         table.insert(items, CreateSettingItem(
             L("SETTING_VIRTUAL_CURSOR"),
@@ -468,7 +478,7 @@ function TaskConfigScreen:BuildSettingsContent()
             120
         ))
 
-        -- 5. 虚拟光标速度设置
+        -- 6. 虚拟光标速度设置
         table.insert(items, CreateSettingItem(
             L("SETTING_CURSOR_SPEED"),
             {
@@ -483,7 +493,7 @@ function TaskConfigScreen:BuildSettingsContent()
             180
         ))
 
-        -- 6. 虚拟光标显示设置
+        -- 7. 虚拟光标显示设置
         table.insert(items, CreateSettingItem(
             L("SETTING_SHOW_CURSOR"),
             {{text = L("OPT_HIDE"), data = false}, {text = L("OPT_SHOW"), data = true}},
@@ -492,7 +502,7 @@ function TaskConfigScreen:BuildSettingsContent()
             120
         ))
 
-        -- 7. 光标磁吸启用设置
+        -- 8. 光标磁吸启用设置
         table.insert(items, CreateSettingItem(
             L("SETTING_DRAG_WALK"),
             {{text = L("OPT_OFF"), data = false}, {text = L("OPT_ON"), data = true}},
@@ -501,7 +511,7 @@ function TaskConfigScreen:BuildSettingsContent()
             120
         ))
 
-        -- 8. 磁吸范围设置
+        -- 9. 磁吸范围设置
         table.insert(items, CreateSettingItem(
             L("SETTING_TARGET_RANGE"),
             {{text = L("OPT_RANGE_SHORT"), data = 1}, {text = L("OPT_RANGE_MEDIUM"), data = 2}, {text = L("OPT_RANGE_LONG"), data = 3}},
@@ -510,7 +520,7 @@ function TaskConfigScreen:BuildSettingsContent()
             140
         ))
 
-        -- 9. 磁吸优先级设置
+        -- 10. 磁吸优先级设置
         table.insert(items, CreateSettingItem(
             L("SETTING_TARGET_PRIORITY"),
             {{text = L("OPT_CURSOR_PRIORITY"), data = false}, {text = L("OPT_PLAYER_PRIORITY"), data = true}},
@@ -618,6 +628,7 @@ function TaskConfigScreen:Apply()
         self.settings_data.attack_angle_mode = self.temp_settings.attack_angle_mode
         self.settings_data.interaction_angle_mode = self.temp_settings.interaction_angle_mode
         self.settings_data.force_attack_mode = self.temp_settings.force_attack_mode
+        self.settings_data.allow_air_attack = self.temp_settings.allow_air_attack
 
         -- 复制虚拟光标设置
         local temp_vc = self.temp_settings.virtual_cursor_settings

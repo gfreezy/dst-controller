@@ -31,6 +31,7 @@ local STRINGS_TABLE = {
         SETTING_ATTACK_ANGLE = "Attack Angle Mode",
         SETTING_INTERACTION_ANGLE = "Interaction Angle Mode",
         SETTING_FORCE_ATTACK = "Force Attack Mode",
+        SETTING_AIR_ATTACK = "Allow Air Attack",
         SETTING_VIRTUAL_CURSOR = "Virtual Cursor",
         SETTING_CURSOR_SPEED = "Cursor Speed",
         SETTING_SHOW_CURSOR = "Show Cursor Widget",
@@ -62,10 +63,10 @@ local STRINGS_TABLE = {
 
         -- 动作列表
         ACTION_NONE = "【No Action】",
-        ACTION_ATTACK = "Attack",
-        ACTION_FORCE_ATTACK = "Force Attack",
         ACTION_EXAMINE = "Examine",
         ACTION_INSPECT_SELF = "Inspect Self",
+        ACTION_USE_ACTIVE_ITEM_ON_SELF = "Use Active Item on Self",
+        ACTION_USE_ACTIVE_ITEM_ON_SCENE = "Use Active Item on Scene",
         ACTION_SAVE_HAND_ITEM = "Save Hand Item",
         ACTION_RESTORE_HAND_ITEM = "Restore Hand Item",
         ACTION_START_CHANNELING = "Start Channeling",
@@ -75,8 +76,8 @@ local STRINGS_TABLE = {
         ACTION_CYCLE_BODY = "Cycle Body Slot",
         ACTION_EQUIP_ITEM = "Equip Item [Needs Param]",
         ACTION_UNEQUIP_ITEM = "Unequip Item [Needs Param]",
-        ACTION_USE_ITEM = "Use Item [Needs Param]",
         ACTION_USE_ITEM_ON_SELF = "Use Item on Self [Needs Param]",
+        ACTION_USE_ITEM_ON_SCENE = "Use Item on Scene [Needs Param]",
         ACTION_CRAFT_ITEM = "Craft Item [Needs Param]",
         ACTION_TRIGGER_KEY = "Trigger Key [Needs Param]",
 
@@ -147,6 +148,7 @@ local STRINGS_TABLE = {
         SETTING_ATTACK_ANGLE = "攻击角度模式",
         SETTING_INTERACTION_ANGLE = "交互角度模式",
         SETTING_FORCE_ATTACK = "强制攻击模式",
+        SETTING_AIR_ATTACK = "允许空气攻击",
         SETTING_VIRTUAL_CURSOR = "虚拟光标",
         SETTING_CURSOR_SPEED = "光标速度",
         SETTING_SHOW_CURSOR = "显示光标图标",
@@ -178,10 +180,10 @@ local STRINGS_TABLE = {
 
         -- 动作列表
         ACTION_NONE = "【无动作】",
-        ACTION_ATTACK = "攻击",
-        ACTION_FORCE_ATTACK = "强制攻击",
         ACTION_EXAMINE = "检查",
         ACTION_INSPECT_SELF = "检查自己",
+        ACTION_USE_ACTIVE_ITEM_ON_SELF = "对自己使用当前物品",
+        ACTION_USE_ACTIVE_ITEM_ON_SCENE = "对场景使用当前物品",
         ACTION_SAVE_HAND_ITEM = "保存手持物品",
         ACTION_RESTORE_HAND_ITEM = "恢复手持物品",
         ACTION_START_CHANNELING = "开始持续动作",
@@ -191,8 +193,8 @@ local STRINGS_TABLE = {
         ACTION_CYCLE_BODY = "切换身体装备",
         ACTION_EQUIP_ITEM = "装备物品 [需要参数]",
         ACTION_UNEQUIP_ITEM = "卸下装备 [需要参数]",
-        ACTION_USE_ITEM = "使用物品 [需要参数]",
         ACTION_USE_ITEM_ON_SELF = "对自己使用物品 [需要参数]",
+        ACTION_USE_ITEM_ON_SCENE = "对场景使用物品 [需要参数]",
         ACTION_CRAFT_ITEM = "制作物品 [需要参数]",
         ACTION_TRIGGER_KEY = "触发按键 [需要参数]",
 
