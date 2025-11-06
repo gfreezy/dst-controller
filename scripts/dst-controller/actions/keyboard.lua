@@ -2,7 +2,7 @@
 -- 支持单个按键或组合键（用+分隔）
 
 local G = require("dst-controller/global")
-local debugtools = require("debugtools")
+local InputHook = require("dst-controller/hooks/input-hook")
 
 -- 键盘按键映射表（DST KEY_ 常量）
 -- 注意：只包含DST constants.lua中实际定义的按键
@@ -92,8 +92,7 @@ local function ParseKeyCombo(key_string)
 end
 
 -- 触发键盘按键
--- 通过直接调用 TheInput 的事件处理器来触发键盘事件
--- 参考自 Better_Gamepad_Experience mod 的实现
+-- 通过 hook Input:IsKeyDown 和 Input:OnRawKey 来模拟键盘按键
 -- down: true=按下, false=释放, nil=按下后自动释放
 local function TriggerKey(player, key_string, down)
     if not player or not player:IsValid() then
@@ -110,39 +109,28 @@ local function TriggerKey(player, key_string, down)
     if down == nil then
         -- Mode 1: Press and release (default)
         -- Press all keys
-        print("[KeyboardAction] Pressing keys:", table.inspect(keys))
+        print("[KeyboardAction] Pressing keys:", key_string)
         for _, key in ipairs(keys) do
-            -- 检查是否有事件处理器监听这个按键
-            -- if next(G.TheInput.onkeydown:GetHandlersForEvent(key)) then
-                print("[KeyboardAction] Pressing key:", key)
-                G.TheInput.onkeydown:HandleEvent(key)
-            -- end
+            InputHook.SimulateKeyPress(key, true)
         end
 
         -- Schedule release after a short delay (1 frame)
         player:DoTaskInTime(0, function()
             for _, key in ipairs(keys) do
-                -- if next(G.TheInput.onkeyup:GetHandlersForEvent(key)) then
-                    print("[KeyboardAction] Releasing key:", key)
-                    G.TheInput.onkeyup:HandleEvent(key)
-                -- end
+                InputHook.SimulateKeyPress(key, false)
             end
         end)
     elseif down then
         -- Mode 2: Press only (hold)
+        print("[KeyboardAction] Holding keys:", key_string)
         for _, key in ipairs(keys) do
-            if next(G.TheInput.onkeydown:GetHandlersForEvent(key)) then
-                print("[KeyboardAction] Pressing key:", key)
-                G.TheInput.onkeydown:HandleEvent(key)
-            end
+            InputHook.SimulateKeyPress(key, true)
         end
     else
         -- Mode 3: Release only
+        print("[KeyboardAction] Releasing keys:", key_string)
         for _, key in ipairs(keys) do
-            if next(G.TheInput.onkeyup:GetHandlersForEvent(key)) then
-                print("[KeyboardAction] Releasing key:", key)
-                G.TheInput.onkeyup:HandleEvent(key)
-            end
+            InputHook.SimulateKeyPress(key, false)
         end
     end
 
@@ -151,8 +139,7 @@ end
 
 return {
     -- 触发键盘按键
-    -- 通过直接调用 TheInput 的事件处理器来触发键盘事件
-    -- 参考自 Better_Gamepad_Experience mod 的实现
+    -- 通过 hook Input:IsKeyDown 和 Input:OnRawKey 来模拟键盘按键
     --
     -- 参数1 (player): 玩家对象
     -- 参数2 (key_string): 键盘按键字符串（单个或组合键，用+分隔）
@@ -163,12 +150,14 @@ return {
     --   - false: 仅释放
     --
     -- 实现原理:
-    --   直接调用 TheInput.onkeydown:HandleEvent(key) 和 TheInput.onkeyup:HandleEvent(key)
-    --   触发已注册的键盘事件处理器（如果有的话）
+    --   1. Hook Input:IsKeyDown() - 返回虚拟按键状态
+    --   2. 调用 Input:OnRawKey() - 触发按键事件（onkeydown/onkeyup）
+    --   3. 维护虚拟按键状态表，使得 IsKeyDown() 能返回正确的按键状态
     --
-    -- 注意:
-    --   - 只有在游戏中已经注册了该按键的事件处理器时才会生效
-    --   - 这是最简洁可靠的键盘模拟方式，无需 hook 任何方法
+    -- 这样可以完整模拟真实的键盘按键行为：
+    --   - 按键事件会被正确触发
+    --   - IsKeyDown() 查询会返回正确状态
+    --   - 支持组合键（如 ctrl+s）
     --
     -- 使用示例:
     --   ACTIONS.trigger_key(player, "space")           -- 按下空格键

@@ -50,6 +50,7 @@ local function InstallOnControl(self)
 
         -- If handled, block default behavior
         if handled then
+            print("[PlayerControllerHook] Handled button combination: " .. control)
             return true
         end
 

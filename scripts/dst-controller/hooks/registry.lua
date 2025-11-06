@@ -25,6 +25,9 @@ function HookRegistry.InstallAll()
     -- 2. Input System (TheInput global hooks)
     require("dst-controller/hooks/input-system-hook").Install()
 
+    -- 2b. Input Hook (keyboard simulation via IsKeyDown and OnRawKey)
+    require("dst-controller/hooks/input-hook").Install()
+
     -- 3. PlayerController Component (button combinations, pathfinding updates)
     require("dst-controller/hooks/playercontroller-hook").Install()
 
