@@ -93,6 +93,16 @@ local function GetButtonCombinationActions(control, down)
             -- Modifier is pressed, check if face button event
             for face_button, task_name in pairs(face_buttons) do
                 if ButtonHandler.IsButton(control, face_button) then
+                    -- Special case: If force_attack_mode is "hostile_only", ignore LB+X
+                    -- (LB+X is reserved for native DST force attack)
+                    if modifier_name == "LB" and face_button == "X" then
+                        local settings = ConfigManager.GetRuntimeSettings()
+                        if settings and settings.force_attack_mode == "hostile_only" then
+                            Helpers.DebugPrint("[ButtonHandler] LB+X ignored (reserved for force attack in hostile_only mode)")
+                            return nil, false, nil, nil
+                        end
+                    end
+
                     -- This is a button combination event
                     local task = tasks[task_name]
                     if task then
