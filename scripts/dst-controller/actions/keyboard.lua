@@ -90,31 +90,9 @@ local function ParseKeyCombo(key_string)
     return keys
 end
 
--- 当前模拟按下的按键状态（用于 IsKeyDown hook）
-local simulated_keys_down = {}
-
--- Hook TheInput:IsKeyDown to simulate key states
-local original_IsKeyDown = nil
-local function InstallIsKeyDownHook()
-    if original_IsKeyDown then
-        return  -- Already hooked
-    end
-
-    original_IsKeyDown = G.TheInput.IsKeyDown
-    G.TheInput.IsKeyDown = function(self, key)
-        -- Check if this key is being simulated
-        if simulated_keys_down[key] then
-            return true
-        end
-        -- Otherwise use original method
-        return original_IsKeyDown(self, key)
-    end
-
-    print("[KeyboardAction] IsKeyDown hook installed")
-end
-
 -- 触发键盘按键
--- 通过调用 TheInput:OnRawKey 和 hook IsKeyDown 来模拟键盘输入
+-- 通过直接调用 TheInput 的事件处理器来触发键盘事件
+-- 参考自 Better_Gamepad_Experience mod 的实现
 -- down: true=按下, false=释放, nil=按下后自动释放
 local function TriggerKey(player, key_string, down)
     if not player or not player:IsValid() then
@@ -127,36 +105,38 @@ local function TriggerKey(player, key_string, down)
         return
     end
 
-    -- Ensure hook is installed
-    InstallIsKeyDownHook()
-
     -- Handle different down modes
     if down == nil then
         -- Mode 1: Press and release (default)
         -- Press all keys
         for _, key in ipairs(keys) do
-            simulated_keys_down[key] = true
-            G.TheInput:OnRawKey(key, true)
+            -- 检查是否有事件处理器监听这个按键
+            if next(G.TheInput.onkeydown:GetHandlersForEvent(key)) then
+                G.TheInput.onkeydown:HandleEvent(key)
+            end
         end
 
         -- Schedule release after a short delay (1 frame)
         player:DoTaskInTime(0, function()
             for _, key in ipairs(keys) do
-                simulated_keys_down[key] = nil
-                G.TheInput:OnRawKey(key, false)
+                if next(G.TheInput.onkeyup:GetHandlersForEvent(key)) then
+                    G.TheInput.onkeyup:HandleEvent(key)
+                end
             end
         end)
     elseif down then
         -- Mode 2: Press only (hold)
         for _, key in ipairs(keys) do
-            simulated_keys_down[key] = true
-            G.TheInput:OnRawKey(key, true)
+            if next(G.TheInput.onkeydown:GetHandlersForEvent(key)) then
+                G.TheInput.onkeydown:HandleEvent(key)
+            end
         end
     else
         -- Mode 3: Release only
         for _, key in ipairs(keys) do
-            simulated_keys_down[key] = nil
-            G.TheInput:OnRawKey(key, false)
+            if next(G.TheInput.onkeyup:GetHandlersForEvent(key)) then
+                G.TheInput.onkeyup:HandleEvent(key)
+            end
         end
     end
 
@@ -165,7 +145,8 @@ end
 
 return {
     -- 触发键盘按键
-    -- 通过调用 TheInput:OnRawKey 和 hook IsKeyDown 来模拟键盘输入
+    -- 通过直接调用 TheInput 的事件处理器来触发键盘事件
+    -- 参考自 Better_Gamepad_Experience mod 的实现
     --
     -- 参数1 (player): 玩家对象
     -- 参数2 (key_string): 键盘按键字符串（单个或组合键，用+分隔）
@@ -176,13 +157,17 @@ return {
     --   - false: 仅释放
     --
     -- 实现原理:
-    --   1. Hook TheInput:IsKeyDown() 来模拟按键状态（让组合键检测生效）
-    --   2. 调用 TheInput:OnRawKey() 来触发键盘事件（触发游戏逻辑）
+    --   直接调用 TheInput.onkeydown:HandleEvent(key) 和 TheInput.onkeyup:HandleEvent(key)
+    --   触发已注册的键盘事件处理器（如果有的话）
+    --
+    -- 注意:
+    --   - 只有在游戏中已经注册了该按键的事件处理器时才会生效
+    --   - 这是最简洁可靠的键盘模拟方式，无需 hook 任何方法
     --
     -- 使用示例:
     --   ACTIONS.trigger_key(player, "space")           -- 按下空格键
     --   ACTIONS.trigger_key(player, "ctrl+s")          -- 按下ctrl+s后自动释放
-    --   ACTIONS.trigger_key(player, "shift", true)   -- 按下shift不释放
-    --   ACTIONS.trigger_key(player, "shift", false)  -- 释放shift
+    --   ACTIONS.trigger_key(player, "shift", true)     -- 按下shift不释放
+    --   ACTIONS.trigger_key(player, "shift", false)    -- 释放shift
     trigger_key = TriggerKey
 }
