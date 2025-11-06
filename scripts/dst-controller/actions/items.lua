@@ -53,15 +53,19 @@ function ItemActions.use_item_on_scene(player, item_name)
 end
 
 -- Use currently active item on self (no parameter needed)
--- Active item is the item currently selected in inventory (not necessarily equipped)
+-- Active item is the item in the currently selected/highlighted inventory slot
 function ItemActions.use_active_item_on_self(player)
     if not player.components.inventory then return end
     if not player.components.playercontroller then return end
 
-    -- Get the active item (currently selected inventory slot)
-    local active_item = player.components.inventory:GetActiveItem()
+    -- Get the item in currently selected inventory slot (via InventoryBar cursor)
+    local active_item = nil
+    if player.HUD and player.HUD.controls and player.HUD.controls.inv then
+        active_item = player.HUD.controls.inv:GetCursorItem()
+    end
+
     if not active_item then
-        print("[Enhanced Controller] No active item selected")
+        print("[Enhanced Controller] No item in selected inventory slot")
         return
     end
 
@@ -71,15 +75,19 @@ function ItemActions.use_active_item_on_self(player)
 end
 
 -- Use currently active item on scene/target (no parameter needed)
--- Active item is the item currently selected in inventory (not necessarily equipped)
+-- Active item is the item in the currently selected/highlighted inventory slot
 function ItemActions.use_active_item_on_scene(player)
     if not player.components.inventory then return end
     if not player.components.playercontroller then return end
 
-    -- Get the active item (currently selected inventory slot)
-    local active_item = player.components.inventory:GetActiveItem()
+    -- Get the item in currently selected inventory slot (via InventoryBar cursor)
+    local active_item = nil
+    if player.HUD and player.HUD.controls and player.HUD.controls.inv then
+        active_item = player.HUD.controls.inv:GetCursorItem()
+    end
+
     if not active_item then
-        print("[Enhanced Controller] No active item selected")
+        print("[Enhanced Controller] No item in selected inventory slot")
         return
     end
 

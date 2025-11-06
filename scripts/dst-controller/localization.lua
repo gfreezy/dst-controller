@@ -35,9 +35,9 @@ local STRINGS_TABLE = {
         SETTING_VIRTUAL_CURSOR = "Virtual Cursor",
         SETTING_CURSOR_SPEED = "Cursor Speed",
         SETTING_SHOW_CURSOR = "Show Cursor Widget",
-        SETTING_DRAG_WALK = "Drag-to-Walk",
-        SETTING_TARGET_RANGE = "Target Range",
-        SETTING_TARGET_PRIORITY = "Target Priority",
+        SETTING_CURSOR_MAGNETISM = "Cursor Snap Enable",
+        SETTING_MAGNETISM_RANGE = "Snap Range",
+        SETTING_TARGET_PRIORITY = "Snap Priority",
 
         -- 设置项选项
         OPT_FORWARD_ONLY = "Forward Only",
@@ -152,9 +152,9 @@ local STRINGS_TABLE = {
         SETTING_VIRTUAL_CURSOR = "虚拟光标",
         SETTING_CURSOR_SPEED = "光标速度",
         SETTING_SHOW_CURSOR = "显示光标图标",
-        SETTING_DRAG_WALK = "拖拽行走",
-        SETTING_TARGET_RANGE = "目标范围",
-        SETTING_TARGET_PRIORITY = "目标优先级",
+        SETTING_CURSOR_MAGNETISM = "光标磁吸启用",
+        SETTING_MAGNETISM_RANGE = "磁吸范围",
+        SETTING_TARGET_PRIORITY = "磁吸优先级",
 
         -- 设置项选项
         OPT_FORWARD_ONLY = "仅前方",

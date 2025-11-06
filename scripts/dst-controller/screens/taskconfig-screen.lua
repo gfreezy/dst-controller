@@ -465,7 +465,7 @@ function TaskConfigScreen:BuildSettingsContent()
             {{text = L("OPT_DISABLED"), data = false}, {text = L("OPT_ENABLED"), data = true}},
             self.temp_settings.allow_air_attack,
             function(data) self.temp_settings.allow_air_attack = data end,
-            120
+            200
         ))
 
         -- 5. 虚拟光标启用设置
@@ -475,7 +475,7 @@ function TaskConfigScreen:BuildSettingsContent()
             {{text = L("OPT_DISABLED"), data = false}, {text = L("OPT_ENABLED"), data = true}},
             temp_vc.enabled,
             function(data) temp_vc.enabled = data end,
-            120
+            200
         ))
 
         -- 6. 虚拟光标速度设置
@@ -490,7 +490,7 @@ function TaskConfigScreen:BuildSettingsContent()
             },
             temp_vc.cursor_speed or 1.0,
             function(data) temp_vc.cursor_speed = data end,
-            180
+            200
         ))
 
         -- 7. 虚拟光标显示设置
@@ -499,25 +499,25 @@ function TaskConfigScreen:BuildSettingsContent()
             {{text = L("OPT_HIDE"), data = false}, {text = L("OPT_SHOW"), data = true}},
             temp_vc.show_cursor,
             function(data) temp_vc.show_cursor = data end,
-            120
+            200
         ))
 
         -- 8. 光标磁吸启用设置
         table.insert(items, CreateSettingItem(
-            L("SETTING_DRAG_WALK"),
+            L("SETTING_CURSOR_MAGNETISM"),
             {{text = L("OPT_OFF"), data = false}, {text = L("OPT_ON"), data = true}},
             temp_vc.cursor_magnetism,
             function(data) temp_vc.cursor_magnetism = data end,
-            120
+            200
         ))
 
         -- 9. 磁吸范围设置
         table.insert(items, CreateSettingItem(
-            L("SETTING_TARGET_RANGE"),
+            L("SETTING_MAGNETISM_RANGE"),
             {{text = L("OPT_RANGE_SHORT"), data = 1}, {text = L("OPT_RANGE_MEDIUM"), data = 2}, {text = L("OPT_RANGE_LONG"), data = 3}},
             temp_vc.magnetism_range or 2,
             function(data) temp_vc.magnetism_range = data end,
-            140
+            200
         ))
 
         -- 10. 磁吸优先级设置
@@ -526,7 +526,7 @@ function TaskConfigScreen:BuildSettingsContent()
             {{text = L("OPT_CURSOR_PRIORITY"), data = false}, {text = L("OPT_PLAYER_PRIORITY"), data = true}},
             temp_vc.target_priority or false,
             function(data) temp_vc.target_priority = data end,
-            140
+            200
         ))
 
         return items

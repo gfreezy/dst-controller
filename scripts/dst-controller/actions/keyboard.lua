@@ -2,6 +2,7 @@
 -- 支持单个按键或组合键（用+分隔）
 
 local G = require("dst-controller/global")
+local debugtools = require("debugtools")
 
 -- 键盘按键映射表（DST KEY_ 常量）
 -- 注意：只包含DST constants.lua中实际定义的按键
@@ -109,25 +110,29 @@ local function TriggerKey(player, key_string, down)
     if down == nil then
         -- Mode 1: Press and release (default)
         -- Press all keys
+        print("[KeyboardAction] Pressing keys:", table.inspect(keys))
         for _, key in ipairs(keys) do
             -- 检查是否有事件处理器监听这个按键
-            if next(G.TheInput.onkeydown:GetHandlersForEvent(key)) then
+            -- if next(G.TheInput.onkeydown:GetHandlersForEvent(key)) then
+                print("[KeyboardAction] Pressing key:", key)
                 G.TheInput.onkeydown:HandleEvent(key)
-            end
+            -- end
         end
 
         -- Schedule release after a short delay (1 frame)
         player:DoTaskInTime(0, function()
             for _, key in ipairs(keys) do
-                if next(G.TheInput.onkeyup:GetHandlersForEvent(key)) then
+                -- if next(G.TheInput.onkeyup:GetHandlersForEvent(key)) then
+                    print("[KeyboardAction] Releasing key:", key)
                     G.TheInput.onkeyup:HandleEvent(key)
-                end
+                -- end
             end
         end)
     elseif down then
         -- Mode 2: Press only (hold)
         for _, key in ipairs(keys) do
             if next(G.TheInput.onkeydown:GetHandlersForEvent(key)) then
+                print("[KeyboardAction] Pressing key:", key)
                 G.TheInput.onkeydown:HandleEvent(key)
             end
         end
@@ -135,6 +140,7 @@ local function TriggerKey(player, key_string, down)
         -- Mode 3: Release only
         for _, key in ipairs(keys) do
             if next(G.TheInput.onkeyup:GetHandlersForEvent(key)) then
+                print("[KeyboardAction] Releasing key:", key)
                 G.TheInput.onkeyup:HandleEvent(key)
             end
         end

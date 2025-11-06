@@ -26,7 +26,7 @@ local function InstallOnControl(self)
         -- If so, block it from default PlayerHud handling to avoid conflicts
         local _, need_handle = ButtonHandler.GetButtonCombinationActions(control, down)
         if need_handle then
-            print("[PlayerHudHook] Blocking control: " .. control)
+            -- print("[PlayerHudHook] Blocking control: " .. control)
             return false
         end
 

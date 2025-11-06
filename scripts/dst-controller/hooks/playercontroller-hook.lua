@@ -35,7 +35,7 @@ local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(self, control, down)
-        print("[PlayerControllerHook] OnControl: " .. control, "down: " .. tostring(down))
+        -- print("[PlayerControllerHook] OnControl: " .. control, "down: " .. tostring(down))
         
         -- Try to handle as button combination
         local handled = ButtonHandler.HandleButtonCombination(
