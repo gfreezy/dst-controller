@@ -53,6 +53,7 @@ local function GetAvailableActions()
         -- 需要参数的动作
         {data = "equip_item", text = L("ACTION_EQUIP_ITEM"), has_param = true},
         {data = "unequip_item", text = L("ACTION_UNEQUIP_ITEM"), has_param = true},
+        {data = "use_equip", text = L("ACTION_USE_EQUIP"), has_param = true},
         {data = "use_item_on_self", text = L("ACTION_USE_ITEM_ON_SELF"), has_param = true},
         {data = "use_item_on_scene", text = L("ACTION_USE_ITEM_ON_SCENE"), has_param = true},
         {data = "craft_item", text = L("ACTION_CRAFT_ITEM"), has_param = true},
@@ -1421,7 +1422,7 @@ function ActionEditorDialog:OnActionChanged(action_name)
         local presets = ITEM_PRESETS  -- 默认使用物品预设
         if action_name == "trigger_key" then
             presets = KEYBOARD_PRESETS
-        elseif action_name == "unequip_item" then
+        elseif action_name == "unequip_item" or action_name == "use_equip" then
             presets = EQUIPSLOT_PRESETS
         end
 

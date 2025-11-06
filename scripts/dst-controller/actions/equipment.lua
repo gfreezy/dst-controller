@@ -441,6 +441,50 @@ function EquipmentActions.unequip_item(player, slot_type)
 end
 
 -- ============================================================================
+-- Use Equipped Item Action
+-- ============================================================================
+
+-- Use the equipped item in specified slot
+-- param: "hand", "head", or "body"
+function EquipmentActions.use_equip(player, slot_type)
+    if not player or not player:IsValid() then
+        return
+    end
+
+    if not player.components.inventory then
+        return
+    end
+
+    if not player.components.playercontroller then
+        return
+    end
+
+    local equipslot
+    if slot_type == "hand" then
+        equipslot = G.EQUIPSLOTS.HANDS
+    elseif slot_type == "head" then
+        equipslot = G.EQUIPSLOTS.HEAD
+    elseif slot_type == "body" then
+        equipslot = G.EQUIPSLOTS.BODY
+    else
+        print(string.format("[Enhanced Controller] Invalid slot type: %s (must be hand/head/body)", tostring(slot_type)))
+        return
+    end
+
+    local equipped_item = player.components.inventory:GetEquippedItem(equipslot)
+    if equipped_item then
+        -- Use DST's official DoControllerUseItemOnSceneFromInvTile
+        -- This will trigger the appropriate action for the equipped item on the scene/target:
+        -- - For tools/weapons: uses them on scene/target
+        -- - For other equipped items: uses them on detected targets
+        player.components.playercontroller:DoControllerUseItemOnSceneFromInvTile(equipped_item)
+        print(string.format("[Enhanced Controller] Action: Using equipped %s from %s slot on scene", equipped_item.prefab, slot_type))
+    else
+        print(string.format("[Enhanced Controller] Action: No item equipped in %s slot", slot_type))
+    end
+end
+
+-- ============================================================================
 -- Module Exports
 -- ============================================================================
 

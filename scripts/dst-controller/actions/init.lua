@@ -23,6 +23,7 @@ ACTIONS.inspect_self = Inspection.inspect_self
 -- ============================================================================
 ACTIONS.equip_item = Equipment.equip_item
 ACTIONS.unequip_item = Equipment.unequip_item
+ACTIONS.use_equip = Equipment.use_equip
 ACTIONS.cycle_hand = Equipment.cycle_hand
 ACTIONS.cycle_hand_prev = Equipment.cycle_hand_prev
 ACTIONS.cycle_head = Equipment.cycle_head
