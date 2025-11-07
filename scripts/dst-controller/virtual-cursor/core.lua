@@ -757,10 +757,8 @@ end
 function VirtualCursor.ToggleOnControl(control, down)
     local combo_config = GetConfig().toggle_combo or {"LB", "RB", "RT"}
     local combo_pressed = Helpers.IsComboButtonPressed(combo_config)
-    if combo_pressed then
-        if down then
-            VirtualCursor.ToggleCursorMode()
-        end
+    if combo_pressed and down then
+        VirtualCursor.ToggleCursorMode()
         return true
     end
     return false
