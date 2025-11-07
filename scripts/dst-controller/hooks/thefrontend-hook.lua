@@ -37,6 +37,11 @@ function TheFrontEndHook.Install()
         local old_OnControl = self.OnControl
 
         self.OnControl = function(self, control, down)
+            -- 处理虚拟光标模式切换
+            if VirtualCursor.ToggleOnControl(control, down) then
+                return true
+            end
+
             -- 尝试处理虚拟光标控制
             if VirtualCursor.OnControl(control, down) then
                 return true

@@ -18,10 +18,6 @@ local function InstallOnControl(self)
             return true
         end
 
-        if VirtualCursor.ToggleOnControl(control, down) then
-            return true
-        end
-
         -- Check if this control is part of a button combination that can be handled
         -- If so, block it from default PlayerHud handling to avoid conflicts
         local _, need_handle = ButtonHandler.GetButtonCombinationActions(control, down)

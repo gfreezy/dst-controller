@@ -32,6 +32,9 @@ function InventorybarHook.Install()
 
                 self:SetFocus()
                 G.TheFrontEnd:LockFocus(true)
+
+                self:OnControl(G.CONTROL_ACCEPT, true)
+                self:OnControl(G.CONTROL_ACCEPT, false)
             end
         end
 
