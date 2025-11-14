@@ -194,7 +194,7 @@ function VirtualCursor.ToggleCursorMode(force_state)
     -- Prevent toggle spam (minimum 0.3 seconds between toggles)
     local GetTime = G.GetTime
     local current_time = GetTime and GetTime() or 0
-    if current_time - STATE.last_toggle_time < 0.3 then
+    if force_state == nil and current_time - STATE.last_toggle_time < 0.3 then
         return
     end
     STATE.last_toggle_time = current_time
@@ -241,6 +241,13 @@ function VirtualCursor.ToggleCursorMode(force_state)
 
         print("[VirtualCursor] Cursor mode activated")
     else
+        if G.ThePlayer and G.ThePlayer.components and G.ThePlayer.components.playercontroller then
+            local controller = G.ThePlayer.components.playercontroller
+            -- Use the official method to clear action hold state
+            if controller.ClearActionHold then
+                controller:ClearActionHold()
+            end
+        end
         -- Exiting cursor mode
         UninstallTheSimHook()  -- Unhook TheSim:GetPosition
 
@@ -756,9 +763,12 @@ end
 -- This is called from playhud:OnControl hook
 function VirtualCursor.ToggleOnControl(control, down)
     local combo_config = GetConfig().toggle_combo or {"LB", "RB", "RT"}
-    local combo_pressed = Helpers.IsComboButtonPressed(combo_config)
-    if combo_pressed and down then
-        VirtualCursor.ToggleCursorMode()
+    local combo_pressed = Helpers.IsComboButton(control, combo_config)
+
+    if combo_pressed then
+        if down then
+            VirtualCursor.ToggleCursorMode()
+        end
         return true
     end
     return false

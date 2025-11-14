@@ -15,7 +15,7 @@ local config_screen_open = false
 -- 处理手柄输入
 function TaskConfigHook.OnControl(playerhud, control, down)
     -- 检查 LB+RB+Y 组合（当 Y 按下时检查）
-    if Helpers.IsComboButtonPressed({"LB", "RB", "Y"}) then
+    if Helpers.IsComboButton(control, {"LB", "RB", "Y"}) then
         -- LB+RB+Y 同时按下，打开配置界面
         if down and not config_screen_open then
             print("[TaskConfigHook] Opening config screen via gamepad hotkey (LB+RB+Y)")

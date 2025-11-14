@@ -40,9 +40,9 @@ end
 
 ---@param button_names ButtonName[] List of button names (e.g., {"LB", "RB", "RT"})
 ---@return boolean true if all buttons are pressed
-function Helpers.IsComboButtonPressed(button_names)
+function Helpers.IsComboButton(control, button_names)
     for _, button_name in ipairs(button_names) do
-        if not Helpers.IsButtonPressed(button_name) then
+        if not (Helpers.IsButtonPressed(button_name) or Helpers.IsControlNamedButton(control, button_name)) then
             return false
         end
     end
