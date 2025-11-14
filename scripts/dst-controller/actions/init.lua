@@ -69,7 +69,8 @@ ACTIONS.trigger_key = Keyboard.trigger_key
 -- ============================================================================
 -- System Actions
 -- ============================================================================
-ACTIONS.toggle_virtual_cursor = System.toggle_virtual_cursor
+ACTIONS.enable_virtual_cursor = System.enable_virtual_cursor
+ACTIONS.disable_virtual_cursor = System.disable_virtual_cursor
 
 -- ============================================================================
 -- Special Exports

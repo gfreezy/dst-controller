@@ -35,6 +35,7 @@ local STATE = {
     },
     cursor_widget = nil,  -- Will be set by cursor_widget.lua
     last_toggle_time = 0,  -- Last time cursor mode was toggled
+    auto_activated = false,  -- Whether cursor was auto-activated (e.g., for building mode)
 
     -- Speed control state (for smooth transitions)
     base_cursor_speed = 0,  -- Calculated from screen resolution (pixels per frame at 60fps)
@@ -184,7 +185,8 @@ end
 
 -- Toggle cursor mode on/off
 -- @param force_state (optional) - true to force enable, false to force disable, nil to toggle
-function VirtualCursor.ToggleCursorMode(force_state)
+-- @param auto_activate (optional) - true if this is an automatic activation (e.g., building mode)
+function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
     local config = GetConfig()
 
     if not config.enabled then
@@ -216,6 +218,8 @@ function VirtualCursor.ToggleCursorMode(force_state)
 
     if STATE.cursor_mode_active then
         -- Entering cursor mode
+        STATE.auto_activated = auto_activate or false  -- Track if this is automatic activation
+
         InstallTheSimHook()  -- Hook TheSim:GetPosition
         InitializeCursorPosition()
 
@@ -239,7 +243,8 @@ function VirtualCursor.ToggleCursorMode(force_state)
             end
         end
 
-        print("[VirtualCursor] Cursor mode activated")
+        print(string.format("[VirtualCursor] Cursor mode activated %s",
+            STATE.auto_activated and "(auto)" or "(manual)"))
     else
         if G.ThePlayer and G.ThePlayer.components and G.ThePlayer.components.playercontroller then
             local controller = G.ThePlayer.components.playercontroller
@@ -248,6 +253,17 @@ function VirtualCursor.ToggleCursorMode(force_state)
                 controller:ClearActionHold()
             end
         end
+
+        -- Clear active item (mouse-selected item) when exiting cursor mode
+        if G.ThePlayer and G.ThePlayer.components and G.ThePlayer.components.inventory then
+            local inventory = G.ThePlayer.components.inventory
+            if inventory.activeitem ~= nil then
+                -- Return the active item to inventory instead of dropping it
+                inventory:ReturnActiveItem()
+                print("[VirtualCursor] Cleared active item on cursor mode exit")
+            end
+        end
+
         -- Exiting cursor mode
         UninstallTheSimHook()  -- Unhook TheSim:GetPosition
 
@@ -256,16 +272,20 @@ function VirtualCursor.ToggleCursorMode(force_state)
             G.TheInput:ClearCachedController()
         end
 
-        -- Stop mouse tracking mode to allow gamepad focus
-        -- This fixes the issue where gamepad cursor is lost when opening crafting menu
-        -- immediately after closing virtual cursor
-        if G.TheFrontEnd and G.TheFrontEnd.StopTrackingMouse then
-            G.TheFrontEnd:StopTrackingMouse()
-        end
-
         -- Restore mouse enabled state based on controller attached
         if G.TheInput and G.TheInput.EnableMouse and G.TheInput.ControllerAttached then
             G.TheInput:EnableMouse(not G.TheInput:ControllerAttached())
+        end
+
+        -- Stop mouse tracking mode and restore gamepad focus
+        -- This fixes the issue where gamepad cursor is lost when opening crafting menu
+        -- immediately after closing virtual cursor
+        if G.TheFrontEnd and G.TheFrontEnd.StopTrackingMouse then
+            -- StopTrackingMouse(true) will:
+            -- - Set tracking_mouse = false
+            -- - Call screen:SetDefaultFocus() if there's an active screen
+            -- - If no screen, focus naturally returns to playercontroller
+            G.TheFrontEnd:StopTrackingMouse(true)
         end
 
         if G.ThePlayer and G.ThePlayer.HUD and G.ThePlayer.HUD.controls then
@@ -285,6 +305,9 @@ function VirtualCursor.ToggleCursorMode(force_state)
         -- Reset button states
         STATE.button_states.primary = false
         STATE.button_states.secondary = false
+
+        -- Reset auto_activated flag
+        STATE.auto_activated = false
 
         print("[VirtualCursor] Cursor mode deactivated")
     end
@@ -821,6 +844,30 @@ function VirtualCursor.OnUpdate(self, dt)
     end
 
     return false
+end
+
+-- ============================================================================
+-- Auto-Activation for Special Modes (Building, Map, etc.)
+-- ============================================================================
+
+-- Check if cursor was auto-activated
+function VirtualCursor.IsAutoActivated()
+    return STATE.auto_activated
+end
+
+-- Auto-enable virtual cursor (if not already active)
+-- Used for building mode, map mode, etc.
+function VirtualCursor.AutoEnable()
+    if not STATE.cursor_mode_active then
+        VirtualCursor.ToggleCursorMode(true, true)  -- Enable with auto_activate=true
+    end
+end
+
+-- Auto-disable virtual cursor (only if it was auto-activated)
+function VirtualCursor.AutoDisable()
+    if STATE.cursor_mode_active and STATE.auto_activated then
+        VirtualCursor.ToggleCursorMode(false)  -- Disable
+    end
 end
 
 

@@ -144,6 +144,32 @@ local function InstallDoControllerAttackButton(self)
     end
 end
 
+-- Hook: OnUpdate (wrap) - for building mode and map mode auto-activation
+local function InstallOnUpdate(self)
+    local old_OnUpdate = self.OnUpdate
+    local last_placer_state = false  -- Track previous placer state
+
+    self.OnUpdate = function(self, ...)
+        -- Check if player is in building/placement mode
+        local current_placer_state = (self.placer ~= nil or self.deployplacer ~= nil)
+
+        -- Detect state change
+        if current_placer_state ~= last_placer_state then
+            if current_placer_state then
+                -- Entering building mode - auto-enable virtual cursor
+                VirtualCursor.AutoEnable()
+            else
+                -- Exiting building mode - auto-disable if it was auto-activated
+                VirtualCursor.AutoDisable()
+            end
+            last_placer_state = current_placer_state
+        end
+
+        -- Call original method
+        return old_OnUpdate(self, ...)
+    end
+end
+
 -- Main Install function
 function PlayerControllerHook.Install()
     G.AddComponentPostInit("playercontroller", function(self)
@@ -171,6 +197,7 @@ function PlayerControllerHook.Install()
         InstallIsEnabled(self)
         InstallUsingMouse(self)
         InstallDoControllerAttackButton(self)
+        InstallOnUpdate(self)
 
         Helpers.DebugPrint("PlayerController hooks installed")
     end)

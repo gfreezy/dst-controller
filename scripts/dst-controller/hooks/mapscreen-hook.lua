@@ -8,9 +8,6 @@ local Helpers = require("dst-controller/utils/helpers")
 
 local MapScreenHook = {}
 
--- Store the previous cursor mode state before entering map
-local previous_cursor_state = nil
-
 local function StartPathfinding(wx, wy, wz)
     local player = G.ThePlayer
     if not player then
@@ -42,12 +39,9 @@ function MapScreenHook.Install()
             old_OnBecomeActive(self)
             MapPathDrawer.SetMapScreen(self)
 
-            -- Save current cursor mode state and activate it
-            previous_cursor_state = VirtualCursor.IsCursorModeActive()
-            if not previous_cursor_state then
-                VirtualCursor.ToggleCursorMode(true)  -- Force enable
-                print("[MapScreenHook] Virtual cursor auto-enabled on map open")
-            end
+            -- Auto-enable virtual cursor for map mode
+            VirtualCursor.AutoEnable()
+            print("[MapScreenHook] Virtual cursor auto-enabled for map mode")
         end
 
         -- Hook OnDestroy - 地图关闭时清理
@@ -56,15 +50,9 @@ function MapScreenHook.Install()
             MapPathDrawer.ClearPathDecorations()
             MapPathDrawer.SetMapScreen(nil)
 
-            -- Restore previous cursor mode state
-            if previous_cursor_state ~= nil then
-                local current_state = VirtualCursor.IsCursorModeActive()
-                if current_state ~= previous_cursor_state then
-                    VirtualCursor.ToggleCursorMode(previous_cursor_state)  -- Restore
-                    print("[MapScreenHook] Virtual cursor restored to previous state: " .. tostring(previous_cursor_state))
-                end
-                previous_cursor_state = nil
-            end
+            -- Auto-disable virtual cursor if it was auto-activated
+            VirtualCursor.AutoDisable()
+            print("[MapScreenHook] Virtual cursor auto-disabled on map close")
 
             old_OnDestroy(self)
         end

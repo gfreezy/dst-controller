@@ -49,7 +49,8 @@ local function GetAvailableActions()
         {data = "cycle_head", text = L("ACTION_CYCLE_HEAD"), has_param = false},
         {data = "cycle_hand", text = L("ACTION_CYCLE_HAND"), has_param = false},
         {data = "cycle_body", text = L("ACTION_CYCLE_BODY"), has_param = false},
-        {data = "toggle_virtual_cursor", text = L("ACTION_TOGGLE_VIRTUAL_CURSOR"), has_param = false},
+        {data = "enable_virtual_cursor", text = L("ACTION_ENABLE_VIRTUAL_CURSOR"), has_param = false},
+        {data = "disable_virtual_cursor", text = L("ACTION_DISABLE_VIRTUAL_CURSOR"), has_param = false},
 
         -- 需要参数的动作
         {data = "equip_item", text = L("ACTION_EQUIP_ITEM"), has_param = true},
