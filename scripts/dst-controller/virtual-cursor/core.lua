@@ -251,9 +251,31 @@ function VirtualCursor.ToggleCursorMode(force_state)
         -- Exiting cursor mode
         UninstallTheSimHook()  -- Unhook TheSim:GetPosition
 
+        -- Clear cached controller state to force refresh
+        if G.TheInput and G.TheInput.ClearCachedController then
+            G.TheInput:ClearCachedController()
+        end
+
+        -- Stop mouse tracking mode to allow gamepad focus
+        -- This fixes the issue where gamepad cursor is lost when opening crafting menu
+        -- immediately after closing virtual cursor
+        if G.TheFrontEnd and G.TheFrontEnd.StopTrackingMouse then
+            G.TheFrontEnd:StopTrackingMouse()
+        end
+
         -- Restore mouse enabled state based on controller attached
         if G.TheInput and G.TheInput.EnableMouse and G.TheInput.ControllerAttached then
             G.TheInput:EnableMouse(not G.TheInput:ControllerAttached())
+        end
+
+        if G.ThePlayer and G.ThePlayer.HUD and G.ThePlayer.HUD.controls then
+            local inventorybar = G.ThePlayer.HUD.controls.inv
+            if inventorybar then
+                -- Highlight active_slot to reset selection state
+                if inventorybar.active_slot then
+                    inventorybar.active_slot:Highlight()
+                end
+            end
         end
 
         if STATE.cursor_widget then
