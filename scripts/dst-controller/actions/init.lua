@@ -8,6 +8,7 @@ local Items = require("dst-controller/actions/items")
 local Crafting = require("dst-controller/actions/crafting")
 local Character = require("dst-controller/actions/character")
 local Keyboard = require("dst-controller/actions/keyboard")
+local System = require("dst-controller/actions/system")
 
 -- Create the aggregated ACTIONS table
 local ACTIONS = {}
@@ -64,6 +65,11 @@ ACTIONS.stop_channeling = Character.stop_channeling
 -- Keyboard Actions
 -- ============================================================================
 ACTIONS.trigger_key = Keyboard.trigger_key
+
+-- ============================================================================
+-- System Actions
+-- ============================================================================
+ACTIONS.toggle_virtual_cursor = System.toggle_virtual_cursor
 
 -- ============================================================================
 -- Special Exports
