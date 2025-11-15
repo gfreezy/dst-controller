@@ -48,6 +48,7 @@
 ---@field NEWFONT string Default UI font (usually "opensans")
 ---@field BUTTONFONT string Button font (usually "buttonfont")
 ---@field HEADERFONT string Header font
+---@field TALKINGFONT string Talking/dialogue font (used for action hints)
 ---
 --- Control Constants (from GLOBAL)
 ---@field CONTROL_CAM_AND_INV_MODIFIER number
@@ -139,6 +140,7 @@
 --- Mod API Functions (from env)
 ---@field AddComponentPostInit fun(component: string, fn: function)
 ---@field AddClassPostConstruct fun(package: string, fn: function)
+---@field AddGlobalClassPostConstruct fun(package: string, classname: string, fn: function)
 ---@field AddGamePostInit fun(fn: function)
 ---@field AddSimPostInit fun(fn: function)
 ---@field AddPrefabPostInit fun(prefab: string, fn: function)
