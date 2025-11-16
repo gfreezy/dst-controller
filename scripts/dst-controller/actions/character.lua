@@ -12,18 +12,19 @@ local CharacterActions = {}
 
 -- Willow: Cast pyrokinetic spell (requires willow_ember item)
 function CharacterActions.willow_cast_spell(player)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
+    local controller = ActionHelpers.GetPlayerController(player)
 
     -- Find willow_ember using helper function
     local ember = ActionHelpers.FindItemByName(player, "willow_ember")
-
-    if ember and ember.components.aoespell then
+    if ember then
         -- Get target position: use controller attack target position, or position in front of player
         local target_pos = nil
 
         -- Try to use controller attack target position if available
-        if player.components.playercontroller then
-            local controller_target = player.components.playercontroller.controller_attack_target
+        if controller then
+            local controller_target = controller.controller_attack_target
             if controller_target and controller_target:IsValid() then
                 target_pos = controller_target:GetPosition()
             end
@@ -42,16 +43,23 @@ function CharacterActions.willow_cast_spell(player)
         end
 
         -- Try to cast the spell
-        if ember.components.aoespell:CanCast(player, target_pos) then
-            -- Create buffered action to cast AOE spell
-            local action = G.BufferedAction(player, nil, G.ACTIONS.CASTAOE, ember, target_pos)
-            if player.components.playercontroller then
-                player.components.playercontroller:DoAction(action)
-                print(string.format("[Enhanced Controller] Action: Willow Cast Spell at (%.1f, %.1f, %.1f)",
-                    target_pos.x, target_pos.y, target_pos.z))
-            end
-        else
+        local can_cast = true
+        if ember.components and ember.components.aoespell then
+            can_cast = ember.components.aoespell:CanCast(player, target_pos)
+        end
+
+        if not can_cast then
             print("[Enhanced Controller] Willow cannot cast spell (not enough embers or cooldown)")
+            return
+        end
+
+        if controller then
+            local action = G.BufferedAction(player, nil, G.ACTIONS.CASTAOE, ember, target_pos)
+            controller:DoAction(action)
+            print(string.format("[Enhanced Controller] Action: Willow Cast Spell at (%.1f, %.1f, %.1f)",
+                target_pos.x, target_pos.y, target_pos.z))
+        else
+            print("[Enhanced Controller] Willow cast spell failed: No playercontroller")
         end
     else
         print("[Enhanced Controller] Willow ember not found in inventory")
@@ -64,23 +72,29 @@ end
 
 -- Start channeling with the currently equipped item
 function CharacterActions.start_channeling(player)
-    if not player.components.channelcaster then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    local controller = ActionHelpers.GetPlayerController(player)
+    if not inventory or not controller then return end
 
-    local equipped = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
-    if equipped and equipped.components.channelcastable then
-        player.components.channelcaster:StartChanneling(equipped)
-        print(string.format("[Enhanced Controller] Action: Started channeling (%s)", equipped.prefab))
-    else
-        print("[Enhanced Controller] Cannot start channeling: No channelable item equipped")
+    local equipped = inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
+    if not equipped then
+        print("[Enhanced Controller] Cannot start channeling: No item equipped")
+        return
     end
+
+    local action = G.BufferedAction(player, nil, G.ACTIONS.START_CHANNELCAST, equipped)
+    controller:DoAction(action)
+    print(string.format("[Enhanced Controller] Action: Started channeling (%s)", equipped.prefab))
 end
 
 -- Stop channeling
 function CharacterActions.stop_channeling(player)
-    if player.components.channelcaster and player.components.channelcaster.channeling then
-        player.components.channelcaster:StopChanneling()
-        print("[Enhanced Controller] Action: Stopped channeling")
-    end
+    local controller = ActionHelpers.GetPlayerController(player)
+    if not controller then return end
+
+    local action = G.BufferedAction(player, nil, G.ACTIONS.STOP_CHANNELCAST)
+    controller:DoAction(action)
+    print("[Enhanced Controller] Action: Stopped channeling")
 end
 
 return CharacterActions

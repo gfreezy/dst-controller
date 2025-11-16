@@ -13,7 +13,8 @@ local function StartPathfinding(wx, wy, wz)
     if not player then
         return
     end
-    local locomotor = player.components.locomotor
+    local controller = player.components and player.components.playercontroller
+    local locomotor = player.components and player.components.locomotor
 
     -- 注意：GetWorldPositionAtCursor 返回 (x, 0, z)，其中 y=0 是地面高度
     print(string.format("StartPathfinding world pos: (%.1f, %.1f, %.1f)", wx, wy, wz))
@@ -21,8 +22,11 @@ local function StartPathfinding(wx, wy, wz)
     local target_pos = G.Vector3(wx, wy, wz)
     MapPathDrawer.DrawPathPoints({target_pos}, player:GetPosition())
 
-    if locomotor then
-        local action = G.BufferedAction(player, nil, G.ACTIONS.WALKTO, nil, target_pos)
+    local action = G.BufferedAction(player, nil, G.ACTIONS.WALKTO, nil, target_pos)
+
+    if controller then
+        controller:DoAction(action)
+    elseif locomotor then
         locomotor:PushAction(action, true)
     end
 end

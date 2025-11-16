@@ -14,6 +14,22 @@ local EquipmentActions = {}
 -- Structure: [player_guid][slot_name] = last_item
 local equipment_history = {}
 
+local function ItemMatchesEquipSlot(item, equipslot)
+    if not item or not equipslot then
+        return false
+    end
+
+    if item.replica and item.replica.equippable then
+        return item.replica.equippable:EquipSlot() == equipslot
+    end
+
+    if item.components and item.components.equippable then
+        return item.components.equippable.equipslot == equipslot
+    end
+
+    return false
+end
+
 -- Initialize equipment tracking for a player
 local function InitEquipmentTracking(player)
     local guid = player.GUID
@@ -39,7 +55,8 @@ end
 
 -- Swap to last equipped item in a slot
 local function SwapToLastEquipped(player, equipslot)
-    if not player.components.inventory then return nil end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return nil end
 
     local guid = player.GUID
     local last_item = equipment_history[guid] and equipment_history[guid][equipslot]
@@ -48,33 +65,17 @@ local function SwapToLastEquipped(player, equipslot)
     if last_item and last_item:IsValid() then
         -- Check if item is still in inventory (check both main inventory and overflow container/backpack)
         local found = false
-
-        -- Check main inventory slots
-        for i = 1, player.components.inventory.maxslots do
-            local item = player.components.inventory:GetItemInSlot(i)
+        ActionHelpers.ForEachInventoryItem(player, function(item)
             if item == last_item then
                 found = true
-                break
+                return true
             end
-        end
-
-        -- Check overflow container (backpack)
-        if not found then
-            local overflow = player.components.inventory:GetOverflowContainer()
-            if overflow then
-                for i = 1, overflow.numslots do
-                    local item = overflow:GetItemInSlot(i)
-                    if item == last_item then
-                        found = true
-                        break
-                    end
-                end
-            end
-        end
+        end)
 
         if found then
-            player.components.inventory:Equip(last_item)
-            return last_item.prefab
+            if ActionHelpers.DoControllerUseItemOnSelf(player, last_item) then
+                return last_item.prefab
+            end
         else
             -- Item no longer available, clear history
             equipment_history[guid][equipslot] = nil
@@ -86,9 +87,10 @@ end
 
 -- Helper function to cycle equipment forward
 local function CycleEquipment(player, equipslot, direction)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
-    local current_equipped = player.components.inventory:GetEquippedItem(equipslot)
+    local current_equipped = inventory:GetEquippedItem(equipslot)
     local items = {}
     local current_index = nil
 
@@ -97,34 +99,15 @@ local function CycleEquipment(player, equipslot, direction)
     local item_list = {}
     local seen_prefabs = {}  -- Track prefabs we've already added
 
-    for i = 1, player.components.inventory.maxslots do
-        local item = player.components.inventory:GetItemInSlot(i)
-        if item and item.components.equippable and item.components.equippable.equipslot == equipslot then
-            -- Only add if we haven't seen this prefab before
-            if not seen_prefabs[item.prefab] then
-                table.insert(item_list, {item = item, slot = i})
-                seen_prefabs[item.prefab] = true
-            end
+    ActionHelpers.ForEachInventoryItem(player, function(item, slot_number)
+        if item and ItemMatchesEquipSlot(item, equipslot) and not seen_prefabs[item.prefab] then
+            table.insert(item_list, {item = item, slot = slot_number})
+            seen_prefabs[item.prefab] = true
         end
-    end
-
-    -- Also check overflow container (backpack)
-    local overflow = player.components.inventory:GetOverflowContainer()
-    if overflow then
-        for i = 1, overflow.numslots do
-            local item = overflow:GetItemInSlot(i)
-            if item and item.components.equippable and item.components.equippable.equipslot == equipslot then
-                -- Only add if we haven't seen this prefab before
-                if not seen_prefabs[item.prefab] then
-                    table.insert(item_list, {item = item, slot = i + player.components.inventory.maxslots})
-                    seen_prefabs[item.prefab] = true
-                end
-            end
-        end
-    end
+    end)
 
     -- If something is equipped, add it using its prevslot (only if not already in the list)
-    if current_equipped and current_equipped.components.equippable and current_equipped.components.equippable.equipslot == equipslot then
+    if current_equipped and ItemMatchesEquipSlot(current_equipped, equipslot) then
         local already_in_list = false
         for _, entry in ipairs(item_list) do
             if entry.item == current_equipped then
@@ -178,8 +161,9 @@ local function CycleEquipment(player, equipslot, direction)
     end
 
     if next_item then
-        player.components.inventory:Equip(next_item)
-        return next_item.prefab
+        if ActionHelpers.DoControllerUseItemOnSelf(player, next_item) then
+            return next_item.prefab
+        end
     end
 
     return nil
@@ -191,8 +175,8 @@ end
 
 -- Equip item by name (item_name is required)
 function EquipmentActions.equip_item(player, item_name)
-    if not player.components.inventory then return end
-    if not player.components.playercontroller then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
     if not item_name then
         print("[Enhanced Controller] Error: equip_item requires item name parameter")
@@ -205,15 +189,16 @@ function EquipmentActions.equip_item(player, item_name)
         return
     end
 
-    if not target_item.components.equippable then
+    local equippable = target_item.replica and target_item.replica.equippable
+        or (target_item.components and target_item.components.equippable)
+    if not equippable then
         print(string.format("[Enhanced Controller] Item '%s' is not equippable", item_name))
         return
     end
 
-    -- Use DST's official DoControllerUseItemOnSelfFromInvTile
-    -- This automatically handles equip/unequip based on item state
-    player.components.playercontroller:DoControllerUseItemOnSelfFromInvTile(target_item)
-    print(string.format("[Enhanced Controller] Action: Equip Item (%s)", target_item.prefab))
+    if ActionHelpers.DoControllerUseItemOnSelf(player, target_item) then
+        print(string.format("[Enhanced Controller] Action: Equip Item (%s)", target_item.prefab))
+    end
 end
 
 -- ============================================================================
@@ -302,9 +287,10 @@ end
 
 -- Save currently equipped hand item for later restoration
 function EquipmentActions.save_hand_item(player)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
-    local current_hand = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
+    local current_hand = inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
     if current_hand then
         player._saved_hand_item = current_hand.prefab
         print(string.format("[Enhanced Controller] Action: Saved hand item (%s)", current_hand.prefab))
@@ -317,13 +303,14 @@ end
 -- Restore previously saved hand item
 -- Does nothing if no item was saved (safe to call without save_hand_item)
 function EquipmentActions.restore_hand_item(player)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
     -- Only restore if there was a saved item
     if player._saved_hand_item then
         local saved_item = ActionHelpers.FindItemByName(player, player._saved_hand_item)
-        if saved_item and saved_item.components.equippable then
-            player.components.inventory:Equip(saved_item)
+        if saved_item and ItemMatchesEquipSlot(saved_item, G.EQUIPSLOTS.HANDS) then
+            ActionHelpers.DoControllerUseItemOnSelf(player, saved_item)
             print(string.format("[Enhanced Controller] Action: Restored hand item (%s)", player._saved_hand_item))
         else
             print(string.format("[Enhanced Controller] Cannot restore hand item: %s not found", player._saved_hand_item))
@@ -337,9 +324,10 @@ end
 
 -- Save currently equipped head item for later restoration
 function EquipmentActions.save_head_item(player)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
-    local current_head = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.HEAD)
+    local current_head = inventory:GetEquippedItem(G.EQUIPSLOTS.HEAD)
     if current_head then
         player._saved_head_item = current_head.prefab
         print(string.format("[Enhanced Controller] Action: Saved head item (%s)", current_head.prefab))
@@ -351,12 +339,13 @@ end
 
 -- Restore previously saved head item
 function EquipmentActions.restore_head_item(player)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
     if player._saved_head_item then
         local saved_item = ActionHelpers.FindItemByName(player, player._saved_head_item)
-        if saved_item and saved_item.components.equippable then
-            player.components.inventory:Equip(saved_item)
+        if saved_item and ItemMatchesEquipSlot(saved_item, G.EQUIPSLOTS.HEAD) then
+            ActionHelpers.DoControllerUseItemOnSelf(player, saved_item)
             print(string.format("[Enhanced Controller] Action: Restored head item (%s)", player._saved_head_item))
         else
             print(string.format("[Enhanced Controller] Cannot restore head item: %s not found", player._saved_head_item))
@@ -369,9 +358,10 @@ end
 
 -- Save currently equipped body item for later restoration
 function EquipmentActions.save_body_item(player)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
-    local current_body = player.components.inventory:GetEquippedItem(G.EQUIPSLOTS.BODY)
+    local current_body = inventory:GetEquippedItem(G.EQUIPSLOTS.BODY)
     if current_body then
         player._saved_body_item = current_body.prefab
         print(string.format("[Enhanced Controller] Action: Saved body item (%s)", current_body.prefab))
@@ -383,12 +373,13 @@ end
 
 -- Restore previously saved body item
 function EquipmentActions.restore_body_item(player)
-    if not player.components.inventory then return end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
     if player._saved_body_item then
         local saved_item = ActionHelpers.FindItemByName(player, player._saved_body_item)
-        if saved_item and saved_item.components.equippable then
-            player.components.inventory:Equip(saved_item)
+        if saved_item and ItemMatchesEquipSlot(saved_item, G.EQUIPSLOTS.BODY) then
+            ActionHelpers.DoControllerUseItemOnSelf(player, saved_item)
             print(string.format("[Enhanced Controller] Action: Restored body item (%s)", player._saved_body_item))
         else
             print(string.format("[Enhanced Controller] Cannot restore body item: %s not found", player._saved_body_item))
@@ -410,9 +401,8 @@ function EquipmentActions.unequip_item(player, slot_type)
         return
     end
 
-    if not player.components.inventory then
-        return
-    end
+    local inventory = ActionHelpers.GetInventory(player)
+    if not inventory then return end
 
     local equipslot
     if slot_type == "hand" then
@@ -426,13 +416,12 @@ function EquipmentActions.unequip_item(player, slot_type)
         return
     end
 
-    local equipped_item = player.components.inventory:GetEquippedItem(equipslot)
+    local equipped_item = inventory:GetEquippedItem(equipslot)
     if equipped_item then
         -- Use DST's official DoControllerUseItemOnSelfFromInvTile
         -- For equipped items, it automatically creates UNEQUIP action
         -- This handles all edge cases: prevention checks, heavy items, etc.
-        if player.components.playercontroller then
-            player.components.playercontroller:DoControllerUseItemOnSelfFromInvTile(equipped_item)
+        if ActionHelpers.DoControllerUseItemOnSelf(player, equipped_item) then
             print(string.format("[Enhanced Controller] Action: Unequipping %s from %s slot", equipped_item.prefab, slot_type))
         end
     else
@@ -451,13 +440,9 @@ function EquipmentActions.use_equip(player, slot_type)
         return
     end
 
-    if not player.components.inventory then
-        return
-    end
-
-    if not player.components.playercontroller then
-        return
-    end
+    local inventory = ActionHelpers.GetInventory(player)
+    local controller = ActionHelpers.GetPlayerController(player)
+    if not inventory or not controller then return end
 
     local equipslot
     if slot_type == "hand" then
@@ -471,13 +456,13 @@ function EquipmentActions.use_equip(player, slot_type)
         return
     end
 
-    local equipped_item = player.components.inventory:GetEquippedItem(equipslot)
+    local equipped_item = inventory:GetEquippedItem(equipslot)
     if equipped_item then
         -- Use DST's official DoControllerUseItemOnSceneFromInvTile
         -- This will trigger the appropriate action for the equipped item on the scene/target:
         -- - For tools/weapons: uses them on scene/target
         -- - For other equipped items: uses them on detected targets
-        player.components.playercontroller:DoControllerUseItemOnSceneFromInvTile(equipped_item)
+        controller:DoControllerUseItemOnSceneFromInvTile(equipped_item)
         print(string.format("[Enhanced Controller] Action: Using equipped %s from %s slot on scene", equipped_item.prefab, slot_type))
     else
         print(string.format("[Enhanced Controller] Action: No item equipped in %s slot", slot_type))

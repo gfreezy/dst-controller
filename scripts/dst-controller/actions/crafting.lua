@@ -11,7 +11,8 @@ function CraftingActions.craft_item(player, recipe_name)
         return
     end
 
-    if not player.components.builder then
+    local builder = (player.replica and player.replica.builder) or (player.components and player.components.builder)
+    if not builder then
         print("[Enhanced Controller] Error: Player has no builder component")
         return
     end
@@ -24,8 +25,8 @@ function CraftingActions.craft_item(player, recipe_name)
     end
 
     -- Check if player knows this recipe or can learn it
-    if not player.components.builder:KnowsRecipe(recipe) and
-       not player.components.builder:CanLearn(recipe.name) then
+    if not builder:KnowsRecipe(recipe) and
+       not builder:CanLearn(recipe.name) then
         print(string.format("[Enhanced Controller] Cannot craft '%s': Recipe not known and cannot be learned", recipe_name))
         return
     end
@@ -34,7 +35,7 @@ function CraftingActions.craft_item(player, recipe_name)
     -- 1. Check if we have ingredients
     -- 2. If missing ingredients, try to craft them first (intermediate products)
     -- 3. Craft the final item
-    player.components.builder:MakeRecipeFromMenu(recipe)
+    builder:MakeRecipeFromMenu(recipe)
     print(string.format("[Enhanced Controller] Action: Craft Item (%s)", recipe_name))
 end
 

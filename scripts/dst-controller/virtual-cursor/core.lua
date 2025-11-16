@@ -4,6 +4,7 @@
 local G = require("dst-controller/global")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local Helpers = require("dst-controller/utils/helpers")
+local ActionHelpers = require("dst-controller/actions/helpers")
 
 local VirtualCursor = {}
 
@@ -246,22 +247,17 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         print(string.format("[VirtualCursor] Cursor mode activated %s",
             STATE.auto_activated and "(auto)" or "(manual)"))
     else
-        if G.ThePlayer and G.ThePlayer.components and G.ThePlayer.components.playercontroller then
-            local controller = G.ThePlayer.components.playercontroller
-            -- Use the official method to clear action hold state
-            if controller.ClearActionHold then
-                controller:ClearActionHold()
-            end
+        local controller = ActionHelpers.GetPlayerController(G.ThePlayer)
+        if controller and controller.ClearActionHold then
+            controller:ClearActionHold()
         end
 
         -- Clear active item (mouse-selected item) when exiting cursor mode
-        if G.ThePlayer and G.ThePlayer.components and G.ThePlayer.components.inventory then
-            local inventory = G.ThePlayer.components.inventory
-            if inventory.activeitem ~= nil then
-                -- Return the active item to inventory instead of dropping it
-                inventory:ReturnActiveItem()
-                print("[VirtualCursor] Cleared active item on cursor mode exit")
-            end
+        local inventory = ActionHelpers.GetInventory(G.ThePlayer)
+        if inventory and inventory.GetActiveItem and inventory:GetActiveItem() ~= nil then
+            -- Return the active item to inventory instead of dropping it
+            inventory:ReturnActiveItem()
+            print("[VirtualCursor] Cleared active item on cursor mode exit")
         end
 
         -- Exiting cursor mode
@@ -336,19 +332,21 @@ local function GetAdjustedCursorSpeed(dt, config)
     local base_speed = speed_rate * STATE.base_cursor_speed
 
     -- Check if player is in building/planting mode
-    if G.ThePlayer and G.ThePlayer.components and G.ThePlayer.components.playercontroller then
-        local controller = G.ThePlayer.components.playercontroller
+    if G.ThePlayer then
+        local controller = ActionHelpers.GetPlayerController(G.ThePlayer)
+        if controller then
 
         -- Building mode (placer active)
-        if controller.placer ~= nil then
+            if controller.placer ~= nil then
             STATE.target_speed_multiplier = SPEED_MULTIPLIERS.BUILDING
             return base_speed * SPEED_MULTIPLIERS.BUILDING
-        end
+            end
 
-        -- Deploy placement mode (also building)
-        if controller.deployplacer ~= nil then
-            STATE.target_speed_multiplier = SPEED_MULTIPLIERS.BUILDING
-            return base_speed * SPEED_MULTIPLIERS.BUILDING
+            -- Deploy placement mode (also building)
+            if controller.deployplacer ~= nil then
+                STATE.target_speed_multiplier = SPEED_MULTIPLIERS.BUILDING
+                return base_speed * SPEED_MULTIPLIERS.BUILDING
+            end
         end
     end
 
@@ -700,7 +698,7 @@ function VirtualCursor.SimulateMouseButton(button, down)
         return
     end
 
-    local controller = G.ThePlayer.components.playercontroller
+    local controller = ActionHelpers.GetPlayerController(G.ThePlayer)
     if not controller then
         return
     end
