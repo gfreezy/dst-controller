@@ -42,16 +42,9 @@ function CharacterActions.willow_cast_spell(player)
             )
         end
 
-        -- Try to cast the spell
-        local can_cast = true
-        if ember.components and ember.components.aoespell then
-            can_cast = ember.components.aoespell:CanCast(player, target_pos)
-        end
-
-        if not can_cast then
-            print("[Enhanced Controller] Willow cannot cast spell (not enough embers or cooldown)")
-            return
-        end
+        -- In client mode, we can't check CanCast (server-side component)
+        -- The server will reject the action if it can't be performed
+        -- Just submit the action and let the server handle validation
 
         if controller then
             local action = G.BufferedAction(player, nil, G.ACTIONS.CASTAOE, ember, target_pos)

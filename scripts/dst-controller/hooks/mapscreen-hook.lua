@@ -13,8 +13,6 @@ local function StartPathfinding(wx, wy, wz)
     if not player then
         return
     end
-    local controller = player.components and player.components.playercontroller
-    local locomotor = player.components and player.components.locomotor
 
     -- 注意：GetWorldPositionAtCursor 返回 (x, 0, z)，其中 y=0 是地面高度
     print(string.format("StartPathfinding world pos: (%.1f, %.1f, %.1f)", wx, wy, wz))
@@ -22,12 +20,24 @@ local function StartPathfinding(wx, wy, wz)
     local target_pos = G.Vector3(wx, wy, wz)
     MapPathDrawer.DrawPathPoints({target_pos}, player:GetPosition())
 
-    local action = G.BufferedAction(player, nil, G.ACTIONS.WALKTO, nil, target_pos)
+    -- 检查是否是单机模式（包括单机洞穴）
+    local is_mastersim = G.TheWorld and G.TheWorld.ismastersim
+    print(string.format("[StartPathfinding] ismastersim: %s", tostring(is_mastersim)))
 
-    if controller then
-        controller:DoAction(action)
-    elseif locomotor then
-        locomotor:PushAction(action, true)
+    if not is_mastersim then
+        print("[StartPathfinding] Client mode - pathfinding not supported in multiplayer")
+        print("[StartPathfinding] This is a client-only mod limitation due to DST's anti-cheat system")
+        print("[StartPathfinding] Map pathfinding only works in single-player mode")
+        return
+    end
+
+    -- 单机模式（包括洞穴）：直接寻路
+    local locomotor = player.components.locomotor
+    if locomotor then
+        print("[StartPathfinding] Using locomotor:GoToPoint")
+        locomotor:GoToPoint(target_pos, nil, true)
+    else
+        print("[StartPathfinding] No locomotor component found")
     end
 end
 

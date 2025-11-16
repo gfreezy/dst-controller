@@ -9,6 +9,10 @@ local G = require("dst-controller/global")
 ---@diagnostic disable-next-line: undefined-global
 G.Init(GLOBAL, env)
 
+-- 保存 modname 到 G 以便其他模块使用
+---@diagnostic disable-next-line: undefined-global
+G.modname = modname
+
 -- ============================================================================
 -- Load Modules
 -- ============================================================================
