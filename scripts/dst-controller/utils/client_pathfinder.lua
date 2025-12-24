@@ -117,20 +117,19 @@ local pathfinding_state = {
 
 -- 地面类型代价系数（越小越优先）
 local GROUND_COST = {
-    -- 道路类型 - 优先走（代价低）
-    ROAD = 0.5,           -- 泥土路
-    COBBLEROAD = 0.5,     -- 鹅卵石路
-    CARPET = 0.6,         -- 地毯
-    WOODFLOOR = 0.6,      -- 木地板
-    CHECKER = 0.6,        -- 棋盘地板
+    -- 道路类型 - 强烈优先走（代价很低）
+    ROAD = 0.3,           -- 道路（卵石路等）
+    CARPET = 0.4,         -- 人造地板（地毯、木地板等）
 
     -- 普通地面 - 正常代价
     DEFAULT = 1.0,
 
     -- 困难地面 - 尽量避开（代价高）
-    MARSH = 1.5,          -- 沼泽
-    ROCKY = 1.2,          -- 岩石地
-    SPIDER_CREEP = 3.0,   -- 蜘蛛网地面（严重减速）
+    MARSH = 2.0,          -- 沼泽
+    ROCKY = 1.3,          -- 岩石地
+    METEOR = 1.5,         -- 陨石区（可能有陨石坑和障碍物）
+    SINKHOLE = 3.3,       -- 地陷区（减速70%，只有30%速度）
+    SPIDER_CREEP = 5.0,   -- 蜘蛛网地面（严重减速，强烈避开）
 }
 
 -- 世界坐标转网格坐标
@@ -148,6 +147,9 @@ local function GridKey(gx, gz)
     return gx .. "," .. gz
 end
 
+-- 调试：记录找到的道路格子数量
+local debug_road_count = 0
+
 -- 获取地面类型的移动代价
 local function GetGroundCost(x, z)
     if not G.TheWorld or not G.TheWorld.Map then
@@ -161,17 +163,46 @@ local function GetGroundCost(x, z)
         return GROUND_COST.DEFAULT
     end
 
-    -- 检查是否是道路类型
+    -- 方法1: 使用 RoadManager 检测道路（最准确，包括程序生成的道路）
+    local RoadManager = G.RoadManager
+    if RoadManager and RoadManager.IsOnRoad then
+        local is_on_road = RoadManager:IsOnRoad(x, 0, z)
+        if is_on_road then
+            debug_road_count = debug_road_count + 1
+            return GROUND_COST.ROAD
+        end
+    end
+
+    -- 方法2: 使用 GROUND_ROADWAYS 表（DST 内置的道路类型表）
+    local GROUND_ROADWAYS = G.GROUND_ROADWAYS
+    if GROUND_ROADWAYS and GROUND_ROADWAYS[tile] then
+        debug_road_count = debug_road_count + 1
+        return GROUND_COST.ROAD
+    end
+
+    -- 方法3: 手动检查常见的道路类型
     local GROUND = G.GROUND
     if GROUND then
-        if tile == GROUND.ROAD or tile == GROUND.COBBLEROAD then
+        -- 道路类型 (GROUND.ROAD = 2)
+        if tile == GROUND.ROAD then
+            debug_road_count = debug_road_count + 1
             return GROUND_COST.ROAD
-        elseif tile == GROUND.CARPET or tile == GROUND.WOODFLOOR or tile == GROUND.CHECKER then
+        -- 人造地板
+        elseif tile == GROUND.WOODFLOOR or tile == GROUND.CHECKER or tile == GROUND.CARPET then
+            debug_road_count = debug_road_count + 1
             return GROUND_COST.CARPET
+        -- 沼泽（减速）
         elseif tile == GROUND.MARSH then
             return GROUND_COST.MARSH
+        -- 岩石地（稍慢）
         elseif tile == GROUND.ROCKY then
             return GROUND_COST.ROCKY
+        -- 陨石区（有陨石坑和障碍物）
+        elseif tile == GROUND.METEOR then
+            return GROUND_COST.METEOR
+        -- 地陷区（有坑洞）
+        elseif tile == GROUND.SINKHOLE then
+            return GROUND_COST.SINKHOLE
         end
     end
 
@@ -252,6 +283,9 @@ end
 -- ============================================================================
 
 local function DijkstraPathfind(start_x, start_z, end_x, end_z)
+    -- 重置调试计数器
+    debug_road_count = 0
+
     local start_gx, start_gz = WorldToGrid(start_x, start_z)
     local end_gx, end_gz = WorldToGrid(end_x, end_z)
 
@@ -401,6 +435,7 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
     end
 
     print(string.format("[Dijkstra] Path reconstructed with %d waypoints", #path))
+    print(string.format("[Dijkstra] Road tiles found during search: %d", debug_road_count))
 
     -- 简化路径（移除共线点）
     path = SimplifyPath(path)
@@ -521,8 +556,8 @@ local function MoveToNextWaypoint()
     pathfinding_state.last_position = {x = player_pos.x, z = player_pos.z}
 
     -- 发送移动指令
-    print(string.format("[ClientPathfinder] Moving to waypoint %d: (%.1f, %.1f), dist: %.1f",
-        pathfinding_state.current_waypoint, waypoint.x, waypoint.z, dist))
+    -- print(string.format("[ClientPathfinder] Moving to waypoint %d: (%.1f, %.1f), dist: %.1f",
+    --     pathfinding_state.current_waypoint, waypoint.x, waypoint.z, dist))
 
     -- 计算移动方向（归一化）
     local dir_x = dx / dist
