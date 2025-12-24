@@ -37,7 +37,7 @@ client_save/enhanced_controller_config.json
 ]]
 
 author = "feichao"
-version = "2.1.0"
+version = "2.2.0"
 
 forumthread = ""
 api_version = 10
