@@ -10,6 +10,7 @@ local ConfigManager = require("dst-controller/utils/config_manager")
 local ACTIONS = require("dst-controller/actions/init")
 local TargetSelection = require("dst-controller/target-selection/core")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
+local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local debugtools = require("debugtools")
 
 local PlayerControllerHook = {}
@@ -36,7 +37,25 @@ local function InstallOnControl(self)
 
     self.OnControl = function(self, control, down)
         -- print("[PlayerControllerHook] OnControl: " .. control, "down: " .. tostring(down))
-        
+
+        -- 检测用户主动移动，停止自动寻路
+        -- 移动控制：左摇杆方向、WASD、点击地面移动
+        if down and ClientPathfinder.IsActive() then
+            local is_move_control = (
+                control == G.CONTROL_MOVE_UP or
+                control == G.CONTROL_MOVE_DOWN or
+                control == G.CONTROL_MOVE_LEFT or
+                control == G.CONTROL_MOVE_RIGHT or
+                control == G.CONTROL_PRIMARY or      -- 左键点击
+                control == G.CONTROL_SECONDARY or    -- 右键点击
+                control == G.CONTROL_CONTROLLER_ACTION  -- 手柄 A 键
+            )
+            if is_move_control then
+                print("[PlayerControllerHook] User movement detected, stopping pathfinding")
+                ClientPathfinder.Stop()
+            end
+        end
+
         -- Try to handle as button combination
         local handled = ButtonHandler.HandleButtonCombination(
             self.inst,

@@ -8,9 +8,22 @@ local Image = require("widgets/image")
 local CursorWidget = G.Class(Widget, function(self)
     Widget._ctor(self, "CursorWidget")
 
-    -- Create cursor image using DST's navigation cursor texture
-    self.cursor_image = self:AddChild(Image("images/frontend.xml", "nav_cursor.tex"))
-    self.cursor_image:SetScale(0.8)  -- Scale to appropriate size
+    -- Create cursor image
+    local success = false
+    if G.MODROOT then
+        local cursor_atlas = G.MODROOT .. "images/cursor.xml"
+        print("[CursorWidget] Loading cursor from: " .. cursor_atlas)
+        success = pcall(function()
+            self.cursor_image = self:AddChild(Image(cursor_atlas, "cursor.tex"))
+        end)
+    end
+
+    if not success then
+        print("[CursorWidget] Using default nav_cursor")
+        self.cursor_image = self:AddChild(Image("images/frontend.xml", "nav_cursor.tex"))
+    end
+
+    self.cursor_image:SetScale(0.5)
     self.cursor_image:SetClickable(false)
 
     -- Colors

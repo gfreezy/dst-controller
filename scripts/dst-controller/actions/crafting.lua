@@ -11,9 +11,11 @@ function CraftingActions.craft_item(player, recipe_name)
         return
     end
 
-    local builder = (player.replica and player.replica.builder) or (player.components and player.components.builder)
+    -- 客户端只能访问 replica.builder
+    -- components.builder 只在服务器端存在
+    local builder = player.replica and player.replica.builder
     if not builder then
-        print("[Enhanced Controller] Error: Player has no builder component")
+        print("[Enhanced Controller] Error: Player has no builder replica")
         return
     end
 

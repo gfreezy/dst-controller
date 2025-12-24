@@ -2,6 +2,14 @@
 -- This mod enhances gamepad/controller functionality with custom button combinations
 
 -- ============================================================================
+-- Assets
+-- ============================================================================
+Assets = {
+    Asset("IMAGE", "images/cursor.tex"),
+    Asset("ATLAS", "images/cursor.xml"),
+}
+
+-- ============================================================================
 -- Global Environment Setup
 -- ============================================================================
 -- Import centralized GLOBAL references and initialize with both GLOBAL and env
@@ -9,9 +17,11 @@ local G = require("dst-controller/global")
 ---@diagnostic disable-next-line: undefined-global
 G.Init(GLOBAL, env)
 
--- 保存 modname 到 G 以便其他模块使用
+-- 保存 modname 和 MODROOT 到 G 以便其他模块使用
 ---@diagnostic disable-next-line: undefined-global
 G.modname = modname
+---@diagnostic disable-next-line: undefined-global
+G.MODROOT = MODROOT
 
 -- ============================================================================
 -- Load Modules

@@ -1,5 +1,5 @@
 name = "Enhanced Controller"
-description = [[强化手柄功能 - 自定义组合键和视角控制
+description = [[强化手柄功能 - 自定义组合键、视角控制和智能寻路
 
 核心功能：
 • 游戏内配置界面 (键盘: Ctrl+K, 手柄: LB+RB+Y 同时按)
@@ -8,9 +8,18 @@ description = [[强化手柄功能 - 自定义组合键和视角控制
 • 配置自动保存并在重启后加载
 • 完整的手柄操作支持
 
+地图寻路功能 (NEW!)：
+• 打开地图后启用虚拟光标 (LB+RB+RT)
+• 点击地图任意位置自动寻路
+• 智能规避海洋和障碍物
+• 沿海岸线自动寻找绕路
+• 单机和联机模式均可用
+• 实时路径可视化
+
 视角控制：
 • LB + 右摇杆左右: 旋转视角
 • LB + 右摇杆上下: 缩放视角
+• 地图模式支持缩放和旋转
 
 可用动作包括：
 • 攻击、检查、装备切换
@@ -28,7 +37,7 @@ client_save/enhanced_controller_config.json
 ]]
 
 author = "feichao"
-version = "2.0.3"
+version = "2.1.0"
 
 forumthread = ""
 api_version = 10

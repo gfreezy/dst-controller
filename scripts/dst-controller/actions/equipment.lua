@@ -19,12 +19,10 @@ local function ItemMatchesEquipSlot(item, equipslot)
         return false
     end
 
+    -- 客户端只能访问 replica.equippable
+    -- components.equippable 只在服务器端存在
     if item.replica and item.replica.equippable then
         return item.replica.equippable:EquipSlot() == equipslot
-    end
-
-    if item.components and item.components.equippable then
-        return item.components.equippable.equipslot == equipslot
     end
 
     return false
@@ -189,8 +187,8 @@ function EquipmentActions.equip_item(player, item_name)
         return
     end
 
+    -- 客户端只能访问 replica.equippable
     local equippable = target_item.replica and target_item.replica.equippable
-        or (target_item.components and target_item.components.equippable)
     if not equippable then
         print(string.format("[Enhanced Controller] Item '%s' is not equippable", item_name))
         return

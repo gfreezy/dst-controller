@@ -38,7 +38,13 @@ end
 
 -- 绘制路径点（使用Image widget）
 function MapPathDrawer.DrawPathPoints(key_points, player_pos)
-    if not current_mapscreen or not current_mapscreen.decorationrootstatic then
+    print("[MapPathDrawer] DrawPathPoints called with " .. #key_points .. " points")
+    if not current_mapscreen then
+        print("[MapPathDrawer] No mapscreen!")
+        return
+    end
+    if not current_mapscreen.decorationrootstatic then
+        print("[MapPathDrawer] No decorationrootstatic!")
         return
     end
 
@@ -46,14 +52,19 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
     MapPathDrawer.ClearPathDecorations()
 
     local Image = require("widgets/image")
-    local zoomscale = 0.75 / current_mapscreen.minimap:GetZoom()
+    local zoom = current_mapscreen.minimap:GetZoom()
+    local zoomscale = 0.75 / zoom
+    print("[MapPathDrawer] Zoom: " .. zoom .. ", zoomscale: " .. zoomscale)
+
+    -- 连接线点的大小
+    local line_dot_scale = math.max(0.08, zoomscale * 0.15)
 
     -- 绘制从玩家到第一个关键点的线（用多个点模拟）
     if key_points[1] then
         local start_pos = player_pos
         local end_pos = key_points[1]
         local distance = math.sqrt((end_pos.x - start_pos.x)^2 + (end_pos.z - start_pos.z)^2)
-        local num_dots = math.max(3, math.floor(distance / 10))  -- 每10米一个点
+        local num_dots = math.max(3, math.floor(distance / 8))  -- 每8米一个点
 
         for i = 0, num_dots do
             local t = i / num_dots
@@ -63,9 +74,9 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
 
             if sx and sy then
                 local dot = current_mapscreen.decorationrootstatic:AddChild(Image("images/global.xml", "square.tex"))
-                dot:SetTint(0, 1, 0, 0.6)  -- 绿色半透明
+                dot:SetTint(0, 1, 0, 0.8)  -- 绿色
                 dot:SetPosition(sx, sy)
-                dot:SetScale(zoomscale * 0.02, zoomscale * 0.02, 1)  -- 使用小方块代替箭头
+                dot:SetScale(line_dot_scale, line_dot_scale, 1)
 
                 local guid = string.format("path_line_0_%d", i)
                 path_decorations[guid] = {
@@ -82,7 +93,7 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
         local start_pos = key_points[i]
         local end_pos = key_points[i + 1]
         local distance = math.sqrt((end_pos.x - start_pos.x)^2 + (end_pos.z - start_pos.z)^2)
-        local num_dots = math.max(3, math.floor(distance / 10))  -- 每10米一个点
+        local num_dots = math.max(3, math.floor(distance / 8))  -- 每8米一个点
 
         for j = 0, num_dots do
             local t = j / num_dots
@@ -92,9 +103,9 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
 
             if sx and sy then
                 local dot = current_mapscreen.decorationrootstatic:AddChild(Image("images/global.xml", "square.tex"))
-                dot:SetTint(0, 1, 0, 0.6)  -- 绿色半透明
+                dot:SetTint(0, 1, 0, 0.8)  -- 绿色
                 dot:SetPosition(sx, sy)
-                dot:SetScale(zoomscale * 0.02, zoomscale * 0.02, 1)  -- 使用小方块代替箭头
+                dot:SetScale(line_dot_scale, line_dot_scale, 1)
 
                 local guid = string.format("path_line_%d_%d", i, j)
                 path_decorations[guid] = {
@@ -106,15 +117,18 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
         end
     end
 
+    -- 关键点的大小（比连接线点稍大）
+    local keypoint_scale = math.max(0.12, zoomscale * 0.25)
+
     -- 绘制关键点标记（黄色圆点）
     for i, point in ipairs(key_points) do
         local sx, sy = WorldPosToScreenPos(current_mapscreen, point.x, point.z)
 
         if sx and sy then
             local marker = current_mapscreen.decorationrootstatic:AddChild(Image("images/global.xml", "square.tex"))
-            marker:SetTint(1, 1, 0, 0.9)  -- 黄色
+            marker:SetTint(1, 1, 0, 1)  -- 黄色
             marker:SetPosition(sx, sy)
-            marker:SetScale(zoomscale * 0.05, zoomscale * 0.05, 1)  -- 关键点稍大
+            marker:SetScale(keypoint_scale, keypoint_scale, 1)
 
             local guid = string.format("path_keypoint_%d", i)
             path_decorations[guid] = {
@@ -134,13 +148,15 @@ function MapPathDrawer.UpdateDecorations()
     end
 
     local zoomscale = 0.75 / current_mapscreen.minimap:GetZoom()
+    local line_dot_scale = math.max(0.08, zoomscale * 0.15)
+    local keypoint_scale = math.max(0.12, zoomscale * 0.25)
 
     for guid, decor_data in pairs(path_decorations) do
         if decor_data.widget and decor_data.widget.inst:IsValid() then
             local sx, sy = WorldPosToScreenPos(current_mapscreen, decor_data.wx, decor_data.wz)
             if sx and sy then
                 decor_data.widget:SetPosition(sx, sy)
-                local scale = decor_data.is_keypoint and (zoomscale * 0.8) or (zoomscale * 0.3)
+                local scale = decor_data.is_keypoint and keypoint_scale or line_dot_scale
                 decor_data.widget:SetScale(scale, scale, 1)
             end
         end

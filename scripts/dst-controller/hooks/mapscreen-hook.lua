@@ -5,6 +5,7 @@ local G = require("dst-controller/global")
 local MapPathDrawer = require("dst-controller/utils/map_path_drawer")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local Helpers = require("dst-controller/utils/helpers")
+local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 
 local MapScreenHook = {}
 
@@ -17,27 +18,24 @@ local function StartPathfinding(wx, wy, wz)
     -- 注意：GetWorldPositionAtCursor 返回 (x, 0, z)，其中 y=0 是地面高度
     print(string.format("StartPathfinding world pos: (%.1f, %.1f, %.1f)", wx, wy, wz))
 
-    local target_pos = G.Vector3(wx, wy, wz)
-    MapPathDrawer.DrawPathPoints({target_pos}, player:GetPosition())
+    -- 客户端模式：使用客户端寻路系统
+    -- 注意：locomotor 组件只在服务器端存在，客户端无法访问
+    print("[StartPathfinding] Using ClientPathfinder")
+    local success = ClientPathfinder.Start(wx, wz)
 
-    -- 检查是否是单机模式（包括单机洞穴）
-    local is_mastersim = G.TheWorld and G.TheWorld.ismastersim
-    print(string.format("[StartPathfinding] ismastersim: %s", tostring(is_mastersim)))
-
-    if not is_mastersim then
-        print("[StartPathfinding] Client mode - pathfinding not supported in multiplayer")
-        print("[StartPathfinding] This is a client-only mod limitation due to DST's anti-cheat system")
-        print("[StartPathfinding] Map pathfinding only works in single-player mode")
-        return
-    end
-
-    -- 单机模式（包括洞穴）：直接寻路
-    local locomotor = player.components.locomotor
-    if locomotor then
-        print("[StartPathfinding] Using locomotor:GoToPoint")
-        locomotor:GoToPoint(target_pos, nil, true)
+    if success then
+        -- 可视化路径
+        local path = ClientPathfinder.GetCurrentPath()
+        if path then
+            local path_points = {}
+            for _, waypoint in ipairs(path) do
+                table.insert(path_points, G.Vector3(waypoint.x, 0, waypoint.z))
+            end
+            MapPathDrawer.DrawPathPoints(path_points, player:GetPosition())
+        end
     else
-        print("[StartPathfinding] No locomotor component found")
+        print("[StartPathfinding] ClientPathfinder failed to generate path")
+        print("[StartPathfinding] Target may be unreachable or blocked by ocean")
     end
 end
 
@@ -53,6 +51,30 @@ function MapScreenHook.Install()
             old_OnBecomeActive(self)
             MapPathDrawer.SetMapScreen(self)
 
+            -- 如果正在寻路，重新显示路径
+            if ClientPathfinder.IsActive() then
+                print("[MapScreenHook] Pathfinding is active, restoring path...")
+                local path = ClientPathfinder.GetCurrentPath()
+                print("[MapScreenHook] Path: " .. tostring(path) .. ", length: " .. (path and #path or 0))
+                print("[MapScreenHook] decorationrootstatic: " .. tostring(self.decorationrootstatic))
+                if path and #path > 0 and G.ThePlayer then
+                    local path_points = {}
+                    -- 只显示从当前 waypoint 开始的剩余路径
+                    local current_wp, total_wp = ClientPathfinder.GetProgress()
+                    print("[MapScreenHook] Progress: " .. current_wp .. "/" .. total_wp)
+                    for i = current_wp, #path do
+                        local waypoint = path[i]
+                        table.insert(path_points, G.Vector3(waypoint.x, 0, waypoint.z))
+                    end
+                    if #path_points > 0 then
+                        MapPathDrawer.DrawPathPoints(path_points, G.ThePlayer:GetPosition())
+                        print("[MapScreenHook] Restored path visualization with " .. #path_points .. " points")
+                    end
+                end
+            else
+                print("[MapScreenHook] No active pathfinding")
+            end
+
             -- Auto-enable virtual cursor for map mode
             VirtualCursor.AutoEnable()
             print("[MapScreenHook] Virtual cursor auto-enabled for map mode")
@@ -63,6 +85,9 @@ function MapScreenHook.Install()
         self.OnDestroy = function(self)
             MapPathDrawer.ClearPathDecorations()
             MapPathDrawer.SetMapScreen(nil)
+
+            -- 注意：关闭地图不停止寻路，让角色继续自动走到目标
+            -- 只有用户主动移动时才停止（在 playercontroller-hook 中处理）
 
             -- Auto-disable virtual cursor if it was auto-activated
             VirtualCursor.AutoDisable()

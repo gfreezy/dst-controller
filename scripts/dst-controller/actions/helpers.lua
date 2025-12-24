@@ -11,12 +11,10 @@ local function GetInventory(player)
         return nil
     end
 
+    -- 客户端只能访问 replica.inventory
+    -- components.inventory 只在服务器端存在
     if player.replica and player.replica.inventory then
         return player.replica.inventory
-    end
-
-    if player.components and player.components.inventory then
-        return player.components.inventory
     end
 
     return nil
