@@ -213,25 +213,18 @@ local function GetGroundCost(x, z)
         -- 地陷区（有坑洞）
         elseif tile == GROUND.SINKHOLE then
             return GROUND_COST.SINKHOLE
+        -- 蜘蛛地毯（人造蜘蛛网地板）
+        elseif tile == GROUND.WEB then
+            return GROUND_COST.SPIDER_CREEP
         end
     end
 
-    -- 检查是否有蜘蛛网（通过查找附近的蜘蛛巢）
-    -- 注意：这个检查比较耗性能，只在寻路时使用
-    if G.TheSim and G.ThePlayer and G.ThePlayer:IsValid() then
-        local px, _, pz = G.ThePlayer.Transform:GetWorldPosition()
-        local dist_to_check = math.sqrt((x - px)^2 + (z - pz)^2)
-        -- 只检查玩家附近的蜘蛛网（远处的不检查以提高性能）
-        if dist_to_check < 50 then
-            local ents = G.TheSim:FindEntities(x, 0, z, 6, {"spiderden"})
-            if ents and #ents > 0 then
-                local spider_den = ents[1]
-                local dx_den, _, dz_den = spider_den.Transform:GetWorldPosition()
-                local dist_to_den = math.sqrt((x - dx_den)^2 + (z - dz_den)^2)
-                if dist_to_den < 4 then
-                    return GROUND_COST.SPIDER_CREEP
-                end
-            end
+    -- 检查是否有蜘蛛网覆盖层（蜘蛛巢蔓延的蜘蛛网）
+    -- 使用 TheWorld.GroundCreep:OnCreep(x, 0, z) 检测
+    if G.TheWorld and G.TheWorld.GroundCreep and G.TheWorld.GroundCreep.OnCreep then
+        local on_creep = G.TheWorld.GroundCreep:OnCreep(x, 0, z)
+        if on_creep then
+            return GROUND_COST.SPIDER_CREEP
         end
     end
 
