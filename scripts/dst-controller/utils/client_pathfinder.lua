@@ -14,9 +14,10 @@ local CONFIG = {
     GRID_SIZE = 4,               -- 寻路网格大小（与 TILE_SCALE 相同）
     MAX_SEARCH_NODES = 5000,     -- 最大搜索节点数（防止卡死）
     MAX_PATH_LENGTH = 200,       -- 最大路径点数
-    ARRIVAL_THRESHOLD = 2,       -- 到达阈值
+    ARRIVAL_THRESHOLD = 2,       -- 路径点到达阈值
+    FINAL_ARRIVAL_THRESHOLD = 4, -- 终点到达阈值（更大，因为终点可能是树等障碍物）
     MOVE_INTERVAL = 0.3,         -- 移动指令间隔（秒）
-    STUCK_THRESHOLD = 5,         -- 卡住检测次数
+    STUCK_THRESHOLD = 10,        -- 卡住检测次数（增加以应对地图关闭延迟）
     NEIGHBOR_DIRS = {            -- 8 方向邻居（包括对角线）
         {dx = 1, dz = 0, cost = 1},
         {dx = -1, dz = 0, cost = 1},
@@ -135,10 +136,28 @@ local function IsPassable(x, z)
         return false
     end
 
-    -- 使用 DST 原生 API 检查可通行性
+    local map = G.TheWorld.Map
+
+    -- 方法1: 使用 IsPassableAtPoint (最可靠)
     -- allow_water = false: 不允许走水
     -- exclude_boats = true: 排除船只平台
-    return G.TheWorld.Map:IsPassableAtPoint(x, 0, z, false, true)
+    local passable = map:IsPassableAtPoint(x, 0, z, false, true)
+    if passable then
+        return true
+    end
+
+    -- 方法2: 在洞穴中，尝试使用 IsAboveGroundAtPoint
+    -- 有些洞穴地形 IsPassableAtPoint 可能返回 false，但实际上是可以走的
+    if G.TheWorld:HasTag("cave") then
+        if map.IsAboveGroundAtPoint then
+            local above_ground = map:IsAboveGroundAtPoint(x, 0, z, false)
+            if above_ground then
+                return true
+            end
+        end
+    end
+
+    return false
 end
 
 -- 检查网格是否可通行
@@ -171,6 +190,43 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
 
     print(string.format("[Dijkstra] Start grid: (%d, %d), End grid: (%d, %d)",
         start_gx, start_gz, end_gx, end_gz))
+
+    -- 调试：检查世界和地图状态
+    print("[Dijkstra] TheWorld: " .. tostring(G.TheWorld))
+    print("[Dijkstra] TheWorld.Map: " .. tostring(G.TheWorld and G.TheWorld.Map))
+    if G.TheWorld then
+        print("[Dijkstra] World prefab: " .. tostring(G.TheWorld.prefab))
+        -- 检查是否在洞穴
+        local is_cave = G.TheWorld:HasTag("cave")
+        print("[Dijkstra] Is cave: " .. tostring(is_cave))
+    end
+
+    -- 检查起点是否可通行
+    local start_passable = IsGridPassable(start_gx, start_gz)
+    print("[Dijkstra] Start position passable: " .. tostring(start_passable))
+    if not start_passable then
+        -- 尝试在起点附近找一个可通行的点
+        print("[Dijkstra] Start point is not passable, searching nearby...")
+        local found = false
+        for radius = 1, 3 do
+            for dx = -radius, radius do
+                for dz = -radius, radius do
+                    if IsGridPassable(start_gx + dx, start_gz + dz) then
+                        start_gx, start_gz = start_gx + dx, start_gz + dz
+                        found = true
+                        break
+                    end
+                end
+                if found then break end
+            end
+            if found then break end
+        end
+        if not found then
+            print("[Dijkstra] Cannot find passable start point nearby")
+            return nil
+        end
+        print(string.format("[Dijkstra] Adjusted start grid: (%d, %d)", start_gx, start_gz))
+    end
 
     -- 检查终点是否可通行
     if not IsGridPassable(end_gx, end_gz) then
@@ -356,16 +412,24 @@ local function MoveToNextWaypoint()
     local dz = waypoint.z - player_pos.z
     local dist = math.sqrt(dx * dx + dz * dz)
 
+    -- 判断是否是最后一个路径点（终点）
+    local is_final = pathfinding_state.current_waypoint == #pathfinding_state.path
+    local threshold = is_final and CONFIG.FINAL_ARRIVAL_THRESHOLD or CONFIG.ARRIVAL_THRESHOLD
+
     -- 检查是否已到达当前路径点
-    if dist < CONFIG.ARRIVAL_THRESHOLD then
+    if dist < threshold then
         pathfinding_state.current_waypoint = pathfinding_state.current_waypoint + 1
         print(string.format("[ClientPathfinder] Reached waypoint %d/%d",
             pathfinding_state.current_waypoint - 1, #pathfinding_state.path))
         return MoveToNextWaypoint()
     end
 
-    -- 检查是否卡住
-    if pathfinding_state.last_position then
+    -- 检查是否卡住（跳过游戏暂停时的检测）
+    local is_paused = false
+    if G.TheNet and G.TheNet.GetServerIsPaused then
+        is_paused = G.TheNet:GetServerIsPaused()
+    end
+    if not is_paused and pathfinding_state.last_position then
         local last_dx = player_pos.x - pathfinding_state.last_position.x
         local last_dz = player_pos.z - pathfinding_state.last_position.z
         local moved_dist = math.sqrt(last_dx * last_dx + last_dz * last_dz)
@@ -380,11 +444,34 @@ local function MoveToNextWaypoint()
         else
             pathfinding_state.stuck_counter = 0
         end
+    elseif is_paused then
+        -- 游戏暂停时重置卡住计数器
+        pathfinding_state.stuck_counter = 0
     end
 
     pathfinding_state.last_position = {x = player_pos.x, z = player_pos.z}
 
     -- 发送移动指令
+    print(string.format("[ClientPathfinder] Moving to waypoint %d: (%.1f, %.1f), dist: %.1f",
+        pathfinding_state.current_waypoint, waypoint.x, waypoint.z, dist))
+
+    -- 计算移动方向
+    local dir_x = dx / dist
+    local dir_z = dz / dist
+
+    -- 方法1: 使用方向行走 (DirectWalking)
+    if controller.SetDirWalking then
+        controller:SetDirWalking(dir_x, dir_z)
+        return true
+    end
+
+    -- 方法2: 使用 RemoteDirectWalking
+    if controller.RemoteDirectWalking then
+        controller:RemoteDirectWalking(dir_x, dir_z)
+        return true
+    end
+
+    -- 方法3: 备用 - 使用 BufferedAction
     local target_pos = G.Vector3(waypoint.x, 0, waypoint.z)
     local action = G.BufferedAction(player, nil, G.ACTIONS.WALKTO, nil, target_pos)
     controller:DoAction(action)
@@ -410,10 +497,26 @@ function ClientPathfinder.Start(target_x, target_z)
         return false
     end
 
+    -- 检查世界和地图是否可用
+    if not G.TheWorld then
+        print("[ClientPathfinder] Cannot start: TheWorld is nil")
+        return false
+    end
+
+    if not G.TheWorld.Map then
+        print("[ClientPathfinder] Cannot start: TheWorld.Map is nil")
+        return false
+    end
+
     -- 停止之前的寻路
     ClientPathfinder.Stop()
 
     local player_pos = player:GetPosition()
+
+    -- 输出当前世界信息
+    local is_cave = G.TheWorld:HasTag("cave")
+    print(string.format("[ClientPathfinder] World: %s, Is cave: %s",
+        tostring(G.TheWorld.prefab), tostring(is_cave)))
 
     print(string.format("[ClientPathfinder] Starting pathfind from (%.1f, %.1f) to (%.1f, %.1f)",
         player_pos.x, player_pos.z, target_x, target_z))

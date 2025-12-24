@@ -8,22 +8,9 @@ local Image = require("widgets/image")
 local CursorWidget = G.Class(Widget, function(self)
     Widget._ctor(self, "CursorWidget")
 
-    -- Create cursor image
-    local success = false
-    if G.MODROOT then
-        local cursor_atlas = G.MODROOT .. "images/cursor.xml"
-        print("[CursorWidget] Loading cursor from: " .. cursor_atlas)
-        success = pcall(function()
-            self.cursor_image = self:AddChild(Image(cursor_atlas, "cursor.tex"))
-        end)
-    end
-
-    if not success then
-        print("[CursorWidget] Using default nav_cursor")
-        self.cursor_image = self:AddChild(Image("images/frontend.xml", "nav_cursor.tex"))
-    end
-
-    self.cursor_image:SetScale(0.5)
+    -- 先用默认光标，稍后替换为自定义光标
+    self.cursor_image = self:AddChild(Image("images/frontend.xml", "nav_cursor.tex"))
+    self.cursor_image:SetScale(1.0)
     self.cursor_image:SetClickable(false)
 
     -- Colors
@@ -32,7 +19,37 @@ local CursorWidget = G.Class(Widget, function(self)
 
     self:SetNormalColor()
     self:Hide()
+
+    -- 延迟加载自定义光标（等待 Assets 加载完成）
+    self.inst:DoTaskInTime(0.5, function()
+        self:LoadCustomCursor()
+    end)
 end)
+
+function CursorWidget:LoadCustomCursor()
+    local modname = G.modname or "enhanced_controller"
+    local cursor_atlas = "../mods/" .. modname .. "/images/cursor.xml"
+
+    print("[CursorWidget] Loading custom cursor: " .. cursor_atlas)
+
+    local success = pcall(function()
+        -- 移除旧光标
+        if self.cursor_image then
+            self.cursor_image:Kill()
+        end
+        -- 创建新光标
+        self.cursor_image = self:AddChild(Image(cursor_atlas, "cursor.tex"))
+        self.cursor_image:SetScale(0.6)
+        self.cursor_image:SetClickable(false)
+        self:SetNormalColor()
+    end)
+
+    if success then
+        print("[CursorWidget] Custom cursor loaded!")
+    else
+        print("[CursorWidget] Failed to load custom cursor")
+    end
+end
 
 function CursorWidget:SetNormalColor()
     self.cursor_image:SetTint(
