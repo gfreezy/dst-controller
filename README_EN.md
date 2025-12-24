@@ -117,10 +117,18 @@ Use virtual cursor on the map screen to quickly navigate to target locations:
 - **RB**: Right click (cancel/other actions)
 
 **Pathfinding Algorithm**:
-- Distance > 30 units: Use A* algorithm for full path planning
-- Distance ≤ 30 units: Direct walk to target
+- Uses Dijkstra algorithm with terrain cost awareness
 - Automatic obstacle and impassable terrain avoidance
 - Path points displayed in real-time on map
+
+**Terrain Cost System**:
+| Terrain | Speed Modifier | Path Cost |
+|---------|---------------|-----------|
+| Roads/Cobblestone | +30% | 0.77 (preferred) |
+| Normal Ground | 0% | 1.0 |
+| Rocky/Marsh | 0% | 1.2-1.5 |
+| Sinkhole | -70% | 3.33 (avoided) |
+| Spider Creep | -40% + attack risk | 5.0 (strongly avoided) |
 
 ## 🎬 Available Actions
 
@@ -275,7 +283,7 @@ Configuration saved to: `client_save/enhanced_controller_config.json`
 
 ## 🔧 Development Info
 
-- **Version**: 2.0.0
+- **Version**: 2.2.1
 - **Author**: feichao
 - **API Version**: 10
 - **Compatibility**: Don't Starve Together
@@ -306,10 +314,10 @@ dst-controller/
 │   │   └── cursor_widget.lua
 │   ├── target-selection/      # Target selection
 │   │   └── core.lua
-│   ├── pathfinding/           # Pathfinding system
-│   │   ├── astar.lua          # A* algorithm
-│   │   └── auto_pathfinding_hybrid.lua
+│   ├── pathfinding/           # Pathfinding system (deprecated)
+│   │   └── ...                # Legacy A* implementation
 │   └── utils/                 # Utility functions
+│       ├── client_pathfinder.lua # Dijkstra pathfinding with terrain costs
 │       ├── map_path_drawer.lua # Path drawing
 │       └── helpers.lua
 └── CLAUDE.md                  # Development docs
@@ -350,6 +358,21 @@ A: Any manual movement (stick input) will automatically cancel pathfinding. This
 A: Path visualization only shows when the map is open. After closing the map, the character will follow the planned path, but path points won't be visible.
 
 ## 📝 Changelog
+
+### v2.2.1 (2025-01-XX)
+- 🔧 Improved spider creep detection using native `GroundCreep:OnCreep()` API
+- 🔧 Updated terrain costs based on official DST speed modifiers
+
+### v2.2.0 (2025-01-XX)
+- ✨ Switched pathfinding to Dijkstra algorithm with terrain cost awareness
+- ✨ Added terrain-based path optimization:
+  - Roads prioritized (+30% speed bonus)
+  - Spider creep avoided (-40% speed + attack risk)
+  - Sinkholes avoided (-70% speed penalty)
+  - Marsh, rocky, meteor zones considered
+- ✨ Added cave support for pathfinding
+- 🔧 Fixed player movement using `RemoteDirectWalking`/`RemoteStopWalking`
+- 🔧 Added pause detection for stuck checking
 
 ### v2.1.0 (2025-01-XX)
 - ✨ Added map auto-pathfinding feature
