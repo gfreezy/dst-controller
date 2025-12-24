@@ -115,6 +115,24 @@ local pathfinding_state = {
 -- 地图工具函数
 -- ============================================================================
 
+-- 地面类型代价系数（越小越优先）
+local GROUND_COST = {
+    -- 道路类型 - 优先走（代价低）
+    ROAD = 0.5,           -- 泥土路
+    COBBLEROAD = 0.5,     -- 鹅卵石路
+    CARPET = 0.6,         -- 地毯
+    WOODFLOOR = 0.6,      -- 木地板
+    CHECKER = 0.6,        -- 棋盘地板
+
+    -- 普通地面 - 正常代价
+    DEFAULT = 1.0,
+
+    -- 困难地面 - 尽量避开（代价高）
+    MARSH = 1.5,          -- 沼泽
+    ROCKY = 1.2,          -- 岩石地
+    SPIDER_CREEP = 3.0,   -- 蜘蛛网地面（严重减速）
+}
+
 -- 世界坐标转网格坐标
 local function WorldToGrid(x, z)
     return math.floor(x / CONFIG.GRID_SIZE), math.floor(z / CONFIG.GRID_SIZE)
@@ -128,6 +146,55 @@ end
 -- 生成网格节点的唯一键
 local function GridKey(gx, gz)
     return gx .. "," .. gz
+end
+
+-- 获取地面类型的移动代价
+local function GetGroundCost(x, z)
+    if not G.TheWorld or not G.TheWorld.Map then
+        return GROUND_COST.DEFAULT
+    end
+
+    local map = G.TheWorld.Map
+    local tile = map:GetTileAtPoint(x, 0, z)
+
+    if not tile then
+        return GROUND_COST.DEFAULT
+    end
+
+    -- 检查是否是道路类型
+    local GROUND = G.GROUND
+    if GROUND then
+        if tile == GROUND.ROAD or tile == GROUND.COBBLEROAD then
+            return GROUND_COST.ROAD
+        elseif tile == GROUND.CARPET or tile == GROUND.WOODFLOOR or tile == GROUND.CHECKER then
+            return GROUND_COST.CARPET
+        elseif tile == GROUND.MARSH then
+            return GROUND_COST.MARSH
+        elseif tile == GROUND.ROCKY then
+            return GROUND_COST.ROCKY
+        end
+    end
+
+    -- 检查是否有蜘蛛网（通过查找附近的蜘蛛巢）
+    -- 注意：这个检查比较耗性能，只在寻路时使用
+    if G.TheSim and G.ThePlayer and G.ThePlayer:IsValid() then
+        local px, _, pz = G.ThePlayer.Transform:GetWorldPosition()
+        local dist_to_check = math.sqrt((x - px)^2 + (z - pz)^2)
+        -- 只检查玩家附近的蜘蛛网（远处的不检查以提高性能）
+        if dist_to_check < 50 then
+            local ents = G.TheSim:FindEntities(x, 0, z, 6, {"spiderden"})
+            if ents and #ents > 0 then
+                local spider_den = ents[1]
+                local dx_den, _, dz_den = spider_den.Transform:GetWorldPosition()
+                local dist_to_den = math.sqrt((x - dx_den)^2 + (z - dz_den)^2)
+                if dist_to_den < 4 then
+                    return GROUND_COST.SPIDER_CREEP
+                end
+            end
+        end
+    end
+
+    return GROUND_COST.DEFAULT
 end
 
 -- 检查世界坐标是否可通行
@@ -299,8 +366,10 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
                 if not visited[next_key] and
                    IsGridPassable(next_gx, next_gz) and
                    IsDiagonalPassable(current.gx, current.gz, dir.dx, dir.dz) then
-                    -- 计算新距离
-                    local new_dist = dist[current_key] + dir.cost
+                    -- 计算新距离（考虑地面类型代价）
+                    local next_wx, next_wz = GridToWorld(next_gx, next_gz)
+                    local ground_cost = GetGroundCost(next_wx, next_wz)
+                    local new_dist = dist[current_key] + dir.cost * ground_cost
 
                     -- 更新最短路径
                     if not dist[next_key] or new_dist < dist[next_key] then
@@ -455,26 +524,16 @@ local function MoveToNextWaypoint()
     print(string.format("[ClientPathfinder] Moving to waypoint %d: (%.1f, %.1f), dist: %.1f",
         pathfinding_state.current_waypoint, waypoint.x, waypoint.z, dist))
 
-    -- 计算移动方向
+    -- 计算移动方向（归一化）
     local dir_x = dx / dist
     local dir_z = dz / dist
 
-    -- 方法1: 使用方向行走 (DirectWalking)
-    if controller.SetDirWalking then
-        controller:SetDirWalking(dir_x, dir_z)
-        return true
-    end
-
-    -- 方法2: 使用 RemoteDirectWalking
+    -- 使用 RemoteDirectWalking 发送方向行走指令到服务器
     if controller.RemoteDirectWalking then
         controller:RemoteDirectWalking(dir_x, dir_z)
-        return true
+    else
+        print("[ClientPathfinder] Warning: RemoteDirectWalking not available")
     end
-
-    -- 方法3: 备用 - 使用 BufferedAction
-    local target_pos = G.Vector3(waypoint.x, 0, waypoint.z)
-    local action = G.BufferedAction(player, nil, G.ACTIONS.WALKTO, nil, target_pos)
-    controller:DoAction(action)
 
     return true
 end
@@ -556,6 +615,18 @@ function ClientPathfinder.Stop()
     end
 
     local was_active = pathfinding_state.active
+
+    -- 停止玩家行走
+    if was_active and G.ThePlayer and G.ThePlayer:IsValid() then
+        local controller = G.ThePlayer.components.playercontroller
+        if controller then
+            -- 使用 RemoteStopWalking 停止行走
+            if controller.RemoteStopWalking then
+                controller:RemoteStopWalking()
+                print("[ClientPathfinder] Called RemoteStopWalking")
+            end
+        end
+    end
 
     pathfinding_state.active = false
     pathfinding_state.path = nil
