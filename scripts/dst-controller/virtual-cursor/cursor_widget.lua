@@ -8,6 +8,10 @@ local Image = require("widgets/image")
 local CursorWidget = G.Class(Widget, function(self)
     Widget._ctor(self, "CursorWidget")
 
+    -- 光标图片尺寸和偏移（用于对齐左上角热点）
+    self.cursor_offset_x = 0
+    self.cursor_offset_y = 0
+
     -- 先用默认光标，稍后替换为自定义光标
     self.cursor_image = self:AddChild(Image("images/frontend.xml", "nav_cursor.tex"))
     self.cursor_image:SetScale(1.0)
@@ -39,8 +43,18 @@ function CursorWidget:LoadCustomCursor()
         end
         -- 创建新光标
         self.cursor_image = self:AddChild(Image(cursor_atlas, "cursor.tex"))
-        self.cursor_image:SetScale(0.6)
+
+        -- 光标图片大小: 48x48, 缩放 0.6 = 显示大小约 29x29
+        -- 鼠标热点在左上角，需要偏移图片使左上角对齐到位置
+        local scale = 0.6
+        local cursor_size = 48 * scale  -- 约 29 像素
+        self.cursor_image:SetScale(scale)
         self.cursor_image:SetClickable(false)
+
+        -- 偏移：向右下移动半个光标大小，使左上角对齐到位置点
+        self.cursor_offset_x = cursor_size / 2
+        self.cursor_offset_y = -cursor_size / 2  -- Y轴向下是负方向
+
         self:SetNormalColor()
     end)
 
@@ -70,7 +84,12 @@ function CursorWidget:SetDragColor()
 end
 
 function CursorWidget:SetPosition(x, y)
+    -- Widget 位置是实际点击位置
     Widget.SetPosition(self, x, y, 0)
+    -- 光标图片偏移，使左上角热点对齐到位置
+    if self.cursor_image then
+        self.cursor_image:SetPosition(self.cursor_offset_x, self.cursor_offset_y, 0)
+    end
 end
 
 return CursorWidget
