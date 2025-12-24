@@ -677,10 +677,20 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
     if target_has_rmb then
         -- 主目标已经支持副动作，清除副目标
-        self.controller_alternative_target = nil
+        if self.controller_alternative_target ~= nil then
+            self.controller_alternative_target = nil
+            self.controller_alternative_target_age = 0
+        end
     else
         -- 主目标不支持副动作（或没有主目标），使用找到的副目标
-        self.controller_alternative_target = alternative_target
+        -- 添加闪烁防护：只有在age超过阈值时才更新
+        self.controller_alternative_target_age = (self.controller_alternative_target_age or 0) + dt
+        if self.controller_alternative_target_age >= 0.2 then
+            if alternative_target ~= self.controller_alternative_target then
+                self.controller_alternative_target = alternative_target
+                self.controller_alternative_target_age = 0
+            end
+        end
     end
 
     -- ========== 第十步：更新检查目标 ==========
@@ -692,10 +702,20 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
     if target_can_inspect or alt_target_can_inspect then
         -- 主目标或副目标已经可以检查，清除检查目标
-        self.controller_examine_target = nil
+        if self.controller_examine_target ~= nil then
+            self.controller_examine_target = nil
+            self.controller_examine_target_age = 0
+        end
     else
         -- 主目标和副目标都不能检查，使用找到的检查目标
-        self.controller_examine_target = inspect_target
+        -- 添加闪烁防护：只有在age超过阈值时才更新
+        self.controller_examine_target_age = (self.controller_examine_target_age or 0) + dt
+        if self.controller_examine_target_age >= 0.2 then
+            if inspect_target ~= self.controller_examine_target then
+                self.controller_examine_target = inspect_target
+                self.controller_examine_target_age = 0
+            end
+        end
     end
 end
 

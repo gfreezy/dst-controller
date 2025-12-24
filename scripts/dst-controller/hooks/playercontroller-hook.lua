@@ -163,30 +163,12 @@ local function InstallDoControllerAttackButton(self)
     end
 end
 
--- Hook: OnUpdate (wrap) - for building mode and map mode auto-activation
+-- NOTE: Building mode auto-activation has been removed.
+-- Reason: VirtualCursor.AutoEnable() hooks TheInput:ControllerAttached() to return false,
+-- which affects game logic that creates/destroys placer, causing a feedback loop.
+-- Users can manually enable cursor mode with LB+RB+RT during building if needed.
 local function InstallOnUpdate(self)
-    local old_OnUpdate = self.OnUpdate
-    local last_placer_state = false  -- Track previous placer state
-
-    self.OnUpdate = function(self, ...)
-        -- Check if player is in building/placement mode
-        local current_placer_state = (self.placer ~= nil or self.deployplacer ~= nil)
-
-        -- Detect state change
-        if current_placer_state ~= last_placer_state then
-            if current_placer_state then
-                -- Entering building mode - auto-enable virtual cursor
-                VirtualCursor.AutoEnable()
-            else
-                -- Exiting building mode - auto-disable if it was auto-activated
-                VirtualCursor.AutoDisable()
-            end
-            last_placer_state = current_placer_state
-        end
-
-        -- Call original method
-        return old_OnUpdate(self, ...)
-    end
+    -- No-op - building mode auto-activation disabled
 end
 
 -- Main Install function
