@@ -59,35 +59,4 @@ function CharacterActions.willow_cast_spell(player)
     end
 end
 
--- ============================================================================
--- Channeling Actions (used by multiple characters)
--- ============================================================================
-
--- Start channeling with the currently equipped item
-function CharacterActions.start_channeling(player)
-    local inventory = ActionHelpers.GetInventory(player)
-    local controller = ActionHelpers.GetPlayerController(player)
-    if not inventory or not controller then return end
-
-    local equipped = inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
-    if not equipped then
-        print("[Enhanced Controller] Cannot start channeling: No item equipped")
-        return
-    end
-
-    local action = G.BufferedAction(player, nil, G.ACTIONS.START_CHANNELCAST, equipped)
-    controller:DoAction(action)
-    print(string.format("[Enhanced Controller] Action: Started channeling (%s)", equipped.prefab))
-end
-
--- Stop channeling
-function CharacterActions.stop_channeling(player)
-    local controller = ActionHelpers.GetPlayerController(player)
-    if not controller then return end
-
-    local action = G.BufferedAction(player, nil, G.ACTIONS.STOP_CHANNELCAST)
-    controller:DoAction(action)
-    print("[Enhanced Controller] Action: Stopped channeling")
-end
-
 return CharacterActions

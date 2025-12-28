@@ -6,6 +6,7 @@ local MapPathDrawer = require("dst-controller/utils/map_path_drawer")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local Helpers = require("dst-controller/utils/helpers")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
+local WormholeMapVisualizer = require("dst-controller/wormhole-tracker/map_visualizer")
 
 local MapScreenHook = {}
 
@@ -44,12 +45,17 @@ function MapScreenHook.Install()
     G.AddClassPostConstruct("screens/mapscreen", function(self)
         -- 设置当前地图屏幕
         MapPathDrawer.SetMapScreen(self)
+        WormholeMapVisualizer.SetMapScreen(self)
 
         -- Hook OnBecomeActive - 地图打开时
         local old_OnBecomeActive = self.OnBecomeActive
         self.OnBecomeActive = function(self)
             old_OnBecomeActive(self)
             MapPathDrawer.SetMapScreen(self)
+            WormholeMapVisualizer.SetMapScreen(self)
+
+            -- 绘制已知虫洞连接
+            WormholeMapVisualizer.DrawConnections()
 
             -- 如果正在寻路，重新显示路径
             if ClientPathfinder.IsActive() then
@@ -85,6 +91,8 @@ function MapScreenHook.Install()
         self.OnDestroy = function(self)
             MapPathDrawer.ClearPathDecorations()
             MapPathDrawer.SetMapScreen(nil)
+            WormholeMapVisualizer.ClearDecorations()
+            WormholeMapVisualizer.SetMapScreen(nil)
 
             -- 注意：关闭地图不停止寻路，让角色继续自动走到目标
             -- 只有用户主动移动时才停止（在 playercontroller-hook 中处理）
@@ -101,12 +109,14 @@ function MapScreenHook.Install()
         self.DoZoomIn = function(self, ...)
             old_DoZoomIn(self, ...)
             MapPathDrawer.UpdateDecorations()
+            WormholeMapVisualizer.UpdateDecorations()
         end
 
         local old_DoZoomOut = self.DoZoomOut
         self.DoZoomOut = function(self, ...)
             old_DoZoomOut(self, ...)
             MapPathDrawer.UpdateDecorations()
+            WormholeMapVisualizer.UpdateDecorations()
         end
 
 
@@ -116,6 +126,7 @@ function MapScreenHook.Install()
             self.minimap.Offset = function(minimap_self, ...)
                 old_Offset(minimap_self, ...)
                 MapPathDrawer.UpdateDecorations()
+                WormholeMapVisualizer.UpdateDecorations()
             end
         end
 
@@ -212,6 +223,7 @@ function MapScreenHook.Install()
                         end
                         controller.lastrottime = time
                         MapPathDrawer.UpdateDecorations()
+                        WormholeMapVisualizer.UpdateDecorations()
                     end
                 end
             end
@@ -241,6 +253,7 @@ function MapScreenHook.Install()
                         -- 启动寻路
                         StartPathfinding(wx, wy, wz)
                         MapPathDrawer.UpdateDecorations()
+                        WormholeMapVisualizer.UpdateDecorations()
 
                         return true
                     end

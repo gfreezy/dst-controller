@@ -46,6 +46,9 @@ function HookRegistry.InstallAll()
     -- 8. MapScreen (path visualization and click-to-walk)
     require("dst-controller/hooks/mapscreen-hook").Install()
 
+    -- 9. Wormhole Tracker (tracks wormhole connections through usage)
+    require("dst-controller/hooks/wormhole-tracker-hook").Install()
+
     print("[HookRegistry] All hooks installed successfully")
 end
 

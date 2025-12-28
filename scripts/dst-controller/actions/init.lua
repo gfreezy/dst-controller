@@ -58,8 +58,6 @@ ACTIONS.craft_item = Crafting.craft_item
 -- Character-Specific Actions
 -- ============================================================================
 ACTIONS.willow_cast_spell = Character.willow_cast_spell
-ACTIONS.start_channeling = Character.start_channeling
-ACTIONS.stop_channeling = Character.stop_channeling
 
 -- ============================================================================
 -- Keyboard Actions

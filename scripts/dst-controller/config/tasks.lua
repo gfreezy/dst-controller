@@ -10,13 +10,8 @@ local TASKS = {
     },
     LB_B = {
         on_press = {
-            "save_hand_item",
-            {"equip_item", "lighter"},
-            "start_channeling"
         },
         on_release = {
-            "stop_channeling",
-            "restore_hand_item"
         },
     },
     LB_X = {

@@ -44,7 +44,7 @@ local function GetAvailableActions()
         {data = "use_active_item_on_scene", text = L("ACTION_USE_ACTIVE_ITEM_ON_SCENE"), has_param = false},
         {data = "save_hand_item", text = L("ACTION_SAVE_HAND_ITEM"), has_param = false},
         {data = "restore_hand_item", text = L("ACTION_RESTORE_HAND_ITEM"), has_param = false},
-        {data = "start_channeling", text = L("ACTION_START_CHANNELING"), has_param = false},
+        {data = "start_channeling", text = L("ACTION_START_CHANNELING"), has_param = true},
         {data = "stop_channeling", text = L("ACTION_STOP_CHANNELING"), has_param = false},
         {data = "cycle_head", text = L("ACTION_CYCLE_HEAD"), has_param = false},
         {data = "cycle_hand", text = L("ACTION_CYCLE_HAND"), has_param = false},
@@ -53,6 +53,7 @@ local function GetAvailableActions()
         {data = "disable_virtual_cursor", text = L("ACTION_DISABLE_VIRTUAL_CURSOR"), has_param = false},
 
         -- 需要参数的动作
+        {data = "delay", text = L("ACTION_DELAY"), has_param = true},
         {data = "equip_item", text = L("ACTION_EQUIP_ITEM"), has_param = true},
         {data = "unequip_item", text = L("ACTION_UNEQUIP_ITEM"), has_param = true},
         {data = "use_equip", text = L("ACTION_USE_EQUIP"), has_param = true},
@@ -129,11 +130,23 @@ local function GetEquipSlotPresets()
     }
 end
 
+local function GetDelayPresets()
+    return {
+        {data = "", text = L("PRESET_CUSTOM")},
+        {data = "0.2", text = "0.2s"},
+        {data = "0.3", text = "0.3s"},
+        {data = "0.5", text = "0.5s"},
+        {data = "0.8", text = "0.8s"},
+        {data = "1.0", text = "1.0s"},
+    }
+end
+
 -- 首次加载时生成
 local AVAILABLE_ACTIONS = GetAvailableActions()
 local ITEM_PRESETS = GetItemPresets()
 local KEYBOARD_PRESETS = GetKeyboardPresets()
 local EQUIPSLOT_PRESETS = GetEquipSlotPresets()
+local DELAY_PRESETS = GetDelayPresets()
 
 local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, virtual_cursor_tasks_data, settings_data, on_apply_cb)
     Screen._ctor(self, "TaskConfigScreen")
@@ -1426,6 +1439,8 @@ function ActionEditorDialog:OnActionChanged(action_name)
             presets = KEYBOARD_PRESETS
         elseif action_name == "unequip_item" or action_name == "use_equip" then
             presets = EQUIPSLOT_PRESETS
+        elseif action_name == "delay" then
+            presets = DELAY_PRESETS
         end
 
         -- 更新 spinner 的选项

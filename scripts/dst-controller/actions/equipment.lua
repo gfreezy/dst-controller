@@ -83,85 +83,101 @@ local function SwapToLastEquipped(player, equipslot)
     return nil
 end
 
+-- Track last equipped prefab per player per slot for proper cycling
+local last_equipped_prefab = {}
+
 -- Helper function to cycle equipment forward
+-- Strategy: Track last equipped prefab to find position in cycle
 local function CycleEquipment(player, equipslot, direction)
     local inventory = ActionHelpers.GetInventory(player)
     if not inventory then return end
 
     local current_equipped = inventory:GetEquippedItem(equipslot)
-    local items = {}
-    local current_index = nil
+    local player_guid = player.GUID
 
-    -- Collect all equippable items for this slot from main inventory
-    -- Create list with {item, slot_number} pairs for sorting
+    -- Initialize tracking table for this player/slot if needed
+    if not last_equipped_prefab[player_guid] then
+        last_equipped_prefab[player_guid] = {}
+    end
+
+    -- Collect all equippable items for this slot from inventory (not equipped)
     local item_list = {}
-    local seen_prefabs = {}  -- Track prefabs we've already added
 
     ActionHelpers.ForEachInventoryItem(player, function(item, slot_number)
-        if item and ItemMatchesEquipSlot(item, equipslot) and not seen_prefabs[item.prefab] then
-            table.insert(item_list, {item = item, slot = slot_number})
-            seen_prefabs[item.prefab] = true
+        if item and ItemMatchesEquipSlot(item, equipslot) then
+            table.insert(item_list, {item = item, slot = slot_number, prefab = item.prefab})
         end
     end)
-
-    -- If something is equipped, add it using its prevslot (only if not already in the list)
-    if current_equipped and ItemMatchesEquipSlot(current_equipped, equipslot) then
-        local already_in_list = false
-        for _, entry in ipairs(item_list) do
-            if entry.item == current_equipped then
-                already_in_list = true
-                break
-            end
-        end
-
-        if not already_in_list then
-            local prevslot = current_equipped.prevslot or 0  -- Use prevslot if available, otherwise put at start
-            table.insert(item_list, {item = current_equipped, slot = prevslot})
-            seen_prefabs[current_equipped.prefab] = true
-        end
-    end
 
     -- Sort by slot number to maintain consistent order
     table.sort(item_list, function(a, b) return a.slot < b.slot end)
 
-    -- Extract items and find current index
+    -- Build prefab list for cycle order (inventory items only)
+    local prefab_order = {}
+    local items = {}
     for i, entry in ipairs(item_list) do
         table.insert(items, entry.item)
-        if entry.item == current_equipped then
-            current_index = i
-        end
+        table.insert(prefab_order, entry.prefab)
+        print(string.format("[CycleEquipment] Item[%d]: %s (slot=%d)", i, entry.prefab, entry.slot))
     end
 
+    print(string.format("[CycleEquipment] Found %d items in inventory (equipped: %s)",
+        #items, current_equipped and current_equipped.prefab or "none"))
+
     if #items == 0 then
+        print("[CycleEquipment] No items to cycle to!")
         return nil
     end
 
-    -- Items are collected with equipped item first, then inventory order
-    -- Players can organize their inventory to control cycle order
-    local next_item = nil
-    if not current_index then
-        -- Nothing equipped, use first item (forward) or last item (backward)
-        next_item = direction > 0 and items[1] or items[#items]
+    -- Find where the currently equipped item "would be" in the list
+    -- by matching its prefab against the saved last_equipped_prefab
+    local current_index = nil
+    local equipped_prefab = current_equipped and current_equipped.prefab or last_equipped_prefab[player_guid][equipslot]
+
+    if equipped_prefab then
+        for i, prefab in ipairs(prefab_order) do
+            if prefab == equipped_prefab then
+                current_index = i
+                break
+            end
+        end
+    end
+
+    -- If we found the equipped item's position in inventory list, that means
+    -- it's not actually equipped (it's in inventory). Use position before it.
+    -- If not found, the equipped item is truly equipped and we find next from position 0
+    local next_index
+    if current_index then
+        -- The equipped prefab was found in inventory - this shouldn't happen normally
+        -- Just go to next item
+        next_index = current_index + direction
     else
-        -- Calculate next index with wrapping
-        local next_index = current_index + direction
-        if next_index > #items then
-            next_index = 1  -- Wrap to first
-        elseif next_index < 1 then
-            next_index = #items  -- Wrap to last
+        -- The equipped item is not in inventory (it's equipped)
+        -- Find position based on last known position or start from beginning
+        local last_pos = last_equipped_prefab[player_guid][equipslot .. "_pos"]
+        if last_pos and last_pos <= #items then
+            next_index = last_pos + direction
+        else
+            next_index = direction > 0 and 1 or #items
         end
-        next_item = items[next_index]
     end
 
-    -- If only one item and it's already equipped, do nothing (keep it equipped)
-    if #items == 1 and current_equipped then
-        return current_equipped.prefab
+    -- Wrap around
+    if next_index > #items then
+        next_index = 1
+    elseif next_index < 1 then
+        next_index = #items
     end
 
-    if next_item then
-        if ActionHelpers.DoControllerUseItemOnSelf(player, next_item) then
-            return next_item.prefab
-        end
+    local next_item = items[next_index]
+    print(string.format("[CycleEquipment] next_index=%d -> %s", next_index, next_item.prefab))
+
+    -- Save state for next cycle
+    last_equipped_prefab[player_guid][equipslot] = next_item.prefab
+    last_equipped_prefab[player_guid][equipslot .. "_pos"] = next_index
+
+    if ActionHelpers.DoControllerUseItemOnSelf(player, next_item) then
+        return next_item.prefab
     end
 
     return nil
