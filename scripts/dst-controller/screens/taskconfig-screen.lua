@@ -44,8 +44,6 @@ local function GetAvailableActions()
         {data = "use_active_item_on_scene", text = L("ACTION_USE_ACTIVE_ITEM_ON_SCENE"), has_param = false},
         {data = "save_hand_item", text = L("ACTION_SAVE_HAND_ITEM"), has_param = false},
         {data = "restore_hand_item", text = L("ACTION_RESTORE_HAND_ITEM"), has_param = false},
-        {data = "start_channeling", text = L("ACTION_START_CHANNELING"), has_param = true},
-        {data = "stop_channeling", text = L("ACTION_STOP_CHANNELING"), has_param = false},
         {data = "cycle_head", text = L("ACTION_CYCLE_HEAD"), has_param = false},
         {data = "cycle_hand", text = L("ACTION_CYCLE_HAND"), has_param = false},
         {data = "cycle_body", text = L("ACTION_CYCLE_BODY"), has_param = false},

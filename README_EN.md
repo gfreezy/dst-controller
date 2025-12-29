@@ -11,6 +11,7 @@ A powerful controller enhancement mod for Don't Starve Together with custom butt
 - 🎮 **12 Custom Button Combos** - Fully configurable gamepad button mapping
 - 🖱️ **Virtual Cursor System** - Gamepad-controlled mouse cursor, full screen interaction
 - 🗺️ **Map Auto-Pathfinding** - Click map to auto-navigate, intelligent path planning
+- 🕳️ **Wormhole Tracking** - Auto-record wormhole pairs, show numbers on map
 - ⚙️ **In-Game Configuration** - No restart needed, adjust all settings in real-time
 - 🌍 **Multi-Language Support** - Chinese/English auto-detection
 - 🎯 **Smart Target Selection** - Triple target system (main/alt/examine)
@@ -116,6 +117,26 @@ Use virtual cursor on the map screen to quickly navigate to target locations:
 - **RT**: Click map to set pathfinding target
 - **RB**: Right click (cancel/other actions)
 
+### 🕳️ Wormhole Tracking System
+
+Automatically record wormhole pair connections - no manual marking needed!
+
+**Features**:
+- ✅ Auto-record: Records entry/exit positions when using wormholes
+- ✅ Pair identification: Automatically identifies which wormholes are connected
+- ✅ Map display: Shows pair numbers on map (same number = connected pair)
+- ✅ Persistent storage: Data saved locally, separate for each world
+- ✅ Multiplayer support: Works in multiplayer servers
+
+**How to Use**:
+1. Use a wormhole normally (jump in)
+2. System automatically records the connection between entry and exit wormholes
+3. Open map - explored wormhole pairs will show matching numbers
+4. Next time you see numbers on the map, you'll know which wormholes are connected!
+
+**Storage Location**:
+`client_save/wormhole_pairs_[world_id].json`
+
 **Pathfinding Algorithm**:
 - Uses Dijkstra algorithm with terrain cost awareness
 - Automatic obstacle and impassable terrain avoidance
@@ -151,8 +172,10 @@ Use virtual cursor on the map screen to quickly navigate to target locations:
 
 ### Items
 
-- **use_item**: Use item on target
-- **use_item_on_self**: Use item on self
+- **use_item_on_self**: Use item on self (D-pad Right)
+- **use_item_on_scene**: Use item on scene/target (D-pad Left)
+- **use_active_item_on_self**: Use cursor-selected item on self
+- **use_active_item_on_scene**: Use cursor-selected item on scene
 - **save_hand_item**: Save held item to cache
 - **restore_hand_item**: Restore cached item to hand
 
@@ -160,10 +183,26 @@ Use virtual cursor on the map screen to quickly navigate to target locations:
 
 - **craft_item**: Craft specified item
 
-### Character
+### System
 
-- **start_channeling**: Start channeling (Wanda)
-- **stop_channeling**: Stop channeling
+- **trigger_key**: Trigger keyboard key
+- **enable_virtual_cursor**: Enable virtual cursor
+- **disable_virtual_cursor**: Disable virtual cursor
+
+### ⏱️ Auto-Delay System
+
+Equipment/item actions automatically wait **0.3 seconds** before the next action, ensuring state sync in multiplayer.
+
+**Actions with auto-delay**:
+- Equipment: `equip_item`, `unequip_item`, `cycle_*`, `swap_*_last`, `restore_*_item`
+- Item usage: `use_item_on_self`, `use_item_on_scene`, `use_active_item_*`, `use_equip`
+
+**Example config** (no manual delay needed):
+```
+on_press: save_hand_item → equip_item(lighter) → use_item_on_scene(lighter)
+on_release: use_item_on_scene(lighter) → restore_hand_item
+```
+The system automatically adds 0.3s delay between `equip_item` and `use_item_on_scene`.
 
 ## 📦 Installation
 
@@ -283,7 +322,7 @@ Configuration saved to: `client_save/enhanced_controller_config.json`
 
 ## 🔧 Development Info
 
-- **Version**: 2.2.1
+- **Version**: 2.3.0
 - **Author**: feichao
 - **API Version**: 10
 - **Compatibility**: Don't Starve Together
@@ -359,11 +398,23 @@ A: Path visualization only shows when the map is open. After closing the map, th
 
 ## 📝 Changelog
 
-### v2.2.1 (2025-01-XX)
+### v2.3.0
+- ✨ Added Wormhole Tracking System
+  - Auto-record wormhole pair connections
+  - Display pair numbers on map
+  - Persistent storage (separate for each world)
+- ✨ Added auto-delay system between actions (0.3s), ensuring multiplayer state sync
+- ✨ `FindItemByName` now also searches equipped slots (HANDS/HEAD/BODY)
+- 🔧 Removed `start_channeling` and `stop_channeling` actions
+  - Use `equip_item` + `use_item_on_scene` combo instead
+  - System handles delay automatically
+- 🔧 Improved item action multiplayer compatibility
+
+### v2.2.1
 - 🔧 Improved spider creep detection using native `GroundCreep:OnCreep()` API
 - 🔧 Updated terrain costs based on official DST speed modifiers
 
-### v2.2.0 (2025-01-XX)
+### v2.2.0
 - ✨ Switched pathfinding to Dijkstra algorithm with terrain cost awareness
 - ✨ Added terrain-based path optimization:
   - Roads prioritized (+30% speed bonus)
@@ -374,7 +425,7 @@ A: Path visualization only shows when the map is open. After closing the map, th
 - 🔧 Fixed player movement using `RemoteDirectWalking`/`RemoteStopWalking`
 - 🔧 Added pause detection for stuck checking
 
-### v2.1.0 (2025-01-XX)
+### v2.1.0
 - ✨ Added map auto-pathfinding feature
   - Virtual cursor click on map to start pathfinding
   - Hybrid pathfinding algorithm (A* + direct walk)
@@ -389,7 +440,7 @@ A: Path visualization only shows when the map is open. After closing the map, th
   - Left Stick for map panning
 - 🐛 Fixed multiple issues with virtual cursor mode
 
-### v2.0.0 (2025-01-XX)
+### v2.0.0
 
 - ✨ Added in-game configuration UI
 - ✨ Added virtual cursor system
