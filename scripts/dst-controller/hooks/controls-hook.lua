@@ -32,14 +32,28 @@ local function HookOnUpdate(self)
            controls.craftingmenu:IsCraftingOpen() or controls.spellwheel:IsOpen()
 
         -- ===== Handle alternative target hint =====
+        -- Validate alternative_target is still valid before using
+        if alternative_target and not alternative_target:IsValid() then
+            alternative_target = nil
+        end
+
         if not alternative_target or menus_open then
             -- Hide alternative hint if no alternative target or menus open
             if controls.alternative_actionhint then
                 controls.alternative_actionhint:Hide()
             end
         else
-            -- Get alternative target action
-            local _, alt_rmb = controller:GetSceneItemControllerAction(alternative_target)
+            -- Get alternative target action (wrapped in pcall to handle edge cases)
+            local ok, _, alt_rmb = pcall(function()
+                return controller:GetSceneItemControllerAction(alternative_target)
+            end)
+            if not ok then
+                -- Target may have become invalid, skip
+                if controls.alternative_actionhint then
+                    controls.alternative_actionhint:Hide()
+                end
+                return
+            end
             if not alt_rmb then
                 if controls.alternative_actionhint then
                     controls.alternative_actionhint:Hide()
@@ -73,7 +87,11 @@ local function HookOnUpdate(self)
             end
         end
         
-        local examine_target = controller.controller_examine_target ~= nil and controller.controller_examine_target:HasTag("inspectable") and controller.controller_examine_target or nil
+        -- Validate examine_target
+        local examine_target = controller.controller_examine_target
+        if examine_target and (not examine_target:IsValid() or not examine_target:HasTag("inspectable")) then
+            examine_target = nil
+        end
 
         -- ===== Handle examine target hint =====
         if menus_open or not examine_target then
