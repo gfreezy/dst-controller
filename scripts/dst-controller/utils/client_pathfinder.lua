@@ -282,6 +282,29 @@ local function IsDiagonalPassable(from_gx, from_gz, dx, dz)
 end
 
 -- ============================================================================
+-- 直线寻路（用于幽灵/死亡状态，无障碍物，无距离限制）
+-- ============================================================================
+
+local function StraightLinePathfind(start_x, start_z, end_x, end_z)
+    print(string.format("[StraightLine] Direct path from (%.1f, %.1f) to (%.1f, %.1f)",
+        start_x, start_z, end_x, end_z))
+
+    -- 只返回终点，让角色直线行走
+    return {
+        {x = end_x, z = end_z}
+    }
+end
+
+-- 检查玩家是否是幽灵（死亡状态）
+local function IsPlayerGhost()
+    local player = G.ThePlayer
+    if not player or not player:IsValid() then
+        return false
+    end
+    return player:HasTag("playerghost")
+end
+
+-- ============================================================================
 -- Dijkstra 寻路算法
 -- ============================================================================
 
@@ -531,12 +554,14 @@ local function MoveToNextWaypoint()
         return MoveToNextWaypoint()
     end
 
-    -- 检查是否卡住（跳过游戏暂停时的检测）
+    -- 检查是否卡住（跳过游戏暂停时和幽灵状态的检测）
+    -- 幽灵可以穿越任何障碍物，不需要卡住检测
     local is_paused = false
     if G.TheNet and G.TheNet.GetServerIsPaused then
         is_paused = G.TheNet:GetServerIsPaused()
     end
-    if not is_paused and pathfinding_state.last_position then
+    local is_ghost = IsPlayerGhost()
+    if not is_paused and not is_ghost and pathfinding_state.last_position then
         local last_dx = player_pos.x - pathfinding_state.last_position.x
         local last_dz = player_pos.z - pathfinding_state.last_position.z
         local moved_dist = math.sqrt(last_dx * last_dx + last_dz * last_dz)
@@ -551,8 +576,8 @@ local function MoveToNextWaypoint()
         else
             pathfinding_state.stuck_counter = 0
         end
-    elseif is_paused then
-        -- 游戏暂停时重置卡住计数器
+    elseif is_paused or is_ghost then
+        -- 游戏暂停或幽灵状态时重置卡住计数器
         pathfinding_state.stuck_counter = 0
     end
 
@@ -618,8 +643,15 @@ function ClientPathfinder.Start(target_x, target_z)
     print(string.format("[ClientPathfinder] Starting pathfind from (%.1f, %.1f) to (%.1f, %.1f)",
         player_pos.x, player_pos.z, target_x, target_z))
 
-    -- 使用 Dijkstra 算法生成路径
-    local path = DijkstraPathfind(player_pos.x, player_pos.z, target_x, target_z)
+    -- 检查是否是幽灵状态，幽灵使用直线寻路（无障碍物，无距离限制）
+    local path
+    if IsPlayerGhost() then
+        print("[ClientPathfinder] Player is ghost, using straight line pathfinding")
+        path = StraightLinePathfind(player_pos.x, player_pos.z, target_x, target_z)
+    else
+        -- 使用 Dijkstra 算法生成路径
+        path = DijkstraPathfind(player_pos.x, player_pos.z, target_x, target_z)
+    end
     if not path or #path == 0 then
         print("[ClientPathfinder] Failed to generate path")
         return false
