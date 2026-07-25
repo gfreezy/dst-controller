@@ -1,24 +1,30 @@
 -- Enhanced Controller - Inspection Actions
 -- Examine and inspect actions
 
-local G = require("dst-controller/global")
-
 local InspectionActions = {}
 
 -- Examine/inspect target using controller targeting
 function InspectionActions.examine(player)
-    if not player.components.playercontroller then
+    local controller = player.components.playercontroller
+    if not controller then
         print("[Enhanced Controller] Error: No playercontroller component")
         return
     end
 
-    -- Use controller_target (for interactable objects) or controller_attack_target (for entities)
-    local target = player.components.playercontroller.controller_target or
-                   player.components.playercontroller.controller_attack_target
+    -- Prefer the mod's dedicated examine target, then fall back to native targets.
+    local target = controller.GetControllerExamineTarget ~= nil and
+                   controller:GetControllerExamineTarget() or
+                   controller:GetControllerTarget() or
+                   controller:GetControllerAttackTarget()
 
     if target then
-        local action = G.BufferedAction(player, target, G.ACTIONS.LOOKAT)
-        player.components.playercontroller:DoAction(action)
+        -- DoInspectButton installs the preview/RPC callbacks required by client
+        -- movement prediction. Calling DoAction on a bare LOOKAT BufferedAction
+        -- leaves preview_cb nil and crashes in RemoteBufferedAction.
+        local original_target = controller.controller_target
+        controller.controller_target = target
+        controller:DoInspectButton()
+        controller.controller_target = original_target
         print("[Enhanced Controller] Action: Examine (Controller)")
     else
         print("[Enhanced Controller] Examine: No target available")

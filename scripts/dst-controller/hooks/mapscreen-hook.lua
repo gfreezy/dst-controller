@@ -227,6 +227,14 @@ function MapScreenHook.Install()
                     end
                 end
             end
+
+            -- 全地图在联机模式下不会暂停世界。自动寻路移动玩家时，MiniMap 的
+            -- 世界坐标转换会随玩家位置变化，因此世界锚定的自定义装饰必须逐帧
+            -- 重新换算，否则终点和路径会相对底图漂移。
+            if ClientPathfinder.IsActive() then
+                MapPathDrawer.UpdateDecorations()
+                WormholeMapVisualizer.UpdateDecorations()
+            end
         end
 
         -- Hook OnControl - 检测虚拟光标点击启动寻路

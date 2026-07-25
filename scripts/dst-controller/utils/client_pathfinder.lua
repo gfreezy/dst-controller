@@ -591,11 +591,20 @@ local function MoveToNextWaypoint()
     local dir_x = dx / dist
     local dir_z = dz / dist
 
-    -- 使用 RemoteDirectWalking 发送方向行走指令到服务器
-    if controller.RemoteDirectWalking then
+    -- 开启移动预测时，必须驱动本地 locomotor。只发送 RemoteDirectWalking
+    -- 会让服务器移动角色，但客户端状态机仍停在 idle，看起来像“飘着走”。
+    if controller.locomotor ~= nil then
+        if controller:CanLocomote() then
+            player:ClearBufferedAction()
+            controller:CooldownRemoteController()
+            controller.locomotor:SetBufferedAction(nil)
+            controller.locomotor:RunInDirection(-math.atan2(dir_z, dir_x) / G.DEGREES)
+        end
+    elseif controller.RemoteDirectWalking then
+        -- 未开启客户端移动预测时，由服务器直接驱动移动。
         controller:RemoteDirectWalking(dir_x, dir_z)
     else
-        print("[ClientPathfinder] Warning: RemoteDirectWalking not available")
+        print("[ClientPathfinder] Warning: No walking method available")
     end
 
     return true
@@ -690,8 +699,13 @@ function ClientPathfinder.Stop()
     if was_active and G.ThePlayer and G.ThePlayer:IsValid() then
         local controller = G.ThePlayer.components.playercontroller
         if controller then
-            -- 使用 RemoteStopWalking 停止行走
-            if controller.RemoteStopWalking then
+            if controller.locomotor ~= nil then
+                -- 与预测移动的启动方式配对，触发本地 idle 状态并由
+                -- PlayerController:DoPredictWalking 同步停止位置。
+                if controller:CanLocomote() then
+                    controller.locomotor:Stop()
+                end
+            elseif controller.RemoteStopWalking then
                 controller:RemoteStopWalking()
                 print("[ClientPathfinder] Called RemoteStopWalking")
             end

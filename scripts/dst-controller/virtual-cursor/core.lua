@@ -9,9 +9,13 @@ local ActionHelpers = require("dst-controller/actions/helpers")
 local VirtualCursor = {}
 
 -- Constants (inspired by dst-mod khy_fs.lua)
-local BASE_SPEED_DIVISOR = 33  -- Used to calculate base speed from screen resolution
+local BASE_SPEED_DIVISOR = 80  -- Longest screen edge / divisor = pixels per frame at 60fps
 local SPEED_RATE_DEFAULT = 9  -- Default speed multiplier (9/10 = 0.9)
 local DEAD_ZONE_DEFAULT = 0.2  -- Default dead zone threshold (20%)
+local MAGNETISM_IDLE_DELAY = 0.08
+local MAGNETISM_APPROACH_RATE = 12
+local MAGNETISM_SNAP_DISTANCE = 6
+local MAGNETISM_WORLD_RANGES = {1.25, 2.5, 4}
 
 -- Scene-specific speed multipliers
 local SPEED_MULTIPLIERS = {
@@ -48,8 +52,7 @@ local STATE = {
 
     -- Magnetism state
     tracking_target = nil,  -- Current magnetism target entity
-    clear_target_wait_time = nil,  -- Delay before clearing target
-    idle_state = false,  -- Whether stick is idle (magnitude < 0.5)
+    idle_state = false,  -- Whether the stick is inside the configured dead zone
     idle_wait_time = 0,  -- Time since stick became idle
 }
 
@@ -69,7 +72,7 @@ local function GetConfig()
         show_cursor = config.show_cursor ~= false,  -- Default true
         -- Magnetism settings
         cursor_magnetism = config.cursor_magnetism ~= false,  -- Default true
-        magnetism_range = math.max(1, math.min(3, config.magnetism_range or 2)),  -- Clamp 1-3, default 2
+        magnetism_range = math.floor(math.max(1, math.min(3, config.magnetism_range or 2)) + 0.5),
         target_priority = config.target_priority == true,  -- Default false
     }
 end
@@ -141,15 +144,12 @@ local function UninstallTheSimHook()
 end
 
 
--- Calculate base cursor speed from screen resolution
--- Formula: |width - height| / BASE_SPEED_DIVISOR
--- This makes speed adaptive to screen size (inspired by dst-mod)
+-- Calculate base cursor speed from screen resolution.
+-- Use the longest edge so square/ultrawide aspect ratios do not produce
+-- unexpectedly slow (or even zero) movement.
 local function CalculateBaseCursorSpeed()
     local w, h = G.TheSim:GetScreenSize()
-    -- Use absolute difference between width and height
-    -- For 1920x1080: |1920-1080|/33 ≈ 25.45 pixels/frame
-    -- For 2560x1440: |2560-1440|/33 ≈ 33.94 pixels/frame
-    STATE.base_cursor_speed = math.abs(w - h) / BASE_SPEED_DIVISOR
+    STATE.base_cursor_speed = math.max(w, h) / BASE_SPEED_DIVISOR
     print(string.format("[VirtualCursor] Base speed calculated: %.2f pixels/frame (screen: %dx%d)",
         STATE.base_cursor_speed, w, h))
 end
@@ -164,6 +164,11 @@ local function InitializeCursorPosition()
         local w, h = G.TheSim:GetScreenSize()
         STATE.cursor_screen_pos.x = w / 2
         STATE.cursor_screen_pos.y = h / 2
+        STATE.current_speed_multiplier = SPEED_MULTIPLIERS.NORMAL
+        STATE.target_speed_multiplier = SPEED_MULTIPLIERS.NORMAL
+        STATE.tracking_target = nil
+        STATE.idle_state = false
+        STATE.idle_wait_time = 0
 
         -- Project to world position
         local x, y, z = G.TheSim:ProjectScreenPos(w / 2, h / 2)
@@ -301,6 +306,9 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         -- Reset button states
         STATE.button_states.primary = false
         STATE.button_states.secondary = false
+        STATE.tracking_target = nil
+        STATE.idle_state = false
+        STATE.idle_wait_time = 0
 
         -- Reset auto_activated flag
         STATE.auto_activated = false
@@ -435,7 +443,10 @@ function VirtualCursor.GetScreenPointFromEntity(entity)
     local screen_x, screen_y = G.TheSim:GetScreenPos(x, y, z)
 
     if screen_x and screen_y then
-        return {x = screen_x, y = screen_y}
+        local screen_w, screen_h = G.TheSim:GetScreenSize()
+        if screen_x >= 0 and screen_x <= screen_w and screen_y >= 0 and screen_y <= screen_h then
+            return {x = screen_x, y = screen_y}
+        end
     end
 
     return nil
@@ -446,29 +457,35 @@ end
 function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, current_screen_y)
     local config = GetConfig()
 
-    -- Check if magnetism is enabled
-    if not config.cursor_magnetism then
+    -- Magnetism targets world entities. It must not run on the full-map screen,
+    -- where ProjectScreenPos refers to the world camera behind the map.
+    local active_screen = G.TheFrontEnd and G.TheFrontEnd:GetActiveScreen() or nil
+    local magnetism_blocked = active_screen ~= nil and active_screen.name == "MapScreen"
+
+    if not config.cursor_magnetism or magnetism_blocked or STATE.is_hovering_ui or not G.ThePlayer then
+        STATE.tracking_target = nil
+        STATE.idle_state = false
+        STATE.idle_wait_time = 0
         return nil
     end
 
-    -- Only apply magnetism when idle (stick magnitude < 0.5)
+    -- Any deliberate stick input releases the target immediately. The previous
+    -- < 0.5 threshold caused magnetism to fight slow, precise movement.
     if not is_idle then
-        -- Not idle: clear target with delay
-        if STATE.tracking_target then
-            if not STATE.clear_target_wait_time then
-                STATE.clear_target_wait_time = 0.125  -- 0.125 second delay
-            elseif STATE.clear_target_wait_time > 0 then
-                STATE.clear_target_wait_time = STATE.clear_target_wait_time - dt
-            else
-                STATE.tracking_target = nil
-                STATE.clear_target_wait_time = nil
-            end
-        end
+        STATE.tracking_target = nil
+        STATE.idle_state = false
+        STATE.idle_wait_time = 0
         return nil
     end
 
-    -- Reset clear delay
-    STATE.clear_target_wait_time = nil
+    if not STATE.idle_state then
+        STATE.idle_state = true
+        STATE.idle_wait_time = 0
+    end
+    STATE.idle_wait_time = STATE.idle_wait_time + dt
+    if STATE.idle_wait_time < MAGNETISM_IDLE_DELAY then
+        return nil
+    end
 
     -- ===== Step 1: Determine search center and radius =====
     local search_center
@@ -477,18 +494,23 @@ function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, curr
     if config.target_priority then
         -- Priority mode: search around player
         search_center = G.Vector3(G.ThePlayer.Transform:GetWorldPosition())
-        search_radius = 30  -- Large radius around player
+        search_radius = config.magnetism_range * 10
     else
         -- Normal mode: search around cursor
         local world_x, world_y, world_z = G.TheSim:ProjectScreenPos(current_screen_x, current_screen_y)
-        search_center = G.Vector3(world_x, world_y, world_z)
+        if not world_x or not world_z then
+            STATE.tracking_target = nil
+            return nil
+        end
+        search_center = G.Vector3(world_x, world_y or 0, world_z)
 
-        -- Calculate radius based on magnetism_range (1=0, 2=0.8, 3=1.6)
-        search_radius = (config.magnetism_range - 1) * 0.8
+        -- Short/medium/long must all be usable. The old short range was zero,
+        -- which effectively disabled target acquisition.
+        search_radius = MAGNETISM_WORLD_RANGES[config.magnetism_range]
 
-        -- If already tracking, use minimum radius of 2
-        if STATE.tracking_target and search_radius < 2 then
-            search_radius = 2
+        -- A slightly larger release radius prevents flicker at the boundary.
+        if STATE.tracking_target then
+            search_radius = search_radius * 1.35
         end
     end
 
@@ -533,16 +555,19 @@ function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, curr
 
     -- ===== Step 4: Calculate magnetism position =====
     if new_target and screen_pos and dist_sq then
-        if dist_sq < 0.45 then
-            -- Very close: snap directly to target
+        local screen_dx = screen_pos.x - current_screen_x
+        local screen_dy = screen_pos.y - current_screen_y
+        local screen_dist_sq = screen_dx * screen_dx + screen_dy * screen_dy
+
+        if screen_dist_sq <= MAGNETISM_SNAP_DISTANCE * MAGNETISM_SNAP_DISTANCE then
             return {x = screen_pos.x, y = screen_pos.y}
         else
-            -- Far: smooth approach (渐进吸附)
-            local move_factor = dist_sq / 6  -- Slower movement for farther targets
+            -- Frame-rate independent exponential approach.
+            local alpha = 1 - math.exp(-MAGNETISM_APPROACH_RATE * dt)
 
             return {
-                x = current_screen_x + (screen_pos.x - current_screen_x) / dist_sq * move_factor,
-                y = current_screen_y + (screen_pos.y - current_screen_y) / dist_sq * move_factor
+                x = current_screen_x + screen_dx * alpha,
+                y = current_screen_y + screen_dy * alpha
             }
         end
     end
@@ -556,70 +581,52 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
         return
     end
 
-    -- ===== Step 1: Get stick input values =====
-    -- stick_x, stick_y are already in range [-1, 1] from analog controls
-    local abs_x = math.abs(stick_x)
-    local abs_y = math.abs(stick_y)
-
     local config = GetConfig()
     local dead_zone = config.dead_zone or DEAD_ZONE_DEFAULT
 
-    -- ===== Step 2: Apply dead zone filtering =====
-    -- Early return if both axes are in dead zone
-    if abs_x < dead_zone and abs_y < dead_zone then
-        return
+    -- Apply a radial dead zone and remap the remaining magnitude to [0, 1].
+    -- This gives equal speed on cardinal and diagonal movement and preserves
+    -- precise low-speed control without squaring the stick input.
+    local raw_magnitude = math.sqrt(stick_x * stick_x + stick_y * stick_y)
+    local is_idle = raw_magnitude <= dead_zone
+    local direction_x, direction_y, stick_intensity = 0, 0, 0
+    if not is_idle then
+        local clamped_magnitude = math.min(1, raw_magnitude)
+        direction_x = stick_x / raw_magnitude
+        direction_y = stick_y / raw_magnitude
+        stick_intensity = (clamped_magnitude - dead_zone) / math.max(0.001, 1 - dead_zone)
     end
 
-    -- Apply dead zone to each axis independently
-    if abs_x < dead_zone then stick_x = 0 end
-    if abs_y < dead_zone then stick_y = 0 end
-
-    -- Recalculate absolute values after dead zone
-    abs_x = math.abs(stick_x)
-    abs_y = math.abs(stick_y)
-
-    -- ===== Step 3: Calculate stick intensity (0-1) =====
-    -- Use sum of absolute values, clamped to 1.0 (dst-mod style)
-    local stick_intensity = math.min(1.0, abs_x + abs_y)
-
-    -- ===== Step 4: Get adjusted speed based on scene context =====
-    local adjusted_speed = GetAdjustedCursorSpeed(dt, config)
-
-    -- Convert to pixels per second (multiply by 60 to simulate 60fps)
-    local speed_per_second = adjusted_speed * 60
-
-    -- ===== Step 5: Calculate displacement for this frame =====
-    -- delta = direction × speed × intensity × dt
-    local delta_x = stick_x * speed_per_second * stick_intensity * dt
-    local delta_y = stick_y * speed_per_second * stick_intensity * dt
-
-    -- ===== Step 6: Store old position =====
     local old_x = STATE.cursor_screen_pos.x
     local old_y = STATE.cursor_screen_pos.y
+    local new_x = old_x
+    local new_y = old_y
 
-    -- ===== Step 7: Calculate new position with floor() for pixel precision =====
-    local new_x = math.floor(abs_x > 0 and old_x + delta_x or old_x)
-    local new_y = math.floor(abs_y > 0 and old_y + delta_y or old_y)
-
-    -- ===== Step 7.5: Apply magnetism (if enabled and stick is idle) =====
-    local is_idle = stick_intensity < 0.5
-    local magnetism_pos = VirtualCursor.UpdateMagnetismCursor(dt, is_idle, new_x, new_y)
-    if magnetism_pos then
-        new_x = math.floor(magnetism_pos.x)
-        new_y = math.floor(magnetism_pos.y)
+    if not is_idle then
+        local adjusted_speed = GetAdjustedCursorSpeed(dt, config)
+        local speed_per_second = adjusted_speed * 60
+        new_x = old_x + direction_x * speed_per_second * stick_intensity * dt
+        new_y = old_y + direction_y * speed_per_second * stick_intensity * dt
     end
 
-    -- ===== Step 8: Clamp to screen bounds =====
+    -- Run this even when the stick is fully released. The previous early return
+    -- made true idle magnetism impossible and only activated it during a light push.
+    local magnetism_pos = VirtualCursor.UpdateMagnetismCursor(dt, is_idle, new_x, new_y)
+    if magnetism_pos then
+        new_x = magnetism_pos.x
+        new_y = magnetism_pos.y
+    end
+
+    -- Keep sub-pixel state. floor() caused low-speed movement to stall toward
+    -- positive axes while moving one pixel per frame toward negative axes.
     local screen_w, screen_h = G.TheSim:GetScreenSize()
     new_x = math.max(0, math.min(screen_w, new_x))
     new_y = math.max(0, math.min(screen_h, new_y))
 
-    -- ===== Step 9: Update position if changed =====
     if new_x ~= old_x or new_y ~= old_y then
         STATE.cursor_screen_pos.x = new_x
         STATE.cursor_screen_pos.y = new_y
 
-        -- ===== Step 10: Trigger input events for hover detection =====
         if G.TheInput and G.TheInput.OnMouseMove then
             G.TheInput:OnMouseMove(new_x, new_y)
         end
@@ -628,7 +635,6 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
             G.TheInput:UpdatePosition(new_x, new_y)
         end
 
-        -- ===== Step 11: Update world position and hover state =====
         VirtualCursor.UpdateWorldPosition()
         VirtualCursor.UpdateHoverState()
     end
