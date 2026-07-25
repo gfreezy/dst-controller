@@ -4,6 +4,7 @@
 local G = require("dst-controller/global")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local CursorWidget = require("dst-controller/virtual-cursor/cursor_widget")
+local ActionQueueIntegration = require("dst-controller/integrations/actionqueue")
 
 local TheFrontEndHook = {}
 
@@ -28,6 +29,7 @@ function TheFrontEndHook.Install()
         self.Update = function(self, dt)
             -- 更新虚拟光标（如果启用）
             VirtualCursor.OnUpdate(self, dt)
+            ActionQueueIntegration.OnUpdate()
 
             -- 调用原方法
             return old_Update(self, dt)
@@ -39,6 +41,13 @@ function TheFrontEndHook.Install()
         self.OnControl = function(self, control, down)
             -- 处理虚拟光标模式切换
             if VirtualCursor.ToggleOnControl(control, down) then
+                ActionQueueIntegration.OnCursorModeChanged(VirtualCursor.IsCursorModeActive())
+                return true
+            end
+
+            -- ActionQueue must run before normal virtual mouse clicks so a
+            -- captured selection is not also sent to the game as a click.
+            if ActionQueueIntegration.OnControl(control, down) then
                 return true
             end
 

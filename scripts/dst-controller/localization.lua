@@ -38,6 +38,7 @@ local STRINGS_TABLE = {
         SETTING_CURSOR_MAGNETISM = "Cursor Snap Enable",
         SETTING_MAGNETISM_RANGE = "Snap Range",
         SETTING_TARGET_PRIORITY = "Snap Priority",
+        SETTING_ACTIONQUEUE_INTEGRATION = "ActionQueue Controller",
 
         -- 设置项选项
         OPT_FORWARD_ONLY = "Forward Only",
@@ -157,6 +158,7 @@ local STRINGS_TABLE = {
         SETTING_CURSOR_MAGNETISM = "光标磁吸启用",
         SETTING_MAGNETISM_RANGE = "磁吸范围",
         SETTING_TARGET_PRIORITY = "磁吸优先级",
+        SETTING_ACTIONQUEUE_INTEGRATION = "ActionQueue 手柄适配",
 
         -- 设置项选项
         OPT_FORWARD_ONLY = "仅前方",

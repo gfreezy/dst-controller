@@ -11,9 +11,17 @@ local ACTIONS = require("dst-controller/actions/init")
 local TargetSelection = require("dst-controller/target-selection/core")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
-local debugtools = require("debugtools")
 
 local PlayerControllerHook = {}
+
+local function IsUsableControllerTarget(controller, target)
+    return target ~= nil and
+        target:IsValid() and
+        not target:HasTag("INLIMBO") and
+        not target:HasTag("NOCLICK") and
+        target.entity:IsVisible() and
+        G.CanEntitySeeTarget(controller.inst, target)
+end
 
 -- Hook: UpdateControllerTargets (override)
 local function InstallUpdateControllerTargets(self)
@@ -23,11 +31,49 @@ local function InstallUpdateControllerTargets(self)
     end
 
     self.GetControllerAlternativeTarget = function(self)
-        return self.controller_alternative_target
+        local target = self.controller_alternative_target
+        return IsUsableControllerTarget(self, target) and target or nil
     end
 
     self.GetControllerExamineTarget = function(self)
-        return self.controller_examine_target
+        local target = self.controller_examine_target
+        return IsUsableControllerTarget(self, target) and target or nil
+    end
+
+    self.GetControllerItemUseTarget = function(self)
+        local target = self.controller_item_use_target
+        return IsUsableControllerTarget(self, target) and target or nil
+    end
+end
+
+-- Hook: GetItemUseAction (wrap)
+-- Inventory world-use actions use their own target pool instead of borrowing
+-- the A-button target. Calls that pass an explicit target keep native behavior.
+local function InstallGetItemUseAction(self)
+    local old_GetItemUseAction = self.GetItemUseAction
+
+    self.GetItemUseAction = function(self, active_item, target)
+        if target ~= nil then
+            return old_GetItemUseAction(self, active_item, target)
+        end
+
+        local cursor_item = self:GetCursorInventoryObject()
+        local item_target = self:GetControllerItemUseTarget()
+        if active_item ~= nil and
+            active_item == cursor_item and
+            active_item == self.controller_item_use_source and
+            item_target ~= nil and
+            not item_target:HasTag("INLIMBO") and
+            not item_target:HasTag("NOCLICK") then
+            -- Re-resolve the action at press/render time. If the target stopped
+            -- accepting the item, fall back to the native shared-target path.
+            local action = old_GetItemUseAction(self, active_item, item_target)
+            if action ~= nil and action.target == item_target then
+                return action
+            end
+        end
+
+        return old_GetItemUseAction(self, active_item, nil)
     end
 end
 
@@ -51,7 +97,6 @@ local function InstallOnControl(self)
                 control == G.CONTROL_CONTROLLER_ACTION  -- 手柄 A 键
             )
             if is_move_control then
-                print("[PlayerControllerHook] User movement detected, stopping pathfinding")
                 ClientPathfinder.Stop()
             end
         end
@@ -62,7 +107,6 @@ local function InstallOnControl(self)
             control,
             down,
             function(p, action_list)
-                print("[PlayerControllerHook] Handling button combination: " .. control, "action_list: " .. table.inspect(action_list))
                 ActionExecutor.ExecuteTaskActions(p, action_list, ACTIONS)
             end
         )
@@ -81,10 +125,11 @@ local function InstallOnControl(self)
 
         -- Handle B button (CONTROL_CONTROLLER_ALTACTION) for alternative_target
         if control == G.CONTROL_CONTROLLER_ALTACTION then
-            if self.controller_alternative_target ~= nil then
+            local alternative_target = self:GetControllerAlternativeTarget()
+            if alternative_target ~= nil then
                 -- 临时替换 controller_target 为 alternative_target
                 local original_target = self.controller_target
-                self.controller_target = self.controller_alternative_target
+                self.controller_target = alternative_target
 
                 -- 调用原方法处理 B 键
                 local result = old_OnControl(self, control, down)
@@ -98,10 +143,11 @@ local function InstallOnControl(self)
 
         -- Handle Y button (CONTROL_INSPECT) for examine_target
         if control == G.CONTROL_INSPECT and down then
-            if self.controller_examine_target ~= nil then
+            local examine_target = self:GetControllerExamineTarget()
+            if examine_target ~= nil then
                 -- 临时替换 controller_target 为 examine_target
                 local original_target = self.controller_target
-                self.controller_target = self.controller_examine_target
+                self.controller_target = examine_target
 
                 -- 调用原方法处理 Y 键
                 local result = old_OnControl(self, control, down)
@@ -194,6 +240,7 @@ function PlayerControllerHook.Install()
 
         -- Install all method hooks
         InstallUpdateControllerTargets(self)
+        InstallGetItemUseAction(self)
         InstallOnControl(self)
         InstallIsEnabled(self)
         InstallUsingMouse(self)

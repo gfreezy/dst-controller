@@ -9,6 +9,7 @@
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
 local ConfigManager = require("dst-controller/utils/config_manager")
+local TargetPolicy = require("dst-controller/target-selection/policy")
 
 local TargetSelection = {}
 
@@ -92,6 +93,24 @@ local function IsHostileTarget(target, player)
     end
 
     return false
+end
+
+local function ClearItemUseTarget(controller)
+    controller.controller_item_use_target = nil
+    controller.controller_item_use_target_pending = nil
+    controller.controller_item_use_target_age = 0
+    controller.controller_item_use_scan_age = 0
+    controller.controller_item_use_source = nil
+end
+
+local function ClearSecondaryInteractionTargets(controller)
+    controller.controller_alternative_target = nil
+    controller.controller_alternative_target_pending = nil
+    controller.controller_alternative_target_age = 0
+    controller.controller_examine_target = nil
+    controller.controller_examine_target_pending = nil
+    controller.controller_examine_target_age = 0
+    ClearItemUseTarget(controller)
 end
 
 -- ============================================================================
@@ -383,6 +402,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 	local attack_target = self:GetControllerAttackTarget()
 	if self.controller_targeting_lock_target and attack_target then
 		self.controller_target = attack_target
+		self.controller_target_has_rmb = false
+		ClearSecondaryInteractionTargets(self)
 		return
 	end
 
@@ -390,6 +411,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 	if self.placer ~= nil or (self.deployplacer ~= nil and self.deploy_mode) or self.inst:HasTag("usingmagiciantool") then
         self.controller_target = nil
         self.controller_target_age = 0
+        self.controller_target_has_rmb = false
+        ClearSecondaryInteractionTargets(self)
         return
     end
 
@@ -401,14 +424,40 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
             not G.CanEntitySeeTarget(self.inst, self.controller_target)) then
         -- "FX" 和 "DECOR" 标签永远不会改变，可以安全跳过检查
         self.controller_target = nil
+        self.controller_target_has_rmb = false
         -- 目标失效，但不重置 age（保留闪烁防护）
     end
 
-    -- ========== 第二步：目标闪烁防护 ==========
-    self.controller_target_age = self.controller_target_age + dt
-    if self.controller_target_age < 0.2 then
-        -- 0.2秒内不更换目标，防止闪烁
-        return
+    -- 光标物品改变代表玩家切换了操作意图。立即清空旧物品目标，
+    -- 让新物品的第一个“对场景使用”按键可以直接命中正确目标。
+    local cursor_item = self:GetCursorInventoryObject()
+    local cursor_item_changed = cursor_item ~= self.controller_item_use_source
+    if cursor_item_changed then
+        self.controller_item_use_source = cursor_item
+        self.controller_item_use_target = nil
+        self.controller_item_use_target_pending = nil
+        self.controller_item_use_target_age = 0
+        self.controller_item_use_scan_age = TargetPolicy.ITEM_USE_TARGET_SCAN_INTERVAL
+    end
+
+    -- 主目标仍保留原来的防闪烁冷却，但不能让它阻塞副目标、检查目标
+    -- 和光标物品目标的更新。
+    self.controller_target_age = (self.controller_target_age or math.huge) + dt
+    local can_update_primary_target = self.controller_target_age >= 0.2 or cursor_item_changed
+
+    -- 物品动作查询开销较大，独立限制为 10Hz。实际按键时还会重新解析，
+    -- 因此这里只缓存候选，不缓存最终动作。
+    local item_use_scan_dt = 0
+    local should_scan_item_use = false
+    if cursor_item ~= nil then
+        self.controller_item_use_scan_age = (self.controller_item_use_scan_age or TargetPolicy.ITEM_USE_TARGET_SCAN_INTERVAL) + dt
+        if self.controller_item_use_scan_age >= TargetPolicy.ITEM_USE_TARGET_SCAN_INTERVAL then
+            should_scan_item_use = true
+            item_use_scan_dt = self.controller_item_use_scan_age
+            self.controller_item_use_scan_age = 0
+        end
+    elseif self.controller_item_use_target ~= nil then
+        ClearItemUseTarget(self)
     end
 
     -- ========== 第三步：特殊模式检查 ==========
@@ -421,6 +470,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                 self.controller_target = target
                 self.controller_target_age = 0
             end
+            self.controller_target_has_rmb = false
+            ClearSecondaryInteractionTargets(self)
             return
         end
     end
@@ -434,6 +485,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
             self.controller_target = self.controller_attack_target
             self.controller_target_age = 0
         end
+        self.controller_target_has_rmb = false
+        ClearSecondaryInteractionTargets(self)
         return
     end
 
@@ -459,8 +512,9 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     local rad_sq = rad * rad + 0.1  -- 允许小误差
 
     -- ========== 第五步：查找附近实体 ==========
-    -- 钓鱼时使用 max_rad，否则使用动态 rad
-    local nearby_ents = G.TheSim:FindEntities(x, y, z, fishing and max_rad or rad, nil, TARGET_EXCLUDE_TAGS)
+    -- 仅在物品扫描到期时扩展到完整范围；其余帧维持原场景搜索半径。
+    local search_rad = (fishing or should_scan_item_use) and max_rad or rad
+    local nearby_ents = G.TheSim:FindEntities(x, y, z, search_rad, nil, TARGET_EXCLUDE_TAGS)
     if self.controller_target ~= nil then
         -- 如果已有目标，插到列表最前面，确保只处理一次
         table.insert(nearby_ents, 1, self.controller_target)
@@ -472,6 +526,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     local target_has_rmb = false  -- 记录主目标是否有副动作
     local alternative_target = nil
     local alternative_target_score = 0
+    local item_use_target = nil
+    local item_use_target_score = 0
     local inspect_target = nil
     local inspect_target_score = 0
 
@@ -532,7 +588,10 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                     end
                 end
 
-                if in_range and G.CanEntitySeePoint(self.inst, x1, y1, z1) then  -- 在范围内且可见
+                -- 物品使用目标拥有独立搜索范围，不受当前主目标的动态半径限制。
+                local in_item_use_range = should_scan_item_use and dsq <= max_rad_sq
+
+                if (in_range or in_item_use_range) and G.CanEntitySeePoint(self.inst, x1, y1, z1) then  -- 在范围内且可见
 
                     -- 角度检查（可配置）
                     local shouldcheck = dsq < 1  -- 距离<1的目标直接通过
@@ -566,96 +625,101 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                         -- 近距离奖励（刚掉落的物品）
                         local add = dsq < 0.0625 and 1 or 0  -- 0.25 * 0.25
 
-                        -- 迟滞效应（当前目标获得1.5x加成，墙除外）
-                        local mult = v == self.controller_target and not v:HasTag("wall") and 1.5 or 1
+                        -- 每一类目标只对自己的当前目标应用迟滞，避免主目标影响物品目标。
+                        local target_mult = v == self.controller_target and not v:HasTag("wall") and 1.5 or 1
+                        local item_use_mult = v == self.controller_item_use_target and not v:HasTag("wall") and 1.5 or 1
 
-                        -- 基础分数 = 角度 * 距离 * 迟滞 + 近距离奖励
-                        local score = angle_component * dist_component * mult + add
+                        local score = angle_component * dist_component * target_mult + add
+                        local item_use_score = angle_component * dist_component * item_use_mult + add
 
                         -- ===== 特殊目标加权 =====
                         -- 传送门：活着时优先级降低，幽灵复活模式优先级提高
                         if v:HasTag("portal") then
-                            score = score * (self.inst:HasTag("playerghost") and G.GetPortalRez() and 1.1 or 0.9)
+                            local portal_mult = self.inst:HasTag("playerghost") and G.GetPortalRez() and 1.1 or 0.9
+                            score = score * portal_mult
+                            item_use_score = item_use_score * portal_mult
                         end
 
                         -- 家具装饰品：优先级降低
                         if v:HasTag("hasfurnituredecoritem") then
                             score = score * 0.5
+                            item_use_score = item_use_score * 0.5
                         end
 
-                        -- ===== 第一级：场景物品有可用动作 =====
-                        -- 检查是否有有效动作（开销较大，尽量少执行）
                         local lmb, rmb
-                        if currentboat ~= v or score * 0.75 < target_score then
-                            -- 船上的场景物品优先级降低
-                            lmb, rmb = self:GetSceneItemControllerAction(v)
-                        end
-
-                        -- ===== 独立选择主目标（A键）=====
-                        if lmb ~= nil then
-                            -- 有主动作：候选为主目标
-                            -- 检查分数和穿透优先级
-                            if score > target_score or
-                                (score == target_score and
-                                    not (target ~= nil and target.CanMouseThrough ~= nil and not target:CanMouseThrough()) and
-                                    (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
-                                -- 分数更高，或分数相同但优先级更高（不可穿透优先）
-                                target = v
-                                target_score = score
-                                target_has_rmb = (rmb ~= nil)  -- 记录主目标是否有副动作
+                        if in_range then
+                            -- ===== 第一级：场景物品有可用动作 =====
+                            -- 检查是否有有效动作（开销较大，尽量少执行）
+                            if currentboat ~= v or score * 0.75 < target_score then
+                                -- 船上的场景物品优先级降低
+                                lmb, rmb = self:GetSceneItemControllerAction(v)
                             end
-                        end
 
-                        -- ===== 独立选择副目标（B键）=====
-                        if rmb ~= nil and lmb == nil then
-                            -- 只有副动作：候选为副目标
-                            -- 检查分数和穿透优先级
-                            if score > alternative_target_score or
-                                (score == alternative_target_score and
-                                    not (alternative_target ~= nil and alternative_target.CanMouseThrough ~= nil and not alternative_target:CanMouseThrough()) and
-                                    (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
-                                -- 分数更高，或分数相同但优先级更高（不可穿透优先）
-                                alternative_target = v
-                                alternative_target_score = score
-                            end
-                        end
+                            local entity_lmb = TargetPolicy.IsEntityTargetedAction(lmb, v) and lmb or nil
+                            local entity_rmb = TargetPolicy.IsEntityTargetedAction(rmb, v) and rmb or nil
 
-                        -- ===== 独立选择检查目标（Inspect键）=====
-                        -- 只有在 canexamine 为 true 且实体可检查时才候选
-                        -- 注意：inspect_target 始终只选择前方目标，不受 interaction_angle_mode 配置影响
-                        if canexamine and v:HasTag("inspectable") and lmb == nil and rmb == nil then
-                            -- 检查目标必须在前方（点积 > 0）
-                            local is_forward = (dx * dirx + dz * dirz > 0)
-
-                            if is_forward then
-                                -- 可以检查且没有其他动作：候选为检查目标
+                            -- ===== 独立选择主目标（A键）=====
+                            if entity_lmb ~= nil then
+                                -- 有主动作：候选为主目标
                                 -- 检查分数和穿透优先级
-                                if score > inspect_target_score or
-                                    (score == inspect_target_score and
-                                        not (inspect_target ~= nil and inspect_target.CanMouseThrough ~= nil and not inspect_target:CanMouseThrough()) and
+                                if score > target_score or
+                                    (score == target_score and
+                                        not (target ~= nil and target.CanMouseThrough ~= nil and not target:CanMouseThrough()) and
                                         (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
                                     -- 分数更高，或分数相同但优先级更高（不可穿透优先）
-                                    inspect_target = v
-                                    inspect_target_score = score
+                                    target = v
+                                    target_score = score
+                                    target_has_rmb = entity_rmb ~= nil
+                                end
+                            end
+
+                            -- ===== 独立选择副目标（B键）=====
+                            if entity_rmb ~= nil and entity_lmb == nil then
+                                -- 只有副动作：候选为副目标
+                                -- 检查分数和穿透优先级
+                                if score > alternative_target_score or
+                                    (score == alternative_target_score and
+                                        not (alternative_target ~= nil and alternative_target.CanMouseThrough ~= nil and not alternative_target:CanMouseThrough()) and
+                                        (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                    -- 分数更高，或分数相同但优先级更高（不可穿透优先）
+                                    alternative_target = v
+                                    alternative_target_score = score
+                                end
+                            end
+
+                            -- ===== 独立选择检查目标（Inspect键）=====
+                            -- 只有在 canexamine 为 true 且实体可检查时才候选
+                            -- 注意：inspect_target 始终只选择前方目标，不受 interaction_angle_mode 配置影响
+                            if canexamine and v:HasTag("inspectable") and entity_lmb == nil and entity_rmb == nil then
+                                -- 检查目标必须在前方（点积 > 0）
+                                local is_forward = (dx * dirx + dz * dirz > 0)
+
+                                if is_forward then
+                                    -- 可以检查且没有其他动作：候选为检查目标
+                                    -- 检查分数和穿透优先级
+                                    if score > inspect_target_score or
+                                        (score == inspect_target_score and
+                                            not (inspect_target ~= nil and inspect_target.CanMouseThrough ~= nil and not inspect_target:CanMouseThrough()) and
+                                            (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                        -- 分数更高，或分数相同但优先级更高（不可穿透优先）
+                                        inspect_target = v
+                                        inspect_target_score = score
+                                    end
                                 end
                             end
                         end
 
-                        -- ===== 第三级：光标物品可以对目标使用 =====
-                        if lmb == nil and rmb == nil then
-                            -- 检查手持物品是否可以对目标使用
-                            local inv_obj = self:GetCursorInventoryObject()
-                            if inv_obj ~= nil then
-                                local item_rmb = self:GetItemUseAction(inv_obj, v)
-                                if item_rmb ~= nil and item_rmb.target == v then
-                                    -- 作为主目标
-                                    if score > target_score or
-                                        (score == target_score and
-                                            not (target ~= nil and target.CanMouseThrough ~= nil and not target:CanMouseThrough()) and
-                                            (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
-                                        target = v
-                                        target_score = score
-                                    end
+                        -- ===== 独立选择光标物品使用目标 =====
+                        -- 无论该位置是否已有主/副场景动作，都继续检查物品动作。
+                        if in_item_use_range then
+                            local item_action = self:GetItemUseAction(cursor_item, v)
+                            if TargetPolicy.IsEntityTargetedAction(item_action, v) then
+                                if item_use_score > item_use_target_score or
+                                    (item_use_score == item_use_target_score and
+                                        not (item_use_target ~= nil and item_use_target.CanMouseThrough ~= nil and not item_use_target:CanMouseThrough()) and
+                                        (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                    item_use_target = v
+                                    item_use_target_score = item_use_score
                                 end
                             end
                         end
@@ -666,57 +730,60 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     end
 
     -- ========== 第八步：更新最终目标 ==========
-    if target ~= self.controller_target then
+    if target == self.controller_target then
+        self.controller_target_has_rmb = target_has_rmb
+    elseif can_update_primary_target then
         self.controller_target = target
+        self.controller_target_has_rmb = target_has_rmb
         self.controller_target_age = 0  -- 重置age，开始新的闪烁防护
     end
 
-    -- ========== 第九步：更新副目标 ==========
+    -- ========== 第九步：更新光标物品使用目标 ==========
+    if should_scan_item_use then
+        TargetPolicy.UpdateStableSecondaryTarget(
+            self,
+            "controller_item_use_target",
+            "controller_item_use_target_pending",
+            "controller_item_use_target_age",
+            item_use_target,
+            item_use_scan_dt
+        )
+    end
+
+    -- ========== 第十步：更新副目标 ==========
     -- 注意：这里需要直接使用局部变量 alternative_target 和 target_has_rmb
     -- 副目标独立于主目标存在，但如果主目标已经支持副动作，则不需要副目标
 
-    if target_has_rmb then
-        -- 主目标已经支持副动作，清除副目标
-        if self.controller_alternative_target ~= nil then
-            self.controller_alternative_target = nil
-            self.controller_alternative_target_age = 0
-        end
-    else
-        -- 主目标不支持副动作（或没有主目标），使用找到的副目标
-        -- 添加闪烁防护：只有在age超过阈值时才更新
-        self.controller_alternative_target_age = (self.controller_alternative_target_age or 0) + dt
-        if self.controller_alternative_target_age >= 0.2 then
-            if alternative_target ~= self.controller_alternative_target then
-                self.controller_alternative_target = alternative_target
-                self.controller_alternative_target_age = 0
-            end
-        end
+    if self.controller_target_has_rmb then
+        alternative_target = nil
     end
+    TargetPolicy.UpdateStableSecondaryTarget(
+        self,
+        "controller_alternative_target",
+        "controller_alternative_target_pending",
+        "controller_alternative_target_age",
+        alternative_target,
+        dt
+    )
 
-    -- ========== 第十步：更新检查目标 ==========
+    -- ========== 第十一步：更新检查目标 ==========
     -- 检查目标规则：
     -- 1. 如果主目标或副目标可以被检查（有inspectable tag），则清除检查目标
     -- 2. 否则，使用找到的检查目标
-    local target_can_inspect = target ~= nil and target:HasTag("inspectable")
+    local target_can_inspect = self.controller_target ~= nil and self.controller_target:HasTag("inspectable")
     local alt_target_can_inspect = self.controller_alternative_target ~= nil and self.controller_alternative_target:HasTag("inspectable")
 
     if target_can_inspect or alt_target_can_inspect then
-        -- 主目标或副目标已经可以检查，清除检查目标
-        if self.controller_examine_target ~= nil then
-            self.controller_examine_target = nil
-            self.controller_examine_target_age = 0
-        end
-    else
-        -- 主目标和副目标都不能检查，使用找到的检查目标
-        -- 添加闪烁防护：只有在age超过阈值时才更新
-        self.controller_examine_target_age = (self.controller_examine_target_age or 0) + dt
-        if self.controller_examine_target_age >= 0.2 then
-            if inspect_target ~= self.controller_examine_target then
-                self.controller_examine_target = inspect_target
-                self.controller_examine_target_age = 0
-            end
-        end
+        inspect_target = nil
     end
+    TargetPolicy.UpdateStableSecondaryTarget(
+        self,
+        "controller_examine_target",
+        "controller_examine_target_pending",
+        "controller_examine_target_age",
+        inspect_target,
+        dt
+    )
 end
 
 -- ============================================================================
@@ -774,12 +841,10 @@ function TargetSelection.UpdateControllerTargets(controller, dt)
 		controller.inst:HasTag("sitting_on_chair") or
 		(controller.inst:HasTag("weregoose") and not controller.inst:HasTag("playerghost")) or
 		(controller.classified and controller.classified.inmightygym:value() > 0) then
-        controller.controller_target = nil
-        controller.controller_target_age = 0
-        controller.controller_alternative_target = nil
-        controller.controller_alternative_target_age = 0
-        controller.controller_examine_target = nil
-        controller.controller_examine_target_age = 0
+		controller.controller_target = nil
+		controller.controller_target_age = 0
+		controller.controller_target_has_rmb = false
+		ClearSecondaryInteractionTargets(controller)
         controller.controller_attack_target = nil
         controller.controller_attack_target_ally_cd = nil
         controller.controller_targeting_lock_target = nil

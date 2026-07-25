@@ -416,6 +416,7 @@ function TaskConfigScreen:BuildSettingsContent()
             cursor_magnetism = true,
             magnetism_range = 2,
             target_priority = false,
+            actionqueue_integration = true,
         }
     end
 
@@ -424,6 +425,7 @@ function TaskConfigScreen:BuildSettingsContent()
     if vc_settings.cursor_magnetism == nil then vc_settings.cursor_magnetism = true end
     if vc_settings.magnetism_range == nil then vc_settings.magnetism_range = 2 end
     if vc_settings.target_priority == nil then vc_settings.target_priority = false end
+    if vc_settings.actionqueue_integration == nil then vc_settings.actionqueue_integration = true end
 
     -- 创建临时设置副本（用于编辑，只有点击应用时才保存）
     self.temp_settings = {
@@ -439,6 +441,7 @@ function TaskConfigScreen:BuildSettingsContent()
             cursor_magnetism = vc_settings.cursor_magnetism,
             magnetism_range = vc_settings.magnetism_range,
             target_priority = vc_settings.target_priority,
+            actionqueue_integration = vc_settings.actionqueue_integration,
         }
     }
 
@@ -492,7 +495,16 @@ function TaskConfigScreen:BuildSettingsContent()
             200
         ))
 
-        -- 6. 虚拟光标速度设置
+        -- 6. ActionQueue 手柄适配
+        table.insert(items, CreateSettingItem(
+            L("SETTING_ACTIONQUEUE_INTEGRATION"),
+            {{text = L("OPT_OFF"), data = false}, {text = L("OPT_ON"), data = true}},
+            temp_vc.actionqueue_integration,
+            function(data) temp_vc.actionqueue_integration = data end,
+            240
+        ))
+
+        -- 7. 虚拟光标速度设置
         table.insert(items, CreateSettingItem(
             L("SETTING_CURSOR_SPEED"),
             {
@@ -507,7 +519,7 @@ function TaskConfigScreen:BuildSettingsContent()
             200
         ))
 
-        -- 7. 虚拟光标显示设置
+        -- 8. 虚拟光标显示设置
         table.insert(items, CreateSettingItem(
             L("SETTING_SHOW_CURSOR"),
             {{text = L("OPT_HIDE"), data = false}, {text = L("OPT_SHOW"), data = true}},
@@ -516,7 +528,7 @@ function TaskConfigScreen:BuildSettingsContent()
             200
         ))
 
-        -- 8. 光标磁吸启用设置
+        -- 9. 光标磁吸启用设置
         table.insert(items, CreateSettingItem(
             L("SETTING_CURSOR_MAGNETISM"),
             {{text = L("OPT_OFF"), data = false}, {text = L("OPT_ON"), data = true}},
@@ -525,7 +537,7 @@ function TaskConfigScreen:BuildSettingsContent()
             200
         ))
 
-        -- 9. 磁吸范围设置
+        -- 10. 磁吸范围设置
         table.insert(items, CreateSettingItem(
             L("SETTING_MAGNETISM_RANGE"),
             {{text = L("OPT_RANGE_SHORT"), data = 1}, {text = L("OPT_RANGE_MEDIUM"), data = 2}, {text = L("OPT_RANGE_LONG"), data = 3}},
@@ -534,7 +546,7 @@ function TaskConfigScreen:BuildSettingsContent()
             200
         ))
 
-        -- 10. 磁吸优先级设置
+        -- 11. 磁吸优先级设置
         table.insert(items, CreateSettingItem(
             L("SETTING_TARGET_PRIORITY"),
             {{text = L("OPT_CURSOR_PRIORITY"), data = false}, {text = L("OPT_PLAYER_PRIORITY"), data = true}},
@@ -654,6 +666,7 @@ function TaskConfigScreen:Apply()
         vc_settings.cursor_magnetism = temp_vc.cursor_magnetism
         vc_settings.magnetism_range = temp_vc.magnetism_range
         vc_settings.target_priority = temp_vc.target_priority
+        vc_settings.actionqueue_integration = temp_vc.actionqueue_integration
 
         self.is_dirty = true
     end

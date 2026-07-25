@@ -54,6 +54,7 @@ local STATE = {
     tracking_target = nil,  -- Current magnetism target entity
     idle_state = false,  -- Whether the stick is inside the configured dead zone
     idle_wait_time = 0,  -- Time since stick became idle
+    magnetism_suppressors = {},  -- Named temporary suppressors (drag selection, etc.)
 }
 
 -- Helper function to get config with validation
@@ -169,6 +170,7 @@ local function InitializeCursorPosition()
         STATE.tracking_target = nil
         STATE.idle_state = false
         STATE.idle_wait_time = 0
+        STATE.magnetism_suppressors = {}
 
         -- Project to world position
         local x, y, z = G.TheSim:ProjectScreenPos(w / 2, h / 2)
@@ -309,6 +311,7 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         STATE.tracking_target = nil
         STATE.idle_state = false
         STATE.idle_wait_time = 0
+        STATE.magnetism_suppressors = {}
 
         -- Reset auto_activated flag
         STATE.auto_activated = false
@@ -320,6 +323,29 @@ end
 -- Check if cursor mode is active
 function VirtualCursor.IsCursorModeActive()
     return STATE.cursor_mode_active
+end
+
+-- Temporarily suppress entity magnetism for interactions that require an exact
+-- drag path (for example ActionQueue's rectangular selection). Named sources
+-- avoid one integration accidentally re-enabling magnetism for another.
+function VirtualCursor.SetMagnetismSuppressed(source, suppressed)
+    if type(source) ~= "string" or source == "" then
+        return
+    end
+
+    if suppressed then
+        STATE.magnetism_suppressors[source] = true
+    else
+        STATE.magnetism_suppressors[source] = nil
+    end
+
+    STATE.tracking_target = nil
+    STATE.idle_state = false
+    STATE.idle_wait_time = 0
+end
+
+function VirtualCursor.IsMagnetismSuppressed()
+    return next(STATE.magnetism_suppressors) ~= nil
 end
 
 function VirtualCursor.SetCursorPosition(x, y)
@@ -462,7 +488,11 @@ function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, curr
     local active_screen = G.TheFrontEnd and G.TheFrontEnd:GetActiveScreen() or nil
     local magnetism_blocked = active_screen ~= nil and active_screen.name == "MapScreen"
 
-    if not config.cursor_magnetism or magnetism_blocked or STATE.is_hovering_ui or not G.ThePlayer then
+    if not config.cursor_magnetism or
+       VirtualCursor.IsMagnetismSuppressed() or
+       magnetism_blocked or
+       STATE.is_hovering_ui or
+       not G.ThePlayer then
         STATE.tracking_target = nil
         STATE.idle_state = false
         STATE.idle_wait_time = 0

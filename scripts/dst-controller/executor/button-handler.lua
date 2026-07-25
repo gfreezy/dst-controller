@@ -98,7 +98,6 @@ local function GetButtonCombinationActions(control, down)
                     if modifier_name == "LB" and face_button == "X" then
                         local settings = ConfigManager.GetRuntimeSettings()
                         if settings and settings.force_attack_mode == "hostile_only" then
-                            Helpers.DebugPrint("[ButtonHandler] LB+X ignored (reserved for force attack in hostile_only mode)")
                             return nil, false, nil, nil
                         end
                     end
@@ -149,8 +148,6 @@ function ButtonHandler.HandleButtonCombination(player, control, down, execute_ca
 
     -- Handle button state to prevent repeated execution
     local state = button_states[guid][modifier_name][face_button]
-
-    print("[ButtonHandler] Handling button combination: " .. modifier_name .. " + " .. face_button, "down: " .. tostring(down), "state: " .. table.inspect(state))
 
     if down then
         -- Button press event

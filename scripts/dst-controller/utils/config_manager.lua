@@ -62,6 +62,7 @@ function ConfigManager.LoadDefaultSettings()
             cursor_magnetism = true,        -- 是否启用光标磁吸
             magnetism_range = 2,            -- 磁吸范围 (1=近, 2=中, 3=远)
             target_priority = false,        -- 是否优先吸附玩家附近目标（而不是光标附近）
+            actionqueue_integration = true, -- ActionQueue RB3 手柄适配（安装后自动生效）
         }
     }
 end

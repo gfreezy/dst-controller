@@ -88,12 +88,25 @@ if [ ! -d "$MOD_TARGET_DIR" ]; then
     mkdir -p "$MOD_TARGET_DIR"
 fi
 
+# macOS may protect another application's bundle through App Management even
+# when POSIX ownership looks writable. Stop before rsync --delete can leave a
+# partially-deployed mod behind.
+if [ ! -w "$MOD_TARGET_DIR" ]; then
+    echo -e "${RED}错误: 目标目录受系统保护，当前进程不可写:${NC}"
+    echo "  $MOD_TARGET_DIR"
+    echo ""
+    echo "请在 macOS 系统设置 > 隐私与安全性 > App 管理中允许当前终端/Codex，"
+    echo "或通过 Finder 将模组复制到该目录后再重试。"
+    exit 1
+fi
+
 # 排除的目录和文件（不同步这些）
 EXCLUDED_PATTERNS=(
     "scripts-raw"
     ".git"
     ".vscode"
     ".claude"
+    "reference-mods"
     "node_modules"
     "sync.sh"
     "sync.config"
