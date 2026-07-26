@@ -11,6 +11,7 @@ local installed = false
 
 -- Store original Input methods
 local original_input_methods = {}
+local original_profile_methods = {}
 
 -- Install TheInput hooks
 function InputSystemHook.Install()
@@ -43,15 +44,32 @@ function InputSystemHook.Install()
         return original_input_methods.IsControlPressed(self, control)
     end
 
-    -- Scheme 2 is required only while emulating a mouse with the virtual cursor.
-    -- Preserve the player's configured/native scheme during normal gameplay.
-    -- Scheme 2: R.Stick for camera (with modifier), R.Stick for inventory, twin-stick aiming
+    -- Enhanced Controller consistently owns the LB + right-stick camera
+    -- gesture. Keep the camera/inventory scheme at type 2 while the mod is
+    -- loaded so gameplay, map controls, inventory navigation, and UI hints all
+    -- resolve the same bindings. This is a runtime override: it does not write
+    -- the user's saved profile setting.
+    -- Scheme 2: modified R.Stick for camera, plain R.Stick for inventory.
     original_input_methods.GetActiveControlScheme = G.TheInput.GetActiveControlScheme
-    G.TheInput.GetActiveControlScheme = function(self, ...)
-        if VirtualCursor.IsCursorModeActive() then
+    G.TheInput.GetActiveControlScheme = function(self, scheme_id, ...)
+        if scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
             return 2
         end
-        return original_input_methods.GetActiveControlScheme(self, ...)
+        return original_input_methods.GetActiveControlScheme(
+            self, scheme_id, ...)
+    end
+
+    -- A few native widgets bypass TheInput and read Profile directly. Mirror
+    -- the runtime override there to prevent behavior/help-text mismatches.
+    if G.Profile ~= nil and type(G.Profile.GetControlScheme) == "function" then
+        original_profile_methods.GetControlScheme = G.Profile.GetControlScheme
+        G.Profile.GetControlScheme = function(self, scheme_id, ...)
+            if scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
+                return 2
+            end
+            return original_profile_methods.GetControlScheme(
+                self, scheme_id, ...)
+        end
     end
 
     -- Hook GetControllerID to return 0 (keyboard/mouse) when virtual cursor is active

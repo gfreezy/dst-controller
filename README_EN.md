@@ -135,6 +135,7 @@ Press **Ctrl+K** (keyboard) or **LB+RB+Y** (controller) to open the config UI:
 
 - **LB + Right Stick Left/Right**: Rotate camera
 - **LB + Right Stick Up/Down**: Zoom camera
+- Uses control scheme 2 consistently at runtime; no manual game setting or profile write is required
 - Configurable rotation and zoom speeds
 
 ### 🗺️ Map Auto-Pathfinding

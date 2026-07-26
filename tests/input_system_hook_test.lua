@@ -4,6 +4,11 @@ local set_position_calls = 0
 local physical_move_calls = 0
 local mouse_move_calls = 0
 local position_calls = 0
+local profile = {
+    GetControlScheme = function(_, scheme_id)
+        return scheme_id == 99 and 7 or 1
+    end,
+}
 
 local input = {
     IsControlPressed = function() return false end,
@@ -20,6 +25,8 @@ local input = {
 
 package.loaded["dst-controller/global"] = {
     TheInput = input,
+    Profile = profile,
+    CONTROL_SCHEME_CAM_AND_INV = 10,
     CONTROL_PRIMARY = 1,
     CONTROL_SECONDARY = 2,
     VIRTUAL_CONTROL_INV_UP = 3,
@@ -44,8 +51,13 @@ package.loaded["dst-controller/hooks/input-system-hook"] = nil
 local InputSystemHook = require("dst-controller/hooks/input-system-hook")
 InputSystemHook.Install()
 
-assert(input:GetActiveControlScheme() == 2,
-    "virtual cursor mode should temporarily use the mouse-compatible control scheme")
+assert(input:GetActiveControlScheme(10) == 2,
+    "the camera and inventory controls should use scheme 2")
+assert(profile:GetControlScheme(10) == 2,
+    "native widgets that read the profile should also see scheme 2")
+assert(input:GetActiveControlScheme(99) == 1 and
+    profile:GetControlScheme(99) == 7,
+    "unrelated control schemes should preserve native behavior")
 
 input:OnMouseMove(10, 20)
 assert(set_position_calls == 1, "a physical mouse move must update the visible cursor")
@@ -67,8 +79,8 @@ assert(physical_move_calls == 2, "an external position event must keep the nativ
 assert(position_calls == 2, "an external position event must still reach DST")
 
 cursor_active = false
-assert(input:GetActiveControlScheme() == 1,
-    "normal gameplay should preserve the player's native control scheme")
+assert(input:GetActiveControlScheme(10) == 2,
+    "normal gameplay should keep using the mod's required scheme")
 local wrapped_is_control_pressed = input.IsControlPressed
 InputSystemHook.Install()
 assert(input.IsControlPressed == wrapped_is_control_pressed,
