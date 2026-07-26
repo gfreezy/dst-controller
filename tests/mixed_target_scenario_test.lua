@@ -20,6 +20,7 @@ local campfire = MakeEntity("campfire", 1)
 local pitchfork = MakeEntity("pitchfork", 0)
 local wood = MakeEntity("log", 0)
 
+local scene_scan_calls = 0
 local G = {
     EQUIPSLOTS = { HANDS = "hands" },
     TUNING = { CONTROLLER_INTERACT_ANGLE = 90, CONTROLLER_BOATINTERACT_ANGLE = 90 },
@@ -28,7 +29,10 @@ local G = {
     TheInput = { IsControlPressed = function() return false end },
     TheSim = {
         RegisterFindTags = function() return {} end,
-        FindEntities = function() return { science, campfire } end,
+        FindEntities = function()
+            scene_scan_calls = scene_scan_calls + 1
+            return { science, campfire }
+        end,
         FindEntities_Registered = function() return {} end,
     },
     CanEntitySeeTarget = function() return true end,
@@ -112,6 +116,8 @@ for _ = 1, 5 do
     TargetSelection.UpdateControllerTargets(controller, 0.016)
 end
 assert(item_action_queries == first_scan_queries, "item-use target scan should be throttled between intervals")
+assert(scene_scan_calls < 6,
+    "base target discovery should be throttled instead of scanning every frame")
 
 for _ = 1, 2 do
     TargetSelection.UpdateControllerTargets(controller, 0.016)

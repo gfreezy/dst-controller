@@ -11,6 +11,8 @@ local prefabs = {
     berries = {},
     researchlab = {},
     mod_wand = {},
+    unowned_tool = {},
+    hidden_fx = {},
     bee = {},
 }
 
@@ -45,6 +47,10 @@ local catalog = ItemCatalog.Build({
         TORCH = { "Torch", "火炬" },
         BERRIES = { "Berries", "浆果" },
     },
+    has_inventory_image = function(prefab_name)
+        return prefab_name == "mod_wand" or prefab_name == "unowned_tool" or
+            prefab_name == "researchlab"
+    end,
 })
 
 assert(#ItemCatalog.Search(catalog, "torch") == 1,
@@ -57,5 +63,9 @@ assert(ItemCatalog.Search(catalog, "模组法杖")[1].prefab_name == "mod_wand",
     "registered mod prefabs should use their localized name")
 assert(ItemCatalog.Search(catalog, "蜜蜂")[1].prefab_name == "bee",
     "items currently carried by the player should be included")
+assert(ItemCatalog.Search(catalog, "unowned_tool")[1].prefab_name == "unowned_tool",
+    "registered items should be searchable even when the player does not own them")
 assert(#ItemCatalog.Search(catalog, "researchlab") == 0,
-    "non-item vanilla scrapbook entries should not be included")
+    "known non-item scrapbook entries should override inventory-icon guesses")
+assert(#ItemCatalog.Search(catalog, "hidden_fx") == 0,
+    "registered prefabs without item metadata or inventory icons should be excluded")

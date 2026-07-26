@@ -1,0 +1,32 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lua and rsync
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 rsync
+
+      - name: Test and validate release metadata
+        env:
+          LUA_BIN: lua5.4
+          LUAC_BIN: luac5.4
+        run: bash tools/validate_release.sh
+
+      - name: Build Steam upload directory
+        run: bash sync.sh --publish-only
+
+      - name: Verify package contents
+        run: |
+          test -f publish/modinfo.lua
+          test -f publish/modmain.lua
+          test -d publish/scripts/dst-controller
+          test ! -e publish/tests
+          test ! -e publish/scripts-raw

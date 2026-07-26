@@ -7,12 +7,17 @@ local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local Helpers = require("dst-controller/utils/helpers")
 
 local InputSystemHook = {}
+local installed = false
 
 -- Store original Input methods
 local original_input_methods = {}
 
 -- Install TheInput hooks
 function InputSystemHook.Install()
+    if installed then
+        return
+    end
+    installed = true
     original_input_methods.IsControlPressed = G.TheInput.IsControlPressed
     G.TheInput.IsControlPressed = function(self, control)
         if VirtualCursor.IsCursorModeActive() then
@@ -38,11 +43,15 @@ function InputSystemHook.Install()
         return original_input_methods.IsControlPressed(self, control)
     end
 
-    -- Hook GetActiveControlScheme to always return scheme 2
+    -- Scheme 2 is required only while emulating a mouse with the virtual cursor.
+    -- Preserve the player's configured/native scheme during normal gameplay.
     -- Scheme 2: R.Stick for camera (with modifier), R.Stick for inventory, twin-stick aiming
     original_input_methods.GetActiveControlScheme = G.TheInput.GetActiveControlScheme
-    G.TheInput.GetActiveControlScheme = function()
-        return 2 -- Force scheme 2 for all control schemes
+    G.TheInput.GetActiveControlScheme = function(self, ...)
+        if VirtualCursor.IsCursorModeActive() then
+            return 2
+        end
+        return original_input_methods.GetActiveControlScheme(self, ...)
     end
 
     -- Hook GetControllerID to return 0 (keyboard/mouse) when virtual cursor is active
@@ -85,6 +94,10 @@ function InputSystemHook.Install()
         end
         return original_input_methods.OnPosition(self, p, q)
     end
+end
+
+function InputSystemHook._ResetForTests()
+    installed = false
 end
 
 return InputSystemHook

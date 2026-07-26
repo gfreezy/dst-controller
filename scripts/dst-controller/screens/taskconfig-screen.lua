@@ -3,11 +3,14 @@
 
 local G = require("dst-controller/global")
 local Layout = require("dst-controller/utils/layout")
+local Helpers = require("dst-controller/utils/helpers")
+local ConfigManager = require("dst-controller/utils/config_manager")
 local L10N = require("dst-controller/localization")
 local L = L10N.L
 local RecipeCatalog = require("dst-controller/crafting/recipe-catalog")
 local RecipeAliases = require("dst-controller/crafting/recipe-aliases")
 local ItemCatalog = require("dst-controller/items/item-catalog")
+local ActionCatalog = require("dst-controller/actions/catalog")
 
 local Screen = require("widgets/screen")
 local Widget = require("widgets/widget")
@@ -27,6 +30,22 @@ local SEARCHABLE_ITEM_ACTIONS = {
     use_item_on_self = true,
     use_item_on_scene = true,
 }
+local SEARCH_RESULT_LIMIT = 50
+local PRIMARY_PARAM_Y = 30
+local SECONDARY_PARAM_Y = -50
+local CUSTOM_INPUT_Y = -40
+
+local function SetTextEntryVerticalFocus(panel, root, textbox, up_target, down_target)
+    -- DST forwards focus into the textbox, but directional links do not always
+    -- bubble back through every wrapper. Set them on all three levels so both
+    -- keyboard and controller navigation follow the same visual order.
+    for _, widget in ipairs({ panel, root, textbox }) do
+        if widget ~= nil then
+            widget:SetFocusChangeDir(G.MOVE_UP, up_target)
+            widget:SetFocusChangeDir(G.MOVE_DOWN, down_target)
+        end
+    end
+end
 
 -- 按钮组合列表
 local BUTTON_COMBOS = {
@@ -41,35 +60,6 @@ local BUTTON_NAMES = {
     RB_A = "RB + A", RB_B = "RB + B", RB_X = "RB + X",
     RB_Y = "RB + Y", RB_LT = "RB + LT", RB_RT = "RB + RT",
 }
-
--- 动态生成本地化的动作列表和预设（在模块加载时执行一次）
-local function GetAvailableActions()
-    return {
-        -- 无参数动作
-        {data = "", text = L("ACTION_NONE"), has_param = false},
-        {data = "examine", text = L("ACTION_EXAMINE"), has_param = false},
-        {data = "inspect_self", text = L("ACTION_INSPECT_SELF"), has_param = false},
-        {data = "use_active_item_on_self", text = L("ACTION_USE_ACTIVE_ITEM_ON_SELF"), has_param = false},
-        {data = "use_active_item_on_scene", text = L("ACTION_USE_ACTIVE_ITEM_ON_SCENE"), has_param = false},
-        {data = "save_hand_item", text = L("ACTION_SAVE_HAND_ITEM"), has_param = false},
-        {data = "restore_hand_item", text = L("ACTION_RESTORE_HAND_ITEM"), has_param = false},
-        {data = "cycle_head", text = L("ACTION_CYCLE_HEAD"), has_param = false},
-        {data = "cycle_hand", text = L("ACTION_CYCLE_HAND"), has_param = false},
-        {data = "cycle_body", text = L("ACTION_CYCLE_BODY"), has_param = false},
-        {data = "enable_virtual_cursor", text = L("ACTION_ENABLE_VIRTUAL_CURSOR"), has_param = false},
-        {data = "disable_virtual_cursor", text = L("ACTION_DISABLE_VIRTUAL_CURSOR"), has_param = false},
-
-        -- 需要参数的动作
-        {data = "delay", text = L("ACTION_DELAY"), has_param = true},
-        {data = "equip_item", text = L("ACTION_EQUIP_ITEM"), has_param = true},
-        {data = "unequip_item", text = L("ACTION_UNEQUIP_ITEM"), has_param = true},
-        {data = "use_equip", text = L("ACTION_USE_EQUIP"), has_param = true},
-        {data = "use_item_on_self", text = L("ACTION_USE_ITEM_ON_SELF"), has_param = true},
-        {data = "use_item_on_scene", text = L("ACTION_USE_ITEM_ON_SCENE"), has_param = true},
-        {data = "craft_item", text = L("ACTION_CRAFT_ITEM"), has_param = true},
-        {data = "trigger_key", text = L("ACTION_TRIGGER_KEY"), has_param = true},
-    }
-end
 
 local function GetItemPresets()
     return {
@@ -149,11 +139,15 @@ local function GetDelayPresets()
 end
 
 -- 首次加载时生成
-local AVAILABLE_ACTIONS = GetAvailableActions()
+local AVAILABLE_ACTIONS = ActionCatalog.BuildOptions(L)
 local ITEM_PRESETS = GetItemPresets()
 local KEYBOARD_PRESETS = GetKeyboardPresets()
 local EQUIPSLOT_PRESETS = GetEquipSlotPresets()
 local DELAY_PRESETS = GetDelayPresets()
+
+local function ActionNeedsParameter(action_name)
+    return ActionCatalog.NeedsParameter(action_name)
+end
 
 local TaskConfigScreen = G.Class(Screen, function(self, tasks_data, virtual_cursor_tasks_data, settings_data, on_apply_cb)
     Screen._ctor(self, "TaskConfigScreen")
@@ -427,9 +421,17 @@ function TaskConfigScreen:BuildSettingsContent()
             actionqueue_integration = true,
         }
     end
+    if not self.settings_data.auto_crafting_settings then
+        self.settings_data.auto_crafting_settings = {
+            search_radius = 6,
+            search_mode = "smart",
+            max_containers = 24,
+        }
+    end
 
     -- 确保磁吸设置存在（兼容旧配置）
     local vc_settings = self.settings_data.virtual_cursor_settings
+    local crafting_settings = self.settings_data.auto_crafting_settings
     if vc_settings.cursor_magnetism == nil then vc_settings.cursor_magnetism = true end
     if vc_settings.magnetism_range == nil then vc_settings.magnetism_range = 2 end
     if vc_settings.target_priority == nil then vc_settings.target_priority = false end
@@ -441,6 +443,12 @@ function TaskConfigScreen:BuildSettingsContent()
         interaction_angle_mode = self.settings_data.interaction_angle_mode,
         force_attack_mode = self.settings_data.force_attack_mode,
         allow_air_attack = self.settings_data.allow_air_attack ~= false,  -- 默认为 true
+        debug_logging = self.settings_data.debug_logging == true,
+        auto_crafting_settings = {
+            search_radius = crafting_settings.search_radius or 6,
+            search_mode = crafting_settings.search_mode or "smart",
+            max_containers = crafting_settings.max_containers or 24,
+        },
         virtual_cursor_settings = {
             enabled = vc_settings.enabled,
             cursor_speed = vc_settings.cursor_speed,
@@ -562,6 +570,41 @@ function TaskConfigScreen:BuildSettingsContent()
             200
         ))
 
+        -- 12. 调试日志（默认关闭，避免高频输入污染客户端日志）
+        table.insert(items, CreateSettingItem(
+            L("SETTING_DEBUG_LOGGING"),
+            {{text = L("OPT_OFF"), data = false}, {text = L("OPT_ON"), data = true}},
+            self.temp_settings.debug_logging,
+            function(data) self.temp_settings.debug_logging = data end,
+            200
+        ))
+
+        local temp_crafting = self.temp_settings.auto_crafting_settings
+        table.insert(items, CreateSettingItem(
+            L("SETTING_CRAFT_SEARCH_RADIUS"),
+            {{text = "4", data = 4}, {text = "6", data = 6},
+             {text = "8", data = 8}, {text = "10", data = 10}},
+            temp_crafting.search_radius,
+            function(data) temp_crafting.search_radius = data end,
+            200
+        ))
+        table.insert(items, CreateSettingItem(
+            L("SETTING_CRAFT_SEARCH_MODE"),
+            {{text = L("OPT_CRAFT_SMART"), data = "smart"},
+             {text = L("OPT_CRAFT_THOROUGH"), data = "thorough"}},
+            temp_crafting.search_mode,
+            function(data) temp_crafting.search_mode = data end,
+            300
+        ))
+        table.insert(items, CreateSettingItem(
+            L("SETTING_CRAFT_MAX_CONTAINERS"),
+            {{text = "6", data = 6}, {text = "12", data = 12},
+             {text = "24", data = 24}, {text = L("OPT_UNLIMITED"), data = 0}},
+            temp_crafting.max_containers,
+            function(data) temp_crafting.max_containers = data end,
+            220
+        ))
+
         return items
     end
 
@@ -662,6 +705,9 @@ function TaskConfigScreen:Apply()
         self.settings_data.interaction_angle_mode = self.temp_settings.interaction_angle_mode
         self.settings_data.force_attack_mode = self.temp_settings.force_attack_mode
         self.settings_data.allow_air_attack = self.temp_settings.allow_air_attack
+        self.settings_data.debug_logging = self.temp_settings.debug_logging
+        self.settings_data.auto_crafting_settings = ConfigManager.DeepCopy(
+            self.temp_settings.auto_crafting_settings)
 
         -- 复制虚拟光标设置
         local temp_vc = self.temp_settings.virtual_cursor_settings
@@ -1117,8 +1163,9 @@ function ActionDetailScreen:ParseAction(action)
     for _, action_def in ipairs(AVAILABLE_ACTIONS) do
         if action_def.data == action_key then
             action_name_cn = action_def.text
-            -- 移除 [需要参数] 后缀
+            -- 移除当前支持语言中的参数提示后缀
             action_name_cn = action_name_cn:gsub("%s*%[需要参数%]", "")
+            action_name_cn = action_name_cn:gsub("%s*%[Needs Param%]", "")
             break
         end
     end
@@ -1129,11 +1176,11 @@ end
 function ActionDetailScreen:AddNewAction()
     -- 弹出动作编辑对话框
     local editor = ActionEditorDialog(nil, function(action)
-        print("[ActionDetailScreen] AddNewAction callback triggered, action:", action)
-        print("[ActionDetailScreen] current_edit_type:", self.current_edit_type)
-        print("[ActionDetailScreen] Before insert, action count:", #self.task_config[self.current_edit_type])
+        Helpers.DebugPrintf("Add action to %s (before=%d)", self.current_edit_type,
+            #self.task_config[self.current_edit_type])
         table.insert(self.task_config[self.current_edit_type], action)
-        print("[ActionDetailScreen] After insert, action count:", #self.task_config[self.current_edit_type])
+        Helpers.DebugPrintf("Action count after insert: %d",
+            #self.task_config[self.current_edit_type])
         self:RefreshActionsList()
     end)
     TheFrontEnd:PushScreen(editor)
@@ -1315,8 +1362,8 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     -- 使用水平布局
     Layout.HorizontalRow({
-        {widget = action_label, width = 120},
-        {widget = self.action_spinner, width = 280},
+        {widget = action_label, width = 140},
+        {widget = self.action_spinner, width = 300},
     }, {
         spacing = 20,
         start_x = 0,
@@ -1329,13 +1376,18 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     -- 设置回调
     self.action_spinner.onchangedfn = function(selected_data)
+        if self.action_name ~= "" and ActionNeedsParameter(self.action_name) then
+            self.custom_input_cache[self.action_name] = self.action_param or ""
+        end
         self.action_name = selected_data
+        self.action_param = self.custom_input_cache[selected_data] or ""
+        self.validation_text:Hide()
         self:OnActionChanged(selected_data)
     end
 
     -- 参数选择区域（初始隐藏）
     self.param_panel = self.root:AddChild(Widget("param_panel"))
-    self.param_panel:SetPosition(0, 30, 0)
+    self.param_panel:SetPosition(0, PRIMARY_PARAM_Y, 0)
 
     self.param_label = self.param_panel:AddChild(Text(G.NEWFONT, 32, L("LABEL_PARAM")))
     self.param_label:SetColour(1, 1, 1, 1)  -- 白色文字
@@ -1347,8 +1399,8 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     -- 使用水平布局
     Layout.HorizontalRow({
-        {widget = self.param_label, width = 80},
-        {widget = self.param_spinner, width = 280},
+        {widget = self.param_label, width = 140},
+        {widget = self.param_spinner, width = 300},
     }, {
         spacing = 20,
         start_x = 0,
@@ -1359,7 +1411,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     -- 自定义参数输入框（初始隐藏）
     -- 必须在 ShowCustomInput/HideCustomInput 调用之前初始化
     self.custom_input_panel = self.root:AddChild(Widget("custom_input"))
-    self.custom_input_panel:SetPosition(0, -40, 0)
+    self.custom_input_panel:SetPosition(0, CUSTOM_INPUT_Y, 0)
     self.custom_input_panel:Hide()
 
     local custom_label = self.custom_input_panel:AddChild(Text(G.NEWFONT, 28, L("LABEL_CUSTOM_PARAM")))
@@ -1404,7 +1456,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     -- 配方/物品搜索框（仅需要名称参数的动作显示）
     self.recipe_search_panel = self.root:AddChild(Widget("recipe_search"))
-    self.recipe_search_panel:SetPosition(0, -45, 0)
+    self.recipe_search_panel:SetPosition(0, PRIMARY_PARAM_Y, 0)
     self.recipe_search_panel:Hide()
 
     self.search_label = self.recipe_search_panel:AddChild(
@@ -1437,10 +1489,16 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
         Text(G.NEWFONT, 21, "")
     )
     self.recipe_search_hint:SetColour(0.75, 0.75, 0.75, 1)
-    self.recipe_search_hint:SetPosition(50, -36, 0)
+    self.recipe_search_hint:SetPosition(80, -36, 0)
+
+    self.validation_text = self.root:AddChild(Text(G.NEWFONT, 22, ""))
+    self.validation_text:SetColour(1, 0.45, 0.35, 1)
+    self.validation_text:SetPosition(0, -112, 0)
+    self.validation_text:Hide()
 
     self.recipe_search_box.OnTextInputted = function()
         self.recipe_search_text = self.recipe_search_box:GetString() or ""
+        self.validation_text:Hide()
         if SEARCHABLE_ITEM_ACTIONS[self.action_name] then
             self:UpdateItemSearch(self.recipe_search_text, self.action_param)
         else
@@ -1469,6 +1527,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
         if self.action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[self.action_name] then
             if selected_data and selected_data ~= "" then
                 self.action_param = selected_data
+                self.custom_input_cache[self.action_name] = selected_data
             end
             self:HideCustomInput()
             self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
@@ -1484,14 +1543,15 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
             self.custom_textbox:SetString(cached_input)
             -- 显示自定义输入框
             self:ShowCustomInput()
-            -- 更新焦点导航：param_spinner -> custom_input_panel -> save_button
-            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_input_panel)
-            self.custom_input_panel:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
-            self.custom_input_panel:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
-            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
-            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+            -- 更新焦点导航：param_spinner -> custom_textbox -> save_button
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_textbox)
+            SetTextEntryVerticalFocus(self.custom_input_panel, self.custom_textbox_root,
+                self.custom_textbox, self.param_spinner, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_textbox)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_textbox)
         else
             self.action_param = selected_data
+            self.custom_input_cache[self.action_name] = selected_data
             self:HideCustomInput()
             -- 更新焦点导航：param_spinner -> save_button
             self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
@@ -1510,14 +1570,14 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     -- 注意：这些是初始设置，会在 OnActionChanged 中根据显示状态动态调整
     self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
     self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
-    self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_input_panel)
-    self.custom_input_panel:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
-    self.custom_input_panel:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
-    self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
-    self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+    self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_textbox)
+    SetTextEntryVerticalFocus(self.custom_input_panel, self.custom_textbox_root,
+        self.custom_textbox, self.param_spinner, self.save_button)
+    self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_textbox)
+    self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_textbox)
 
-    self.recipe_search_panel:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
-    self.recipe_search_panel:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
+    SetTextEntryVerticalFocus(self.recipe_search_panel, self.recipe_search_root,
+        self.recipe_search_box, self.action_spinner, self.param_spinner)
 
     -- Must run after the default focus links above so action-specific links win.
     self:OnActionChanged(self.action_name)
@@ -1529,7 +1589,8 @@ function ActionEditorDialog:UpdateSearchResults(catalog, catalog_api, query, pre
                                                  results_key, empty_key, unavailable_key)
     query = query or ""
     preferred_value = preferred_value or ""
-    local matches = catalog_api.Search(catalog, query)
+    local matches, total_matches = catalog_api.Search(catalog, query, SEARCH_RESULT_LIMIT)
+    total_matches = total_matches or #matches
     local options = catalog_api.ToSpinnerOptions(matches)
     local preferred_found = false
 
@@ -1544,10 +1605,13 @@ function ActionEditorDialog:UpdateSearchResults(catalog, catalog_api, query, pre
 
     -- Preserve an old configuration even if that recipe/item is no longer active.
     if query == "" and preferred_value ~= "" and not preferred_found then
-        table.insert(options, 1, {
-            data = preferred_value,
-            text = L(unavailable_key, preferred_value),
-        })
+        local preferred_entry = catalog_api.Find and catalog_api.Find(catalog, preferred_value) or nil
+        local preferred_option = preferred_entry and
+            catalog_api.ToSpinnerOptions({ preferred_entry })[1] or nil
+        table.insert(options, 1, preferred_option or {
+                data = preferred_value,
+                text = L(unavailable_key, preferred_value),
+            })
         preferred_found = true
     end
 
@@ -1557,6 +1621,8 @@ function ActionEditorDialog:UpdateSearchResults(catalog, catalog_api, query, pre
             { data = "", text = L(empty_key) },
         })
         self.param_spinner:SetSelectedIndex(1)
+        self.action_param = ""
+        self.custom_input_cache[self.action_name] = ""
         self.recipe_search_hint:SetString(L(empty_key))
     else
         self.param_spinner:SetOptions(options)
@@ -1566,7 +1632,13 @@ function ActionEditorDialog:UpdateSearchResults(catalog, catalog_api, query, pre
             self.param_spinner:SetSelectedIndex(1)
             self.action_param = options[1].data
         end
-        self.recipe_search_hint:SetString(L(results_key, #matches))
+        self.custom_input_cache[self.action_name] = self.action_param
+        if total_matches > #matches then
+            self.recipe_search_hint:SetString(
+                L("SEARCH_RESULTS_LIMITED", #matches, total_matches))
+        else
+            self.recipe_search_hint:SetString(L(results_key, total_matches))
+        end
     end
     self.updating_param_ui = false
 end
@@ -1593,6 +1665,11 @@ function ActionEditorDialog:GetItemCatalog()
             player = G.ThePlayer,
             names = (G.STRINGS and G.STRINGS.NAMES) or {},
             aliases = RecipeAliases,
+            has_inventory_image = function(prefab_name)
+                local get_atlas = G.GetInventoryItemAtlas
+                return get_atlas ~= nil and
+                    get_atlas(prefab_name .. ".tex", true) ~= nil
+            end,
         })
     end
     return self.item_catalog
@@ -1611,21 +1688,18 @@ function ActionEditorDialog:UpdateItemSearch(query, preferred_item)
 end
 
 function ActionEditorDialog:OnActionChanged(action_name)
-    -- 查找动作是否需要参数
-    local needs_param = false
-    for _, action_def in ipairs(AVAILABLE_ACTIONS) do
-        if action_def.data == action_name and action_def.has_param then
-            needs_param = true
-            break
-        end
-    end
+    local needs_param = ActionNeedsParameter(action_name)
 
     if needs_param then
+        self.validation_text:Hide()
         if action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[action_name] then
             local is_recipe = action_name == "craft_item"
             self.param_label:SetString(L(is_recipe and "LABEL_RECIPE_RESULT" or "LABEL_ITEM_RESULT"))
             self.search_label:SetString(L(is_recipe and "LABEL_RECIPE_SEARCH" or "LABEL_ITEM_SEARCH"))
             self.custom_input_panel:Hide()
+            -- Search is the first parameter row; its selected result sits below.
+            self.recipe_search_panel:SetPosition(0, PRIMARY_PARAM_Y, 0)
+            self.param_panel:SetPosition(0, SECONDARY_PARAM_Y, 0)
             self.recipe_search_panel:Show()
             self.recipe_search_box:SetString("")
             self.recipe_search_text = ""
@@ -1636,10 +1710,10 @@ function ActionEditorDialog:OnActionChanged(action_name)
             end
 
             self.param_panel:Show()
-            self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.recipe_search_panel)
-            self.recipe_search_panel:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
-            self.recipe_search_panel:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
-            self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.recipe_search_panel)
+            self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.recipe_search_box)
+            SetTextEntryVerticalFocus(self.recipe_search_panel, self.recipe_search_root,
+                self.recipe_search_box, self.action_spinner, self.param_spinner)
+            self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.recipe_search_box)
             self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
             self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
             self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
@@ -1648,6 +1722,7 @@ function ActionEditorDialog:OnActionChanged(action_name)
 
         self.param_label:SetString(L("LABEL_PARAM"))
         self.recipe_search_panel:Hide()
+        self.param_panel:SetPosition(0, PRIMARY_PARAM_Y, 0)
 
         -- 根据动作类型更新参数选择器的选项
         local presets = ITEM_PRESETS  -- 默认使用物品预设
@@ -1687,6 +1762,7 @@ function ActionEditorDialog:OnActionChanged(action_name)
             local first_param = presets[1] and presets[1].data or ""
             self.param_spinner:SetSelected(first_param)
             self.action_param = first_param
+            self.custom_input_cache[action_name] = first_param
             -- 恢复该动作的缓存输入内容
             local cached_input = self.custom_input_cache[action_name] or ""
             self.custom_textbox:SetString(cached_input)
@@ -1703,12 +1779,12 @@ function ActionEditorDialog:OnActionChanged(action_name)
         if should_show_input then
             -- 第一个参数为空，显示自定义输入框
             self:ShowCustomInput()
-            -- 设置焦点导航：param_spinner -> custom_input_panel -> save_button
-            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_input_panel)
-            self.custom_input_panel:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
-            self.custom_input_panel:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
-            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
-            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
+            -- 设置焦点导航：param_spinner -> custom_textbox -> save_button
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_textbox)
+            SetTextEntryVerticalFocus(self.custom_input_panel, self.custom_textbox_root,
+                self.custom_textbox, self.param_spinner, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_textbox)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_textbox)
         else
             -- 第一个参数不为空，隐藏自定义输入框
             self:HideCustomInput()
@@ -1723,6 +1799,7 @@ function ActionEditorDialog:OnActionChanged(action_name)
         self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
         self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
     else
+        self.param_panel:SetPosition(0, PRIMARY_PARAM_Y, 0)
         self.param_panel:Hide()
         self.custom_input_panel:Hide()
         self.recipe_search_panel:Hide()
@@ -1744,14 +1821,20 @@ function ActionEditorDialog:HideCustomInput()
 end
 
 function ActionEditorDialog:Save()
-    print("[ActionEditorDialog] Save() called")
-    print("[ActionEditorDialog] action_name:", self.action_name)
-    print("[ActionEditorDialog] action_param:", self.action_param)
+    Helpers.DebugPrintf("Save action: %s (%s)", tostring(self.action_name),
+        tostring(self.action_param))
 
     if self.action_name == "" or self.action_name == nil then
         -- 空动作，不保存
-        print("[ActionEditorDialog] Empty action, not saving")
+        Helpers.DebugPrint("Empty action, not saving")
         self:Close()
+        return
+    end
+
+    if ActionNeedsParameter(self.action_name) and
+        (self.action_param == nil or self.action_param == "") then
+        self.validation_text:SetString(L("PARAM_REQUIRED"))
+        self.validation_text:Show()
         return
     end
 
@@ -1762,8 +1845,8 @@ function ActionEditorDialog:Save()
         action = self.action_name
     end
 
-    print("[ActionEditorDialog] Final action:", action)
-    print("[ActionEditorDialog] on_save_cb exists:", self.on_save_cb ~= nil)
+    Helpers.DebugPrintf("Final action callback available: %s",
+        tostring(self.on_save_cb ~= nil))
 
     if self.on_save_cb then
         self.on_save_cb(action)

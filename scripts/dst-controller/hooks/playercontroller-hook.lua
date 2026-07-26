@@ -170,15 +170,17 @@ local function InstallOnControl(self)
     end
 end
 
--- Hook: IsEnabled (override)
+-- Hook: IsEnabled (wrap)
 local function InstallIsEnabled(self)
+    local old_IsEnabled = self.IsEnabled
     self.IsEnabled = function(self)
-        if self.classified == nil or not self.classified.iscontrollerenabled:value() then
-            return false
-        elseif self.inst.HUD ~= nil and self.inst.HUD:HasInputFocus() then
-            return false, self.inst.HUD:IsCraftingOpen() or self.inst.HUD:IsSpellWheelOpen() or (self.command_wheel_allows_gameplay and self.inst.HUD:IsCommandWheelOpen()) or self.inst.HUD:IsControllerInventoryOpen()
+        local enabled, limited_gameplay = old_IsEnabled(self)
+        if not enabled and self.inst.HUD ~= nil and self.inst.HUD:HasInputFocus() and
+            self.inst.HUD.IsControllerInventoryOpen ~= nil and
+            self.inst.HUD:IsControllerInventoryOpen() then
+            return false, true
         end
-        return true
+        return enabled, limited_gameplay
     end
 end
 

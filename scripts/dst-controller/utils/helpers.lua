@@ -5,6 +5,7 @@
 local G = require("dst-controller/global")
 
 local Helpers = {}
+local debug_enabled = false
 
 ---@alias ButtonName "LB"|"RB"|"LT"|"RT"|"A"|"B"|"X"|"Y"|"RSTICK_RIGHT"|"RSTICK_LEFT"|"RSTICK_UP"|"RSTICK_DOWN"
 
@@ -104,14 +105,26 @@ end
 -- Print debug message with mod prefix
 ---@param message string Message to print
 function Helpers.DebugPrint(message)
-    print(string.format("[Enhanced Controller] %s", message))
+    if debug_enabled then
+        print(string.format("[Enhanced Controller] %s", tostring(message)))
+    end
 end
 
 -- Print formatted debug message
 ---@param format string Format string
 ---@param ... any Format arguments
 function Helpers.DebugPrintf(format, ...)
-    Helpers.DebugPrint(string.format(format, ...))
+    if debug_enabled then
+        Helpers.DebugPrint(string.format(format, ...))
+    end
+end
+
+function Helpers.SetDebugEnabled(enabled)
+    debug_enabled = enabled == true
+end
+
+function Helpers.IsDebugEnabled()
+    return debug_enabled
 end
 
 return Helpers

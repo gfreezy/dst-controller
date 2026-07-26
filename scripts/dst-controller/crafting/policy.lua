@@ -1,15 +1,31 @@
 -- Enhanced Controller - Automatic crafting policy
 
+local ConfigManager = require("dst-controller/utils/config_manager")
+
 local Policy = {
     SEARCH_RADIUS = 6,
     POLL_INTERVAL = 0.1,
-    MENU_REFRESH_INTERVAL = 0.5,
+    MENU_REFRESH_INTERVAL = 0.75,
     ACTION_TIMEOUT = 8,
     BUILD_TIMEOUT = 5,
     MAX_RECIPE_DEPTH = 12,
     CACHE_VERSION = 1,
     CACHE_FILE_NAME = "enhanced_controller_container_cache.json",
+    CACHE_TTL_SECONDS = 30 * 24 * 60 * 60,
+    CACHE_TIMESTAMP_REFRESH_SECONDS = 24 * 60 * 60,
+    CACHE_MAX_SCOPES = 16,
+    CACHE_MAX_CONTAINERS_PER_SCOPE = 512,
 }
+
+function Policy.GetAutomationSettings()
+    local settings = ConfigManager.GetRuntimeSettings()
+    local crafting = settings and settings.auto_crafting_settings or nil
+    return {
+        search_radius = crafting and crafting.search_radius or Policy.SEARCH_RADIUS,
+        search_mode = crafting and crafting.search_mode or "smart",
+        max_containers = crafting and crafting.max_containers or 24,
+    }
+end
 
 local UNSAFE_CONTAINER_TYPES = {
     cooker = true,

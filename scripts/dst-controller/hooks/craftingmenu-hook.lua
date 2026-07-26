@@ -38,6 +38,9 @@ function CraftingMenuHook.Install()
     G.AddClassPostConstruct("widgets/redux/craftingmenu_hud", function(hud)
         local old_RebuildRecipes = hud.RebuildRecipes
         hud.RebuildRecipes = function(self, ...)
+            -- Undo the previous optimistic flags before DST calculates fresh
+            -- native states, otherwise a transient Auto Build state can stick.
+            MenuPolicy.RestoreRecipeStates(self.valid_recipes)
             local result = old_RebuildRecipes(self, ...)
             MenuPolicy.ApplyToRecipeStates(self.owner, self.valid_recipes)
             return result
@@ -91,13 +94,15 @@ function CraftingMenuHook.Install()
             if self.data ~= nil and self.data.meta._enhanced_auto_craftable then
                 local button = self.build_button_root and self.build_button_root.button
                 local teaser = self.build_button_root and self.build_button_root.teaser
+                local label = L(self.data.meta._enhanced_search_required and
+                    "SEARCH_AND_BUILD" or "AUTO_CRAFT")
                 if G.TheInput:ControllerAttached() then
                     if teaser ~= nil and teaser:IsVisible() then
                         teaser:SetString(G.TheInput:GetLocalizedControl(
-                            G.TheInput:GetControllerID(), G.CONTROL_ACCEPT) .. " " .. L("AUTO_CRAFT"))
+                            G.TheInput:GetControllerID(), G.CONTROL_ACCEPT) .. " " .. label)
                     end
                 elseif button ~= nil then
-                    button:SetText(L("AUTO_CRAFT"))
+                    button:SetText(label)
                     button:Enable()
                 end
             end

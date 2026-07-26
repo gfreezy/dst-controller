@@ -850,12 +850,21 @@ function TargetSelection.UpdateControllerTargets(controller, dt)
         controller.controller_targeting_lock_target = nil
         return
     end
+    controller._enhanced_target_scan_age =
+        (controller._enhanced_target_scan_age or TargetPolicy.BASE_TARGET_SCAN_INTERVAL) + dt
+    if controller._enhanced_target_scan_age < TargetPolicy.BASE_TARGET_SCAN_INTERVAL then
+        return
+    end
+    local scan_dt = controller._enhanced_target_scan_age
+    controller._enhanced_target_scan_age = controller._enhanced_target_scan_age -
+        TargetPolicy.BASE_TARGET_SCAN_INTERVAL
+
     local x, y, z = controller.inst.Transform:GetWorldPosition()
     local heading_angle = -controller.inst.Transform:GetRotation()
     local dirx = math.cos(heading_angle * G.DEGREES)
     local dirz = math.sin(heading_angle * G.DEGREES)
-    UpdateControllerInteractionTarget(controller, dt, x, y, z, dirx, dirz, heading_angle)
-    UpdateControllerAttackTarget(controller, dt, x, y, z, dirx, dirz)
+    UpdateControllerInteractionTarget(controller, scan_dt, x, y, z, dirx, dirz, heading_angle)
+    UpdateControllerAttackTarget(controller, scan_dt, x, y, z, dirx, dirz)
     UpdateControllerConflictingTargets(controller)
 end
 

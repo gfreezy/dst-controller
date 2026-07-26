@@ -28,7 +28,9 @@ if command -v fswatch &> /dev/null; then
     echo -e "${GREEN}使用 fswatch 监控文件变化...${NC}"
     echo ""
 
-    fswatch -o "$MOD_SOURCE_DIR" --exclude='.git' --exclude='node_modules' --exclude='.vscode' | while read -r
+    fswatch -o "$MOD_SOURCE_DIR" \
+        --exclude='\.git' --exclude='node_modules' --exclude='\.vscode' \
+        --exclude='/publish/' --exclude='/scripts-raw/' --exclude='\.DS_Store' | while read -r
     do
         echo -e "${YELLOW}检测到文件变化，开始同步...${NC}"
         bash "$MOD_SOURCE_DIR/sync.sh"
@@ -41,7 +43,8 @@ elif command -v inotifywait &> /dev/null; then
     echo -e "${GREEN}使用 inotifywait 监控文件变化...${NC}"
     echo ""
 
-    while inotifywait -r -e modify,create,delete --exclude '(\.git|node_modules|\.vscode)' "$MOD_SOURCE_DIR"; do
+    while inotifywait -r -e modify,create,delete \
+        --exclude '(\.git|node_modules|\.vscode|publish|scripts-raw|\.DS_Store)' "$MOD_SOURCE_DIR"; do
         echo -e "${YELLOW}检测到文件变化，开始同步...${NC}"
         bash "$MOD_SOURCE_DIR/sync.sh"
         echo ""

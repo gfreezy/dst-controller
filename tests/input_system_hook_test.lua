@@ -44,6 +44,9 @@ package.loaded["dst-controller/hooks/input-system-hook"] = nil
 local InputSystemHook = require("dst-controller/hooks/input-system-hook")
 InputSystemHook.Install()
 
+assert(input:GetActiveControlScheme() == 2,
+    "virtual cursor mode should temporarily use the mouse-compatible control scheme")
+
 input:OnMouseMove(10, 20)
 assert(set_position_calls == 1, "a physical mouse move must update the visible cursor")
 assert(physical_move_calls == 1, "a physical mouse move must select the native cursor source")
@@ -62,3 +65,11 @@ input:OnPosition(30, 40)
 assert(set_position_calls == 2, "an external position event must update the visible cursor")
 assert(physical_move_calls == 2, "an external position event must keep the native cursor source")
 assert(position_calls == 2, "an external position event must still reach DST")
+
+cursor_active = false
+assert(input:GetActiveControlScheme() == 1,
+    "normal gameplay should preserve the player's native control scheme")
+local wrapped_is_control_pressed = input.IsControlPressed
+InputSystemHook.Install()
+assert(input.IsControlPressed == wrapped_is_control_pressed,
+    "installing the input hook twice should not stack wrappers")

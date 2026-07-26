@@ -15,6 +15,37 @@ NC='\033[0m' # No Color
 MOD_SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOD_NAME="enhanced_controller"
 PUBLISH_DIR="$MOD_SOURCE_DIR/publish"
+PUBLISH_ONLY=false
+DST_MODS_OVERRIDE=""
+
+show_usage() {
+    echo "用法: ./sync.sh [--publish-only] [/path/to/mods]"
+    echo "  --publish-only  只生成 Steam Mod Uploader 使用的 publish 目录"
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        --publish-only)
+            PUBLISH_ONLY=true
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -*)
+            echo -e "${RED}错误: 未知参数 $arg${NC}"
+            show_usage
+            exit 1
+            ;;
+        *)
+            if [ -n "$DST_MODS_OVERRIDE" ]; then
+                echo -e "${RED}错误: 只能指定一个游戏 mods 目录${NC}"
+                exit 1
+            fi
+            DST_MODS_OVERRIDE="$arg"
+            ;;
+    esac
+done
 
 # 检测操作系统并设置目标目录
 detect_dst_mods_dir() {
@@ -48,22 +79,23 @@ if [ -f "$MOD_SOURCE_DIR/sync.config" ]; then
     echo -e "${GREEN}已加载自定义配置${NC}"
 fi
 
-# 检测目标目录
-detect_dst_mods_dir
-
-# 允许通过命令行参数覆盖目标目录
-if [ -n "$1" ]; then
-    DST_MODS_DIR="$1"
+if [ "$PUBLISH_ONLY" = false ]; then
+    if [ -n "$DST_MODS_OVERRIDE" ]; then
+        DST_MODS_DIR="$DST_MODS_OVERRIDE"
+    elif [ -z "${DST_MODS_DIR:-}" ]; then
+        detect_dst_mods_dir
+    fi
+    MOD_TARGET_DIR="$DST_MODS_DIR/$MOD_NAME"
 fi
-
-MOD_TARGET_DIR="$DST_MODS_DIR/$MOD_NAME"
 
 echo "========================================"
 echo "饥荒联机版 Mod 同步工具"
 echo "========================================"
 echo -e "源目录: ${YELLOW}$MOD_SOURCE_DIR${NC}"
 echo -e "发布目录: ${YELLOW}$PUBLISH_DIR${NC}"
-echo -e "目标目录: ${YELLOW}$MOD_TARGET_DIR${NC}"
+if [ "$PUBLISH_ONLY" = false ]; then
+    echo -e "目标目录: ${YELLOW}$MOD_TARGET_DIR${NC}"
+fi
 echo ""
 
 # 检查源目录
@@ -73,7 +105,7 @@ if [ ! -f "$MOD_SOURCE_DIR/modinfo.lua" ]; then
 fi
 
 # 检查目标目录是否存在
-if [ ! -d "$DST_MODS_DIR" ]; then
+if [ "$PUBLISH_ONLY" = false ] && [ ! -d "$DST_MODS_DIR" ]; then
     echo -e "${RED}错误: 饥荒 mods 目录不存在: $DST_MODS_DIR${NC}"
     echo ""
     echo "请手动指定目录："
@@ -85,7 +117,7 @@ if [ ! -d "$DST_MODS_DIR" ]; then
 fi
 
 # 创建目标目录
-if [ ! -d "$MOD_TARGET_DIR" ]; then
+if [ "$PUBLISH_ONLY" = false ] && [ ! -d "$MOD_TARGET_DIR" ]; then
     echo -e "${YELLOW}创建目标目录...${NC}"
     mkdir -p "$MOD_TARGET_DIR"
 fi
@@ -93,7 +125,7 @@ fi
 # macOS may protect another application's bundle through App Management even
 # when POSIX ownership looks writable. Stop before rsync --delete can leave a
 # partially-deployed mod behind.
-if [ ! -w "$MOD_TARGET_DIR" ]; then
+if [ "$PUBLISH_ONLY" = false ] && [ ! -w "$MOD_TARGET_DIR" ]; then
     echo -e "${RED}错误: 目标目录受系统保护，当前进程不可写:${NC}"
     echo "  $MOD_TARGET_DIR"
     echo ""
@@ -135,10 +167,12 @@ rsync -av --delete --delete-excluded --prune-empty-dirs \
     --exclude=".DS_Store" "${INCLUDE_ARGS[@]}" --exclude="*" \
     "$MOD_SOURCE_DIR/" "$PUBLISH_DIR/"
 
-# 游戏目录与发布目录保持完全一致。
-echo ""
-echo -e "${GREEN}同步到游戏 Mod 目录...${NC}"
-rsync -av --delete "$PUBLISH_DIR/" "$MOD_TARGET_DIR/"
+if [ "$PUBLISH_ONLY" = false ]; then
+    # 游戏目录与发布目录保持完全一致。
+    echo ""
+    echo -e "${GREEN}同步到游戏 Mod 目录...${NC}"
+    rsync -av --delete "$PUBLISH_DIR/" "$MOD_TARGET_DIR/"
+fi
 
 # 显示发布白名单
 echo ""
@@ -148,5 +182,9 @@ for pattern in "${INCLUDED_PATTERNS[@]}"; do
 done
 
 echo ""
-echo -e "${GREEN}✓ 同步完成！${NC}"
+if [ "$PUBLISH_ONLY" = true ]; then
+    echo -e "${GREEN}✓ 发布目录生成完成！${NC}"
+else
+    echo -e "${GREEN}✓ 同步完成！${NC}"
+fi
 echo ""

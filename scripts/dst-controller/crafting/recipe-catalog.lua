@@ -201,7 +201,15 @@ function RecipeCatalog.Search(entries, query, limit)
         table.insert(results, matches[index].entry)
     end
 
-    return results
+    return results, #matches
+end
+
+function RecipeCatalog.Find(entries, recipe_name)
+    for _, entry in ipairs(entries or {}) do
+        if entry.recipe_name == recipe_name then
+            return entry
+        end
+    end
 end
 
 function RecipeCatalog.ToSpinnerOptions(entries)

@@ -1,7 +1,9 @@
 -- Enhanced Controller - Client-side Pathfinder
--- 客户端寻路系统：使用 Dijkstra 算法基于地图网格寻路
+-- 客户端寻路系统：使用 A* 算法和地形代价基于地图网格寻路
 
 local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
+local PathfindingPolicy = require("dst-controller/utils/pathfinding-policy")
 
 local ClientPathfinder = {}
 
@@ -305,35 +307,37 @@ local function IsPlayerGhost()
 end
 
 -- ============================================================================
--- Dijkstra 寻路算法
+-- A* 寻路算法
 -- ============================================================================
 
-local function DijkstraPathfind(start_x, start_z, end_x, end_z)
+local SimplifyPath
+
+local function AStarPathfind(start_x, start_z, end_x, end_z)
     -- 重置调试计数器
     debug_road_count = 0
 
     local start_gx, start_gz = WorldToGrid(start_x, start_z)
     local end_gx, end_gz = WorldToGrid(end_x, end_z)
 
-    print(string.format("[Dijkstra] Start grid: (%d, %d), End grid: (%d, %d)",
+    Helpers.DebugPrint(string.format("[AStar] Start grid: (%d, %d), End grid: (%d, %d)",
         start_gx, start_gz, end_gx, end_gz))
 
     -- 调试：检查世界和地图状态
-    print("[Dijkstra] TheWorld: " .. tostring(G.TheWorld))
-    print("[Dijkstra] TheWorld.Map: " .. tostring(G.TheWorld and G.TheWorld.Map))
+    Helpers.DebugPrint("[AStar] TheWorld: " .. tostring(G.TheWorld))
+    Helpers.DebugPrint("[AStar] TheWorld.Map: " .. tostring(G.TheWorld and G.TheWorld.Map))
     if G.TheWorld then
-        print("[Dijkstra] World prefab: " .. tostring(G.TheWorld.prefab))
+        Helpers.DebugPrint("[AStar] World prefab: " .. tostring(G.TheWorld.prefab))
         -- 检查是否在洞穴
         local is_cave = G.TheWorld:HasTag("cave")
-        print("[Dijkstra] Is cave: " .. tostring(is_cave))
+        Helpers.DebugPrint("[AStar] Is cave: " .. tostring(is_cave))
     end
 
     -- 检查起点是否可通行
     local start_passable = IsGridPassable(start_gx, start_gz)
-    print("[Dijkstra] Start position passable: " .. tostring(start_passable))
+    Helpers.DebugPrint("[AStar] Start position passable: " .. tostring(start_passable))
     if not start_passable then
         -- 尝试在起点附近找一个可通行的点
-        print("[Dijkstra] Start point is not passable, searching nearby...")
+        Helpers.DebugPrint("[AStar] Start point is not passable, searching nearby...")
         local found = false
         for radius = 1, 3 do
             for dx = -radius, radius do
@@ -349,15 +353,15 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
             if found then break end
         end
         if not found then
-            print("[Dijkstra] Cannot find passable start point nearby")
+            Helpers.DebugPrint("[AStar] Cannot find passable start point nearby")
             return nil
         end
-        print(string.format("[Dijkstra] Adjusted start grid: (%d, %d)", start_gx, start_gz))
+        Helpers.DebugPrint(string.format("[AStar] Adjusted start grid: (%d, %d)", start_gx, start_gz))
     end
 
     -- 检查终点是否可通行
     if not IsGridPassable(end_gx, end_gz) then
-        print("[Dijkstra] End point is not passable, searching nearby...")
+        Helpers.DebugPrint("[AStar] End point is not passable, searching nearby...")
         -- 搜索附近可通行的点
         local found = false
         for radius = 1, 5 do
@@ -374,10 +378,10 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
             if found then break end
         end
         if not found then
-            print("[Dijkstra] Cannot find passable end point nearby")
+            Helpers.DebugPrint("[AStar] Cannot find passable end point nearby")
             return nil
         end
-        print(string.format("[Dijkstra] Adjusted end grid: (%d, %d)", end_gx, end_gz))
+        Helpers.DebugPrint(string.format("[AStar] Adjusted end grid: (%d, %d)", end_gx, end_gz))
     end
 
     -- 初始化
@@ -390,11 +394,12 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
     local end_key = GridKey(end_gx, end_gz)
 
     dist[start_key] = 0
-    pq:push({gx = start_gx, gz = start_gz}, 0)
+    pq:push({gx = start_gx, gz = start_gz},
+        PathfindingPolicy.EstimateCost(start_gx, start_gz, end_gx, end_gz))
 
     local nodes_searched = 0
 
-    -- Dijkstra 主循环
+    -- A* 主循环
     while not pq:isEmpty() do
         local current = pq:pop()
         local current_key = GridKey(current.gx, current.gz)
@@ -406,13 +411,13 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
 
             -- 检查是否到达终点
             if current_key == end_key then
-                print(string.format("[Dijkstra] Path found! Searched %d nodes", nodes_searched))
+                Helpers.DebugPrint(string.format("[AStar] Path found! Searched %d nodes", nodes_searched))
                 break
             end
 
             -- 防止搜索过久
             if nodes_searched >= CONFIG.MAX_SEARCH_NODES then
-                print(string.format("[Dijkstra] Max search nodes reached (%d)", CONFIG.MAX_SEARCH_NODES))
+                Helpers.DebugPrint(string.format("[AStar] Max search nodes reached (%d)", CONFIG.MAX_SEARCH_NODES))
                 break
             end
 
@@ -435,7 +440,9 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
                     if not dist[next_key] or new_dist < dist[next_key] then
                         dist[next_key] = new_dist
                         prev[next_key] = current_key
-                        pq:push({gx = next_gx, gz = next_gz}, new_dist)
+                        local priority = new_dist + PathfindingPolicy.EstimateCost(
+                            next_gx, next_gz, end_gx, end_gz)
+                        pq:push({gx = next_gx, gz = next_gz}, priority)
                     end
                 end
             end
@@ -444,7 +451,7 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
 
     -- 检查是否找到路径
     if not visited[end_key] then
-        print("[Dijkstra] No path found")
+        Helpers.DebugPrint("[AStar] No path found")
         return nil
     end
 
@@ -460,12 +467,12 @@ local function DijkstraPathfind(start_x, start_z, end_x, end_z)
         current_key = prev[current_key]
     end
 
-    print(string.format("[Dijkstra] Path reconstructed with %d waypoints", #path))
-    print(string.format("[Dijkstra] Road tiles found during search: %d", debug_road_count))
+    Helpers.DebugPrint(string.format("[AStar] Path reconstructed with %d waypoints", #path))
+    Helpers.DebugPrint(string.format("[AStar] Road tiles found during search: %d", debug_road_count))
 
     -- 简化路径（移除共线点）
     path = SimplifyPath(path)
-    print(string.format("[Dijkstra] Path simplified to %d waypoints", #path))
+    Helpers.DebugPrint(string.format("[AStar] Path simplified to %d waypoints", #path))
 
     return path
 end
@@ -474,7 +481,7 @@ end
 -- 路径简化（移除共线点）
 -- ============================================================================
 
-function SimplifyPath(path)
+SimplifyPath = function(path)
     if #path <= 2 then
         return path
     end
@@ -658,8 +665,8 @@ function ClientPathfinder.Start(target_x, target_z)
         print("[ClientPathfinder] Player is ghost, using straight line pathfinding")
         path = StraightLinePathfind(player_pos.x, player_pos.z, target_x, target_z)
     else
-        -- 使用 Dijkstra 算法生成路径
-        path = DijkstraPathfind(player_pos.x, player_pos.z, target_x, target_z)
+        -- 使用 A* 算法生成路径
+        path = AStarPathfind(player_pos.x, player_pos.z, target_x, target_z)
     end
     if not path or #path == 0 then
         print("[ClientPathfinder] Failed to generate path")

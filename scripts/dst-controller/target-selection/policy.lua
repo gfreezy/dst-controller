@@ -4,6 +4,7 @@ local TargetPolicy = {}
 
 TargetPolicy.SECONDARY_TARGET_CHANGE_DELAY = 0.2
 TargetPolicy.ITEM_USE_TARGET_SCAN_INTERVAL = 0.1
+TargetPolicy.BASE_TARGET_SCAN_INTERVAL = 1 / 30
 
 -- Publish a newly discovered target immediately so the first button press is
 -- usable. Debounce only switches between two existing targets.

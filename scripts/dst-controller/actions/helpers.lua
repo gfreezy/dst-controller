@@ -1,6 +1,7 @@
 -- Helper functions used by action modules
 
 local ActionHelpers = {}
+local Helpers = require("dst-controller/utils/helpers")
 
 -- ============================================================================
 -- Internal helpers
@@ -59,7 +60,8 @@ local function GetContainerItemInSlot(container, slot)
         local classified_item = container.classified:GetItemInSlot(slot)
         if classified_item then
             -- Debug: only log when we actually find something via fallback
-            print(string.format("[GetContainerItemInSlot] Fallback to classified worked! Slot %d -> %s", slot, classified_item.prefab))
+            Helpers.DebugPrintf("Inventory classified fallback: slot %d -> %s",
+                slot, classified_item.prefab)
         end
         return classified_item
     end
@@ -83,7 +85,8 @@ local function IterateContainerSlots(container, slot_offset, fn)
             return true
         end
     end
-    print(string.format("[IterateContainerSlots] Iterated %d slots, found %d items (offset=%d)", slot_count, items_found, slot_offset))
+    Helpers.DebugPrintf("Iterated %d slots, found %d items (offset=%d)",
+        slot_count, items_found, slot_offset)
 
     return false
 end
@@ -108,7 +111,7 @@ function ActionHelpers.ForEachInventoryItem(player, fn)
 
     -- Debug: count main inventory slots
     local main_slots = GetContainerSlotCount(inventory)
-    print(string.format("[ForEachInventoryItem] Main inventory slots: %d", main_slots))
+    Helpers.DebugPrintf("Main inventory slots: %d", main_slots)
 
     if IterateContainerSlots(inventory, 0, fn) then
         return
@@ -118,18 +121,18 @@ function ActionHelpers.ForEachInventoryItem(player, fn)
         local overflow = inventory:GetOverflowContainer()
         if overflow then
             local overflow_slots = GetContainerSlotCount(overflow)
-            print(string.format("[ForEachInventoryItem] Overflow container found, slots: %d", overflow_slots))
+            Helpers.DebugPrintf("Overflow container slots: %d", overflow_slots)
 
             -- Debug: check if classified is accessible
             if overflow.classified then
-                print("[ForEachInventoryItem] Overflow classified is accessible")
+                Helpers.DebugPrint("Overflow classified is accessible")
             else
-                print("[ForEachInventoryItem] WARNING: Overflow classified is nil!")
+                Helpers.DebugPrint("Overflow classified is unavailable")
             end
 
             IterateContainerSlots(overflow, main_slots, fn)
         else
-            print("[ForEachInventoryItem] No overflow container")
+            Helpers.DebugPrint("No overflow container")
         end
     end
 end

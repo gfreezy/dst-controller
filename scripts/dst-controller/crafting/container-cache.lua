@@ -19,6 +19,10 @@ local function GetNow()
     return os.time()
 end
 
+local function GetTimestamp(value)
+    return type(value) == "number" and value or 0
+end
+
 local function RoundPosition(value)
     return math.floor((value or 0) * 10 + 0.5) / 10
 end
@@ -64,12 +68,53 @@ local function GetScope(create)
     return scope, scope_id
 end
 
+local function TrimOldest(records, maximum, get_timestamp)
+    local entries = {}
+    for key, value in pairs(records) do
+        table.insert(entries, { key = key, timestamp = get_timestamp(value) })
+    end
+    if #entries <= maximum then
+        return false
+    end
+    table.sort(entries, function(a, b) return a.timestamp < b.timestamp end)
+    for index = 1, #entries - maximum do
+        records[entries[index].key] = nil
+    end
+    return true
+end
+
+local function PruneData()
+    local changed = false
+    local cutoff = GetNow() - Policy.CACHE_TTL_SECONDS
+    for scope_id, scope in pairs(state.data.scopes) do
+        if type(scope) ~= "table" or GetTimestamp(scope.updated_at) < cutoff then
+            state.data.scopes[scope_id] = nil
+            changed = true
+        else
+            scope.containers = type(scope.containers) == "table" and scope.containers or {}
+            for key, record in pairs(scope.containers) do
+                if type(record) ~= "table" or GetTimestamp(record.updated_at) < cutoff then
+                    scope.containers[key] = nil
+                    changed = true
+                end
+            end
+            changed = TrimOldest(scope.containers,
+                Policy.CACHE_MAX_CONTAINERS_PER_SCOPE,
+                function(record) return GetTimestamp(record.updated_at) end) or changed
+        end
+    end
+    changed = TrimOldest(state.data.scopes, Policy.CACHE_MAX_SCOPES,
+        function(scope) return GetTimestamp(scope.updated_at) end) or changed
+    return changed
+end
+
 local function EncodeAndSave()
     state.save_task = nil
     if G.TheSim == nil or G.json == nil then
         return
     end
 
+    PruneData()
     local ok, encoded = pcall(G.json.encode, state.data)
     if not ok then
         print("[Enhanced Controller] Failed to encode container cache")
@@ -95,14 +140,18 @@ local function MergeLoadedData(loaded)
         return
     end
     for scope_id, loaded_scope in pairs(loaded.scopes) do
-        if state.data.scopes[scope_id] == nil then
+        if type(loaded_scope) ~= "table" then
+            -- Pruning cannot inspect a scalar scope safely; ignore it here.
+        elseif state.data.scopes[scope_id] == nil then
             state.data.scopes[scope_id] = loaded_scope
         elseif type(loaded_scope.containers) == "table" then
             local current = state.data.scopes[scope_id]
             current.containers = current.containers or {}
             for key, record in pairs(loaded_scope.containers) do
                 local existing = current.containers[key]
-                if existing == nil or (record.updated_at or 0) > (existing.updated_at or 0) then
+                if type(record) == "table" and
+                    (existing == nil or GetTimestamp(record.updated_at) >
+                        GetTimestamp(existing.updated_at)) then
                     current.containers[key] = record
                 end
             end
@@ -124,11 +173,14 @@ function ContainerCache.Initialize(callback)
         state.loading = false
         if success and encoded ~= nil and encoded ~= "" and G.json ~= nil then
             local ok, loaded = pcall(G.json.decode, encoded)
-            if ok and loaded.version == Policy.CACHE_VERSION then
+            if ok and type(loaded) == "table" and
+                loaded.version == Policy.CACHE_VERSION then
                 MergeLoadedData(loaded)
             end
         end
+        local pruned = PruneData()
         state.loaded = true
+        if pruned then QueueSave() end
         if callback ~= nil then callback(true) end
     end)
 end
@@ -179,6 +231,9 @@ function ContainerCache.Snapshot(entity, player)
     local scope = GetScope(true)
     local previous = scope.containers[key]
     local changed = previous == nil or previous.signature ~= signature or previous.guid ~= entity.GUID
+    local now = GetNow()
+    local should_refresh_timestamp = previous == nil or
+        GetTimestamp(previous.updated_at) < now - Policy.CACHE_TIMESTAMP_REFRESH_SECONDS
 
     scope.containers[key] = {
         guid = entity.GUID,
@@ -187,11 +242,11 @@ function ContainerCache.Snapshot(entity, player)
         z = RoundPosition(z),
         items = counts,
         signature = signature,
-        updated_at = GetNow(),
+        updated_at = now,
     }
-    scope.updated_at = GetNow()
+    scope.updated_at = now
 
-    if changed then
+    if changed or should_refresh_timestamp then
         QueueSave()
     end
     return changed
@@ -201,8 +256,15 @@ function ContainerCache.Get(entity)
     local key = ContainerCache.GetContainerKey(entity)
     local scope = GetScope(false)
     local record = scope ~= nil and key ~= nil and scope.containers[key] or nil
+    if record ~= nil and GetTimestamp(record.updated_at) < GetNow() - Policy.CACHE_TTL_SECONDS then
+        scope.containers[key] = nil
+        QueueSave()
+        return nil
+    end
     if record ~= nil and record.guid ~= nil and entity ~= nil and
         entity.GUID ~= nil and record.guid ~= entity.GUID then
+        scope.containers[key] = nil
+        QueueSave()
         return nil
     end
     return record
@@ -222,6 +284,12 @@ function ContainerCache.UpdateOpenContainers(player)
             changed = ContainerCache.Snapshot(entity, player) or changed
         end
     end
+    return changed
+end
+
+function ContainerCache.Prune()
+    local changed = PruneData()
+    if changed then QueueSave() end
     return changed
 end
 

@@ -5,6 +5,7 @@ local Policy = require("dst-controller/crafting/policy")
 local ContainerCache = require("dst-controller/crafting/container-cache")
 local Finder = require("dst-controller/crafting/material-finder")
 local Planner = require("dst-controller/crafting/material-planner")
+local L = require("dst-controller/localization").L
 
 local Coordinator = {}
 
@@ -106,7 +107,15 @@ function Task:OnComplete(callback)
 end
 
 function Task:Cancel(reason)
-    Coordinator.Interrupt(self.player, reason or "cancelled")
+    Coordinator.Interrupt(self.player, reason or L("AUTO_CRAFT_REASON_CANCELLED"))
+end
+
+function Task:GetProgress()
+    return {
+        phase = self.progress.phase,
+        checked = self.progress.checked,
+        total = self.progress.total,
+    }
 end
 
 local function RemoveListener(ctx, listener)
@@ -123,6 +132,7 @@ local function Complete(ctx, status, reason)
     ctx.task.status = status
     ctx.task.pending = false
     ctx.task.reason = reason
+    ctx.task.progress.phase = status
     if active_tasks[ctx.player.GUID] == ctx then
         active_tasks[ctx.player.GUID] = nil
     end
@@ -139,7 +149,7 @@ local function Complete(ctx, status, reason)
     ctx.listeners = {}
 
     if status == "success" then
-        Notify(ctx.player, "自动建造完成")
+        Notify(ctx.player, L("AUTO_CRAFT_COMPLETE"))
     elseif status == "interrupted" then
         -- Stop only the automation-owned in-flight movement/action. Already
         -- moved or crafted items are intentionally left exactly where they are.
@@ -153,7 +163,8 @@ local function Complete(ctx, status, reason)
         elseif controller ~= nil and controller.RemoteStopWalking ~= nil then
             controller:RemoteStopWalking()
         end
-        Notify(ctx.player, "自动建造已中断：" .. tostring(reason or "未知原因"))
+        Notify(ctx.player, L("AUTO_CRAFT_INTERRUPTED",
+            tostring(reason or L("AUTO_CRAFT_UNKNOWN_REASON"))))
     end
 
     for _, callback in ipairs(ctx.task.callbacks) do
@@ -170,7 +181,7 @@ end
 
 function Coordinator.Interrupt(player, reason)
     if player ~= nil then
-        Interrupt(active_tasks[player.GUID], reason or "用户操作")
+        Interrupt(active_tasks[player.GUID], reason or L("AUTO_CRAFT_REASON_USER_ACTION"))
     end
 end
 
@@ -180,7 +191,7 @@ end
 
 function Coordinator.OnUserControl(player, control, down)
     if down and Coordinator.IsActive(player) then
-        Coordinator.Interrupt(player, "用户接管")
+        Coordinator.Interrupt(player, L("AUTO_CRAFT_REASON_USER_ACTION"))
         return true
     end
     return false
@@ -229,7 +240,7 @@ local function WaitUntil(ctx, predicate, timeout, on_success, failure_reason)
         if ok and result then
             on_success()
         elseif GetTime() >= deadline then
-            Interrupt(ctx, failure_reason or "操作超时")
+            Interrupt(ctx, failure_reason or L("AUTO_CRAFT_REASON_OPERATION_TIMEOUT"))
         else
             Schedule(ctx, Policy.POLL_INTERVAL, Poll)
         end
@@ -250,7 +261,7 @@ local function WaitForBuild(ctx, action, verify, on_success)
             if verify == nil or verify() then
                 on_success()
             else
-                Interrupt(ctx, "制作结果未同步")
+                Interrupt(ctx, L("AUTO_CRAFT_REASON_BUILD_NOT_SYNCED"))
             end
         end)
     end
@@ -260,7 +271,7 @@ local function WaitForBuild(ctx, action, verify, on_success)
         if not completed then
             completed = true
             StopListening(ctx, listener)
-            Interrupt(ctx, "制作超时")
+            Interrupt(ctx, L("AUTO_CRAFT_REASON_BUILD_TIMEOUT"))
         end
     end)
 end
@@ -290,7 +301,7 @@ end
 
 local function OpenContainer(ctx, entity, callback)
     if entity == nil or not entity:IsValid() or not Policy.IsStorageContainer(entity, ctx.player) then
-        Interrupt(ctx, "容器不可用")
+        Interrupt(ctx, L("AUTO_CRAFT_REASON_CONTAINER_UNAVAILABLE"))
         return
     end
 
@@ -308,7 +319,7 @@ local function OpenContainer(ctx, entity, callback)
             return controller ~= nil and not controller:IsBusy()
         end, Policy.ACTION_TIMEOUT, function()
             OpenContainer(ctx, entity, callback)
-        end, "无法打开容器")
+        end, L("AUTO_CRAFT_REASON_CONTAINER_BUSY"))
         return
     end
 
@@ -319,7 +330,7 @@ local function OpenContainer(ctx, entity, callback)
         ContainerCache.Snapshot(entity, ctx.player)
         AddVerified(ctx, entity)
         callback()
-    end, "打开容器失败")
+    end, L("AUTO_CRAFT_REASON_CONTAINER_OPEN_FAILED"))
 end
 
 local function BuildExternalSnapshot(ctx)
@@ -346,31 +357,45 @@ end
 
 local ExecutePlan
 
-local function PlanAfterVerification(ctx)
+local function PlanAfterVerification(ctx, final_attempt)
     local external, max_stacks = BuildExternalSnapshot(ctx)
     local owned = Finder.GetPersonalCounts(ctx.player)
     local plan, reason, detail = Coordinator.BuildPlan(ctx.player, ctx.recipe, owned, external, max_stacks)
     if plan ~= nil then
         ctx.plan = plan
         ctx.needed_prefabs = plan.needed_prefabs
+        ctx.task.progress.phase = "executing"
         ExecutePlan(ctx, 1)
-        return
+        return true
     end
 
     ctx.last_plan_reason = reason
     ctx.last_plan_detail = detail
     local missing = detail ~= nil and (tostring(detail.prefab) .. " ×" .. tostring(math.max(0, detail.amount - detail.available))) or tostring(reason)
-    Interrupt(ctx, "材料或科技不足（" .. missing .. "）")
+    if final_attempt then
+        Interrupt(ctx, L("AUTO_CRAFT_REASON_INSUFFICIENT", missing))
+    end
+    return false
 end
 
 local function VerifyNextContainer(ctx)
+    if ctx.next_container_index > ctx.container_limit then
+        ctx.task.progress.phase = "planning"
+        PlanAfterVerification(ctx, true)
+        return
+    end
     local entity = ctx.container_candidates[ctx.next_container_index]
     ctx.next_container_index = ctx.next_container_index + 1
     if entity == nil then
-        PlanAfterVerification(ctx)
+        ctx.task.progress.phase = "planning"
+        PlanAfterVerification(ctx, true)
         return
     end
     OpenContainer(ctx, entity, function()
+        ctx.task.progress.checked = ctx.task.progress.checked + 1
+        if ctx.search_mode == "smart" and PlanAfterVerification(ctx, false) then
+            return
+        end
         VerifyNextContainer(ctx)
     end)
 end
@@ -382,13 +407,13 @@ local function EnsureRoom(ctx, prefab, callback, allow_staging)
     end
 
     if allow_staging == false then
-        Interrupt(ctx, "完成后没有空间恢复临时物品")
+        Interrupt(ctx, L("AUTO_CRAFT_REASON_NO_RESTORE_SPACE"))
         return
     end
 
     local item = Finder.FindSafeStageItem(ctx.player, ctx.needed_prefabs)
     if item == nil then
-        Interrupt(ctx, "背包没有可安全腾出的格子")
+        Interrupt(ctx, L("AUTO_CRAFT_REASON_NO_SAFE_SLOT"))
         return
     end
 
@@ -399,7 +424,7 @@ local function EnsureRoom(ctx, prefab, callback, allow_staging)
     end, Policy.ACTION_TIMEOUT, function()
         table.insert(ctx.staged_items, item)
         callback()
-    end, "临时腾格失败")
+    end, L("AUTO_CRAFT_REASON_STAGE_FAILED"))
 end
 
 local function FindOpenContainerRecord(ctx, prefab)
@@ -453,12 +478,12 @@ local function MoveFromContainer(ctx, entity, record, prefab, amount, callback)
             ContainerCache.Snapshot(entity, ctx.player)
             local gained = Finder.GetPersonalCount(ctx.player, prefab) - before
             if gained <= 0 then
-                Interrupt(ctx, "从容器取材失败")
+                Interrupt(ctx, L("AUTO_CRAFT_REASON_CONTAINER_TAKE_FAILED"))
             else
                 RecordExternalAcquisition(ctx, prefab)
                 AcquirePrefab(ctx, prefab, amount - math.min(amount, gained), callback)
             end
-        end, "从容器取材超时")
+        end, L("AUTO_CRAFT_REASON_CONTAINER_TAKE_TIMEOUT"))
     end)
 end
 
@@ -472,7 +497,7 @@ local function PickupGround(ctx, item, prefab, amount, callback)
         end, Policy.ACTION_TIMEOUT, function()
             local gained = math.max(0, Finder.GetPersonalCount(ctx.player, prefab) - before)
             if gained <= 0 then
-                Interrupt(ctx, "拾取材料失败")
+                Interrupt(ctx, L("AUTO_CRAFT_REASON_PICKUP_FAILED"))
                 return
             end
             RecordExternalAcquisition(ctx, prefab)
@@ -486,7 +511,7 @@ local function PickupGround(ctx, item, prefab, amount, callback)
                 ctx.acquire_credit[prefab] = (ctx.acquire_credit[prefab] or 0) + predicted_excess
             end
             AcquirePrefab(ctx, prefab, amount - used, callback)
-        end, "拾取材料超时")
+        end, L("AUTO_CRAFT_REASON_PICKUP_TIMEOUT"))
     end)
 end
 
@@ -514,7 +539,7 @@ AcquirePrefab = function(ctx, prefab, amount, callback)
         OpenContainer(ctx, entity, function()
             local refreshed_entity, refreshed_record = FindOpenContainerRecord(ctx, prefab)
             if refreshed_entity == nil then
-                Interrupt(ctx, "容器缓存已失效，缺少 " .. tostring(prefab))
+                Interrupt(ctx, L("AUTO_CRAFT_REASON_CACHE_STALE", tostring(prefab)))
             else
                 MoveFromContainer(ctx, refreshed_entity, refreshed_record, prefab, amount, callback)
             end
@@ -528,7 +553,7 @@ AcquirePrefab = function(ctx, prefab, amount, callback)
         return
     end
 
-    Interrupt(ctx, "已验证材料发生变化，缺少 " .. tostring(prefab))
+    Interrupt(ctx, L("AUTO_CRAFT_REASON_SOURCE_CHANGED", tostring(prefab)))
 end
 
 local function CloseOpenContainers(ctx, callback, index)
@@ -548,14 +573,14 @@ local function CloseOpenContainers(ctx, callback, index)
         return not entity:IsValid() or not entity.replica.container:IsOpenedBy(ctx.player)
     end, Policy.ACTION_TIMEOUT, function()
         CloseOpenContainers(ctx, callback, index + 1)
-    end, "关闭容器失败")
+    end, L("AUTO_CRAFT_REASON_CONTAINER_CLOSE_FAILED"))
 end
 
 local function CraftIntermediate(ctx, step, callback)
     CloseOpenContainers(ctx, function()
         local builder = ctx.player.replica.builder
         if not builder:HasIngredients(step.recipe) then
-            Interrupt(ctx, "合成前材料校验失败：" .. tostring(step.recipe.name))
+            Interrupt(ctx, L("AUTO_CRAFT_REASON_PRECHECK_FAILED", tostring(step.recipe.name)))
             return
         end
         local before = Finder.GetPersonalCount(ctx.player, step.product)
@@ -579,13 +604,14 @@ local function CraftIntermediate(ctx, step, callback)
                 end
             end
             if equipped_slot == nil then
-                Interrupt(ctx, "制作结果未进入背包：" .. tostring(step.product))
+                Interrupt(ctx, L("AUTO_CRAFT_REASON_PRODUCT_NOT_STORED", tostring(step.product)))
                 return
             end
             inventory:TakeActiveItemFromEquipSlot(equipped_slot)
             WaitUntil(ctx, function()
                 return Finder.GetPersonalCount(ctx.player, step.product) > before
-            end, Policy.ACTION_TIMEOUT, callback, "无法收回自动装备的次级材料")
+            end, Policy.ACTION_TIMEOUT, callback,
+                L("AUTO_CRAFT_REASON_UNEQUIP_PRODUCT_FAILED"))
         end)
     end)
 end
@@ -603,7 +629,7 @@ local function FinishRecipe(ctx)
     CloseOpenContainers(ctx, function()
         local builder = ctx.player.replica.builder
         if not builder:HasIngredients(ctx.recipe) then
-            Interrupt(ctx, "最终建造前材料校验失败")
+            Interrupt(ctx, L("AUTO_CRAFT_REASON_FINAL_PRECHECK_FAILED"))
             return
         end
 
@@ -619,7 +645,7 @@ local function FinishRecipe(ctx)
                         Complete(ctx, "success")
                     end)
                 end)
-            end, "建筑缓冲失败")
+            end, L("AUTO_CRAFT_REASON_BUFFER_FAILED"))
         elseif ctx.recipe.manufactured then
             local before = {}
             for _, ingredient in ipairs(ctx.recipe.ingredients or {}) do
@@ -643,7 +669,7 @@ local function FinishRecipe(ctx)
                         Complete(ctx, "success")
                     end)
                 end)
-            end, "制作站未确认制造结果")
+            end, L("AUTO_CRAFT_REASON_MANUFACTURE_FAILED"))
         else
             WaitForBuild(ctx, function()
                 builder:MakeRecipeFromMenu(ctx.recipe, ctx.skin)
@@ -678,7 +704,7 @@ local function DropWholeStack(ctx, prefab, callback)
         return Finder.GetPersonalCount(ctx.player, prefab) < before
     end, Policy.ACTION_TIMEOUT, function()
         callback(true)
-    end, "归还外部材料失败")
+    end, L("AUTO_CRAFT_REASON_RETURN_FAILED"))
 end
 
 ReturnExternalRemainders = function(ctx, callback)
@@ -713,7 +739,7 @@ RestoreStaged = function(ctx, callback)
             callback()
             return
         elseif not item:IsValid() then
-            Notify(ctx.player, "临时放下的物品已不存在：" .. tostring(item.prefab))
+            Notify(ctx.player, L("AUTO_CRAFT_STAGED_ITEM_MISSING", tostring(item.prefab)))
             Restore(index + 1)
             return
         end
@@ -724,7 +750,7 @@ RestoreStaged = function(ctx, callback)
                 return item.replica.inventoryitem:IsGrandOwner(ctx.player)
             end, Policy.ACTION_TIMEOUT, function()
                 Restore(index + 1)
-            end, "恢复临时物品失败")
+            end, L("AUTO_CRAFT_REASON_RESTORE_FAILED"))
         end, false)
     end
     Restore(1)
@@ -733,7 +759,7 @@ end
 ExecutePlan = function(ctx, index)
     local step = ctx.plan.steps[index]
     if step == nil then
-        Interrupt(ctx, "建造计划不完整")
+        Interrupt(ctx, L("AUTO_CRAFT_REASON_PLAN_INCOMPLETE"))
     elseif step.kind == "acquire" then
         AcquirePrefab(ctx, step.prefab, step.amount, function()
             ExecutePlan(ctx, index + 1)
@@ -745,13 +771,13 @@ ExecutePlan = function(ctx, index)
     elseif step.kind == "finish" then
         FinishRecipe(ctx)
     else
-        Interrupt(ctx, "未知建造步骤")
+        Interrupt(ctx, L("AUTO_CRAFT_REASON_UNKNOWN_STEP"))
     end
 end
 
 local function InstallInterruptionListeners(ctx)
     local function OnInterrupted(_, data)
-        local reason = data and data.reason or "游戏状态变化"
+        local reason = data and data.reason or L("AUTO_CRAFT_REASON_GAME_STATE")
         Interrupt(ctx, reason)
     end
     Listen(ctx, ctx.player, "death", OnInterrupted)
@@ -765,7 +791,7 @@ function Coordinator.Start(player, recipe, skin)
         return nil
     end
 
-    Coordinator.Interrupt(player, "启动了新的自动建造")
+    Coordinator.Interrupt(player, L("AUTO_CRAFT_REASON_REPLACED"))
 
     local task = setmetatable({
         pending = true,
@@ -773,6 +799,7 @@ function Coordinator.Start(player, recipe, skin)
         reason = nil,
         callbacks = {},
         player = player,
+        progress = { phase = "searching", checked = 0, total = 0 },
     }, Task)
     local ctx = {
         player = player,
@@ -791,8 +818,11 @@ function Coordinator.Start(player, recipe, skin)
     }
     active_tasks[player.GUID] = ctx
 
-    ctx.ground_candidates = Finder.FindNearbyGroundItems(player, Policy.SEARCH_RADIUS)
-    ctx.container_candidates = Finder.FindNearbyContainers(player, Policy.SEARCH_RADIUS)
+    local automation_settings = Policy.GetAutomationSettings()
+    ctx.search_radius = automation_settings.search_radius
+    ctx.search_mode = automation_settings.search_mode
+    ctx.ground_candidates = Finder.FindNearbyGroundItems(player, ctx.search_radius)
+    ctx.container_candidates = Finder.FindNearbyContainers(player, ctx.search_radius)
 
     -- Cached containers likely to contain a direct ingredient are checked first;
     -- unknown containers remain optimistic and are then checked by distance.
@@ -810,6 +840,10 @@ function Coordinator.Start(player, recipe, skin)
         end
         return Score(a) > Score(b)
     end)
+    ctx.container_limit = automation_settings.max_containers == 0 and
+        #ctx.container_candidates or
+        math.min(#ctx.container_candidates, automation_settings.max_containers)
+    task.progress.total = ctx.container_limit
 
     InstallInterruptionListeners(ctx)
     local controller = player.components.playercontroller
@@ -819,11 +853,14 @@ function Coordinator.Start(player, recipe, skin)
     if player.HUD ~= nil and player.HUD.IsCraftingOpen ~= nil and player.HUD:IsCraftingOpen() then
         player.HUD:CloseCrafting()
     end
-    Notify(player, "开始自动搜索建造：" .. tostring(recipe.name))
+    Notify(player, L("AUTO_CRAFT_STARTED", tostring(recipe.name)))
     Schedule(ctx, 0, function()
-        -- Inspect every eligible nearby container before planning so an existing
-        -- direct ingredient always wins over crafting that ingredient from raw
-        -- materials found in an earlier container.
+        -- Smart mode first tries visible ground/personal stock and then replans
+        -- after each verified container. Thorough mode preserves the exhaustive
+        -- behavior for players who prefer direct ingredients over speed.
+        if ctx.search_mode == "smart" and PlanAfterVerification(ctx, false) then
+            return
+        end
         VerifyNextContainer(ctx)
     end)
     return task

@@ -64,26 +64,56 @@ local function CollectPlayerItems(candidates, player, prefabs)
     end
 end
 
+local function HasInventoryImage(check_image, prefab_name)
+    if type(check_image) ~= "function" then
+        return false
+    end
+    local ok, has_image = pcall(check_image, prefab_name)
+    return ok and has_image == true
+end
+
+local function AddRegisteredItems(candidates, registered_prefabs, scrapbook_types,
+                                  check_image)
+    for prefab_name in pairs(registered_prefabs or {}) do
+        -- Scrapbook type data is authoritative when it exists. For prefabs not
+        -- represented there (especially mod items), an inventory icon is the
+        -- safest client-side signal that the prefab can be carried.
+        if scrapbook_types[prefab_name] == nil and
+            HasInventoryImage(check_image, prefab_name) then
+            AddItem(candidates, prefab_name, registered_prefabs, true)
+        end
+    end
+end
+
 ---Build the inventory-item catalog from current game data.
----The scrapbook filters vanilla entries to actual items/food. Mod prefabs and
----currently carried items are included even when they lack scrapbook metadata.
+---The scrapbook supplies every known vanilla item/food independent of player
+---ownership. Registered prefabs with inventory icons cover mod items, while
+---currently carried items remain a fallback for unusual prefabs.
 ---@param options table
 ---@return table
 function ItemCatalog.Build(options)
     options = options or {}
     local candidates = {}
     local prefabs = options.prefabs
+    local scrapbook_types = {}
 
     for key, entry in pairs(options.scrapbook_data or {}) do
-        if type(entry) == "table" and (entry.type == "item" or entry.type == "food") then
-            AddItem(candidates, entry.prefab or key, prefabs, false)
+        if type(entry) == "table" then
+            local prefab_name = entry.prefab or key
+            scrapbook_types[prefab_name] = entry.type or false
+            if entry.type == "item" or entry.type == "food" then
+                -- Scrapbook membership is already sufficient validation; do not
+                -- require the item to be loaded or currently owned.
+                AddItem(candidates, prefab_name, prefabs, true)
+            end
         end
     end
 
+    AddRegisteredItems(candidates, prefabs, scrapbook_types,
+        options.has_inventory_image)
     for _, mod in ipairs(options.mods or {}) do
-        for prefab_name in pairs(mod.Prefabs or {}) do
-            AddItem(candidates, prefab_name, prefabs, true)
-        end
+        AddRegisteredItems(candidates, mod.Prefabs, scrapbook_types,
+            options.has_inventory_image)
     end
 
     CollectPlayerItems(candidates, options.player, prefabs)

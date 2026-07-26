@@ -130,34 +130,12 @@ function MapScreenHook.Install()
             end
         end
 
-        -- Hook OnUpdate - 完全替换地图更新逻辑
+        -- Wrap the native update so DST map behavior and future game changes are
+        -- preserved. Add only the controller extensions owned by this mod.
+        local old_OnUpdate = self.OnUpdate
         self.OnUpdate = function(self, dt)
-            -- ===== 原始 MapScreen:OnUpdate 逻辑 =====
-
-            -- Hack: 忽略持续按下的控制（来自原始实现）
-            if self._hack_ignore_held_controls then
-                self._hack_ignore_held_controls = self._hack_ignore_held_controls - dt
-                if self._hack_ignore_held_controls < 0 then
-                    self._hack_ignore_held_controls = nil
-                end
-            end
-
-            local s = -100 * dt -- per second, not per repeat
-
-            -- 左摇杆控制地图平移
-            local xdir = G.TheInput:GetAnalogControlValue(G.CONTROL_MOVE_RIGHT) - G.TheInput:GetAnalogControlValue(G.CONTROL_MOVE_LEFT)
-            local ydir = G.TheInput:GetAnalogControlValue(G.CONTROL_MOVE_UP) - G.TheInput:GetAnalogControlValue(G.CONTROL_MOVE_DOWN)
-            local xmag = xdir * xdir + ydir * ydir
+            local result = old_OnUpdate(self, dt)
             local deadzone = G.TUNING.CONTROLLER_DEADZONE_RADIUS
-            if xmag >= deadzone * deadzone then
-                self.minimap:Offset(xdir * s, ydir * s)
-                self.decorationdata.dirty = true
-            end
-
-            -- ===== 修改：使用 LB + 右摇杆垂直轴控制缩放 =====
-            local ZOOM_CLAMP_MIN = 1
-            local ZOOM_CLAMP_MAX = 20
-            local TIMETOZOOM = 0.1
 
             if Helpers.IsButtonPressed("LB") then
                 local zoom_in_value = G.TheInput:GetAnalogControlValue(G.VIRTUAL_CONTROL_CAMERA_ZOOM_IN)
@@ -165,63 +143,31 @@ function MapScreenHook.Install()
                 local inoutdir = zoom_out_value - zoom_in_value
 
                 if math.abs(inoutdir) > deadzone then
-                    self.zoom_target_time = TIMETOZOOM
-                    local exponential_factor = 1 / 60
-                    -- 控制器不需要额外速度增强
-                    local zoom_delta = self.zoomsensitivity * inoutdir * exponential_factor * math.abs(inoutdir)
-                    self.zoom_target = math.clamp(self.zoom_target + zoom_delta, ZOOM_CLAMP_MIN, ZOOM_CLAMP_MAX)
-                    self.zoom_old = self.minimap:GetZoom()
+                    local zoom_delta = self.zoomsensitivity * inoutdir * dt * math.abs(inoutdir)
+                    if zoom_delta < 0 then
+                        self:DoZoomIn(zoom_delta)
+                    else
+                        self:DoZoomOut(zoom_delta)
+                    end
                 end
-            end
 
-            -- 缩放插值处理
-            if self.zoom_target_time > 0 then
-                self.zoom_target_time = math.max(0, self.zoom_target_time - dt)
-                local Lerp = G.Lerp
-                local zoom_desired = Lerp(self.zoom_old, self.zoom_target, 1.0 - self.zoom_target_time / TIMETOZOOM)
-                local zoom_delta = zoom_desired - self.minimap:GetZoom()
-                if zoom_delta < 0 then
-                    self:DoZoomIn(zoom_delta)
-                elseif zoom_delta > 0 then
-                    self:DoZoomOut(zoom_delta)
-                end
-            end
-
-            -- 更新地图动作和装饰
-            local x, y, z = self:GetWorldPositionAtCursor()
-            local aax, aay, aaz = self:AutoAimToStaticDecorations(x, y, z)
-            local LMBaction, RMBaction = self:UpdateMapActions(aax, aay, aaz)
-            self:UpdateMapActionsDecorations(x, y, z, LMBaction, RMBaction)
-
-            -- ===== 新增：LB + 右摇杆水平轴控制相机旋转 =====
-            if Helpers.IsButtonPressed("LB") then
-                local GetStaticTime = G.GetStaticTime
-                local Profile = G.Profile
-                local Remap = G.Remap
                 local controller = G.ThePlayer and G.ThePlayer.components.playercontroller
-
                 if controller then
-                    local time = GetStaticTime()
-                    local invert_rotation = Profile:GetInvertCameraRotation()
-
-                    -- 右摇杆水平轴控制旋转
                     local xdir_rot = G.TheInput:GetAnalogControlValue(G.VIRTUAL_CONTROL_CAMERA_ROTATE_RIGHT) -
                                      G.TheInput:GetAnalogControlValue(G.VIRTUAL_CONTROL_CAMERA_ROTATE_LEFT)
                     local absxdir = math.abs(xdir_rot)
-
-                    -- 旋转相机
                     if absxdir >= deadzone then
                         local right = xdir_rot > 0
-                        if invert_rotation then
+                        if G.Profile:GetInvertCameraRotation() then
                             right = not right
                         end
-                        local speed = Remap(math.min(1, absxdir), deadzone, 1, 2, 3)
+                        local speed = G.Remap(math.min(1, absxdir), deadzone, 1, 2, 3)
                         if right then
                             controller:RotRight(speed)
                         else
                             controller:RotLeft(speed)
                         end
-                        controller.lastrottime = time
+                        controller.lastrottime = G.GetStaticTime()
                         MapPathDrawer.UpdateDecorations()
                         WormholeMapVisualizer.UpdateDecorations()
                     end
@@ -235,6 +181,7 @@ function MapScreenHook.Install()
                 MapPathDrawer.UpdateDecorations()
                 WormholeMapVisualizer.UpdateDecorations()
             end
+            return result
         end
 
         -- Hook OnControl - 检测虚拟光标点击启动寻路

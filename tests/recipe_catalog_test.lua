@@ -57,3 +57,9 @@ local options = RecipeCatalog.ToSpinnerOptions(chinese_results)
 assert(options[1].data == "researchlab", "spinner data must remain the canonical recipe name")
 assert(string.find(options[1].text, "researchlab", 1, true),
     "spinner text should expose the canonical recipe name")
+
+local limited, total = RecipeCatalog.Search(catalog, "", 1)
+assert(#limited == 1 and total == #catalog,
+    "limited UI searches should retain the full result count")
+assert(RecipeCatalog.Find(catalog, "researchlab").recipe_name == "researchlab",
+    "catalog values outside a UI result limit should remain directly addressable")

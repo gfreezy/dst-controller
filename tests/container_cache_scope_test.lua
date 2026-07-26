@@ -51,5 +51,11 @@ current_shard = "Master"
 assert(Cache.Get(surface_chest) ~= nil, "returning to surface should restore the surface scope")
 assert(Cache.Get(MakeContainer(999)) == nil, "a different entity GUID must not reuse a stale snapshot")
 
+local refreshed = MakeContainer(303)
+assert(Cache.Snapshot(refreshed, player), "a replacement chest should create a fresh snapshot")
+local stale_record = Cache.Get(refreshed)
+stale_record.updated_at = 0
+assert(Cache.Get(refreshed) == nil, "expired container snapshots should be pruned on access")
+
 current_session = "save-b"
 assert(Cache.Get(surface_chest) == nil, "different world sessions must not share cache")

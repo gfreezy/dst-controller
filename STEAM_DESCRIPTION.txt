@@ -1,37 +1,6 @@
 [h1]Enhanced Controller / 增强手柄控制[/h1]
 
-[url=https://github.com/gfreezy/dst-controller]GitHub：源代码、问题反馈与完整说明 / Source code, issues, and full documentation[/url]
-
-[b]简体中文[/b]
-
-为《饥荒联机版》扩展更灵活、更接近鼠标操作的手柄体验。本 Mod 为纯客户端 Mod，无需服务器或其他玩家安装。
-
-[b]主要功能[/b]
-[list]
-[*]12 组可自定义组合键：LB/RB + A/B/X/Y/LT/RT
-[*]支持按下、松开动作以及连续动作序列
-[*]右摇杆虚拟光标，可操作世界目标、物品栏和制作菜单
-[*]光标智能磁吸，可调整范围、优先级、速度和显示方式
-[*]自动建造：搜索附近地面材料与容器，并自动制作所需的次级材料
-[*]制作动作支持中英文配方搜索，并自动收录其他 Mod 添加的配方
-[*]装备和物品使用动作支持中文名、英文名及内部 prefab 搜索
-[*]ActionQueue RB3 手柄框选与队列操作支持
-[*]地图点击自动寻路、路线显示和手动移动取消
-[*]自动记录虫洞配对，并在地图上显示相同编号
-[*]增强视角旋转与缩放
-[*]内置中英文，跟随游戏语言自动切换
-[/list]
-
-[b]快速开始[/b]
-[list]
-[*]打开设置：Ctrl+K，或同时按 LB+RB+Y
-[*]切换虚拟光标：同时按 LB+RB+RT
-[*]所有配置均可在游戏内保存并即时生效
-[/list]
-
-部分自动操作会在材料变化、动作失败、角色死亡或玩家手动控制时安全中断。自动建造已完成的取材或制作不会回滚。
-
-[hr][/hr]
+[url=https://github.com/gfreezy/dst-controller]GitHub: Source code, issues, and full documentation / 源代码、问题反馈与完整说明[/url]
 
 [b]English[/b]
 
@@ -44,6 +13,7 @@ Enhance Don't Starve Together with a flexible, mouse-like controller experience.
 [*]Right-stick virtual cursor for world targets, inventory, and crafting UI
 [*]Configurable cursor magnetism, range, priority, speed, and visibility
 [*]Auto Build finds nearby ground items and containers, then crafts required intermediates
+[*]Configurable Auto Build radius, smart/thorough scanning, and container limit
 [*]Craft actions support Chinese/English recipe search and recipes added by other mods
 [*]Equip and item-use actions support Chinese, English, and internal prefab search
 [*]Controller drag selection and queue controls for ActionQueue RB3
@@ -61,3 +31,36 @@ Enhance Don't Starve Together with a flexible, mouse-like controller experience.
 [/list]
 
 Automated tasks stop safely if materials change, an action fails, the character dies, or the player takes manual control. Items already moved or crafted by Auto Build are not rolled back.
+
+
+[hr][/hr]
+
+[b]简体中文[/b]
+
+为《饥荒联机版》扩展更灵活、更接近鼠标操作的手柄体验。本 Mod 为纯客户端 Mod，无需服务器或其他玩家安装。
+
+[b]主要功能[/b]
+[list]
+[*]12 组可自定义组合键：LB/RB + A/B/X/Y/LT/RT
+[*]支持按下、松开动作以及连续动作序列
+[*]右摇杆虚拟光标，可操作世界目标、物品栏和制作菜单
+[*]光标智能磁吸，可调整范围、优先级、速度和显示方式
+[*]自动建造：搜索附近地面材料与容器，并自动制作所需的次级材料
+[*]自动建造可设置搜索半径、智能/完整扫描与容器数量上限
+[*]制作动作支持中英文配方搜索，并自动收录其他 Mod 添加的配方
+[*]装备和物品使用动作支持中文名、英文名及内部 prefab 搜索
+[*]ActionQueue RB3 手柄框选与队列操作支持
+[*]地图点击自动寻路、路线显示和手动移动取消
+[*]自动记录虫洞配对，并在地图上显示相同编号
+[*]增强视角旋转与缩放
+[*]内置中英文，跟随游戏语言自动切换
+[/list]
+
+[b]快速开始[/b]
+[list]
+[*]打开设置：Ctrl+K，或同时按 LB+RB+Y
+[*]切换虚拟光标：同时按 LB+RB+RT
+[*]所有配置均可在游戏内保存并即时生效
+[/list]
+
+部分自动操作会在材料变化、动作失败、角色死亡或玩家手动控制时安全中断。自动建造已完成的取材或制作不会回滚。

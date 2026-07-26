@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Don't Starve Together (DST) mod** that enhances gamepad/controller functionality with custom button combinations, camera controls, and in-game configuration UI. It's a client-only mod written in Lua using the DST Modding API (version 10).
 
-**Version**: 2.0.0
+**Version**: 2.6.0
 **Author**: feichao
 
 ## DST Game Scripts Reference
@@ -36,7 +36,8 @@ dst-controller/
 │   └── dst-controller/            # All mod code under this namespace
 │       ├── global.lua             # Global references (G module)
 │       ├── actions/               # Action implementations
-│       │   ├── init.lua           # Action registry
+│       │   ├── catalog.lua        # Shared action registry/UI metadata
+│       │   ├── init.lua           # Builds the executable registry
 │       │   ├── combat.lua         # Combat actions
 │       │   ├── equipment.lua      # Equipment actions
 │       │   ├── items.lua          # Item actions
@@ -45,9 +46,9 @@ dst-controller/
 │       │   ├── crafting.lua       # Crafting actions
 │       │   ├── utility.lua        # Utility actions
 │       │   └── helpers.lua        # Action helpers
-│       ├── core/                  # Core logic
+│       ├── executor/              # Shortcut execution
 │       │   ├── button-handler.lua # Button combination detection
-│       │   └── action-executor.lua # Action execution engine
+│       │   └── action-executor.lua # Cancellable action sequences
 │       ├── hooks/                 # Game hooks
 │       │   ├── registry.lua                # Hook registry (central install point)
 │       │   ├── playercontroller-hook.lua   # PlayerController component hooks
@@ -57,7 +58,7 @@ dst-controller/
 │       │   ├── controls-hook.lua           # Controls widget hooks (cursor injection)
 │       │   └── taskconfig-hook.lua         # Config UI hotkey hook
 │       ├── screens/               # UI screens
-│       │   └── taskconfig_screen.lua  # Config UI (3-layer)
+│       │   └── taskconfig-screen.lua  # Config UI (3-layer)
 │       ├── utils/                 # Utilities
 │       │   ├── helpers.lua        # General helpers
 │       │   └── config_manager.lua # Config persistence
@@ -102,7 +103,7 @@ G.AddComponentPostInit -- Mod API (from env)
 ### 2. Button Combination System
 
 **Files**:
-- [scripts/dst-controller/core/button-handler.lua](scripts/dst-controller/core/button-handler.lua)
+- [scripts/dst-controller/executor/button-handler.lua](scripts/dst-controller/executor/button-handler.lua)
 - [scripts/dst-controller/hooks/controller-hook.lua](scripts/dst-controller/hooks/controller-hook.lua)
 
 Supports 12 button combinations:

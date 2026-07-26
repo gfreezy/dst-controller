@@ -16,8 +16,19 @@ local BUTTON_COMBINATIONS = {
 }
 
 -- Button state tracking per player
--- Structure: [player_guid][modifier][face_button] = { pressed = bool }
+-- Structure: [player_guid][modifier][face_button] =
+--   { pressed = bool, release_actions = table|nil }
 local button_states = {}
+
+local function NewButtonState()
+    return { pressed = false, release_actions = nil }
+end
+
+local function TaskHasActions(task)
+    return task ~= nil and
+        ((type(task.on_press) == "table" and #task.on_press > 0) or
+         (type(task.on_release) == "table" and #task.on_release > 0))
+end
 
 -- Initialize button handler for a player
 function ButtonHandler.InitializePlayer(player)
@@ -26,15 +37,27 @@ function ButtonHandler.InitializePlayer(player)
         button_states[guid] = {}
         for modifier_name, _ in pairs(BUTTON_COMBINATIONS) do
             button_states[guid][modifier_name] = {
-                A = { pressed = false },
-                B = { pressed = false },
-                X = { pressed = false },
-                Y = { pressed = false },
-                LT = { pressed = false },
-                RT = { pressed = false },
+                A = NewButtonState(),
+                B = NewButtonState(),
+                X = NewButtonState(),
+                Y = NewButtonState(),
+                LT = NewButtonState(),
+                RT = NewButtonState(),
             }
         end
+        if player.ListenForEvent ~= nil then
+            player:ListenForEvent("onremove", function()
+                ButtonHandler.RemovePlayer(player)
+            end)
+        end
         Helpers.DebugPrint("Initialized button states for player " .. guid)
+    end
+end
+
+function ButtonHandler.RemovePlayer(player_or_guid)
+    local guid = type(player_or_guid) == "table" and player_or_guid.GUID or player_or_guid
+    if guid ~= nil then
+        button_states[guid] = nil
     end
 end
 
@@ -104,11 +127,10 @@ local function GetButtonCombinationActions(control, down)
 
                     -- This is a button combination event
                     local task = tasks[task_name]
-                    if task then
+                    if TaskHasActions(task) then
                         -- Return the appropriate action list based on down state
                         local actions = down and task.on_press or task.on_release
-                        local need_handle = task.on_press or task.on_release
-                        return actions, need_handle, modifier_name, face_button
+                        return actions or {}, true, modifier_name, face_button, task
                     end
                     return nil, false, nil, nil  -- No task or no actions
                 end
@@ -117,6 +139,21 @@ local function GetButtonCombinationActions(control, down)
     end
 
     return nil, false, nil, nil  -- Not a button combination
+end
+
+local function GetCapturedCombination(guid, control)
+    local player_states = button_states[guid]
+    if player_states == nil then
+        return nil
+    end
+
+    for modifier_name, face_buttons in pairs(player_states) do
+        for face_button, state in pairs(face_buttons) do
+            if state.pressed and ButtonHandler.IsButton(control, face_button) then
+                return state.release_actions or {}, true, modifier_name, face_button
+            end
+        end
+    end
 end
 
 -- Get the action list for a button combination
@@ -140,7 +177,13 @@ function ButtonHandler.HandleButtonCombination(player, control, down, execute_ca
     end
 
     -- Get the actions for this button combination
-    local actions, need_handle, modifier_name, face_button = GetButtonCombinationActions(control, down)
+    local actions, need_handle, modifier_name, face_button, task
+    if not down then
+        actions, need_handle, modifier_name, face_button = GetCapturedCombination(guid, control)
+    end
+    if not need_handle then
+        actions, need_handle, modifier_name, face_button, task = GetButtonCombinationActions(control, down)
+    end
 
     if not need_handle then
         return false  -- Not a button combination or no actions
@@ -156,6 +199,7 @@ function ButtonHandler.HandleButtonCombination(player, control, down, execute_ca
                 modifier_name, face_button, #actions)
             execute_callback(player, actions)
             state.pressed = true
+            state.release_actions = task and task.on_release or {}
         end
     else
         -- Button release event
@@ -164,10 +208,17 @@ function ButtonHandler.HandleButtonCombination(player, control, down, execute_ca
                 modifier_name, face_button, #actions)
             execute_callback(player, actions)
             state.pressed = false
+            state.release_actions = nil
         end
     end
 
     return true  -- Combination handled
+end
+
+
+-- Test support: clear module-owned state without touching game input state.
+function ButtonHandler._ResetForTests()
+    button_states = {}
 end
 
 return ButtonHandler

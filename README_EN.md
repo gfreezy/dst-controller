@@ -166,7 +166,7 @@ Automatically record wormhole pair connections - no manual marking needed!
 `client_save/wormhole_pairs_[world_id].json`
 
 **Pathfinding Algorithm**:
-- Uses Dijkstra algorithm with terrain cost awareness
+- Uses A* pathfinding with terrain-aware costs
 - Automatic obstacle and impassable terrain avoidance
 - Path points displayed in real-time on map
 
@@ -356,7 +356,7 @@ Configuration saved to: `client_save/enhanced_controller_config.json`
 
 ## 🔧 Development Info
 
-- **Version**: 2.4.0
+- **Version**: 2.6.0
 - **Author**: feichao
 - **API Version**: 10
 - **Compatibility**: Don't Starve Together
@@ -392,7 +392,7 @@ dst-controller/
 │   ├── pathfinding/           # Pathfinding system (deprecated)
 │   │   └── ...                # Legacy A* implementation
 │   └── utils/                 # Utility functions
-│       ├── client_pathfinder.lua # Dijkstra pathfinding with terrain costs
+│       ├── client_pathfinder.lua # A* pathfinding with terrain costs
 │       ├── map_path_drawer.lua # Path drawing
 │       └── helpers.lua
 └── CLAUDE.md                  # Development docs
@@ -433,6 +433,21 @@ A: Any manual movement (stick input) will automatically cancel pathfinding. This
 A: Path visualization only shows when the map is open. After closing the map, the character will follow the planned path, but path points won't be visible.
 
 ## 📝 Changelog
+
+### v2.6.0
+- ✨ Added a native controller attack mapping and reliable release actions when combo modifiers are released first
+- ✨ Added smart/thorough container search, search radius, and container-limit settings for Auto Build
+- ✨ Added Chinese/English action and recipe search with empty-result validation and capped result rendering
+- 🔧 Added config normalization, legacy migration, default merging, and complete reset behavior
+- 🔧 Added action-sequence cancellation, replacement, asynchronous error isolation, and player cleanup
+- ⚡ Replaced Dijkstra with A* and reduced hot-loop scans for targets, magnetism, and crafting menus
+- 🧪 Added automated tests, release validation, CI, and a publish-only packaging mode
+
+### v2.5.0
+- ✨ Added Chinese/English recipe search to `craft_item` while preserving internal recipe-name search
+- ✨ Recipe lists now load dynamically at runtime, including valid character, event, and other-mod recipes
+- ✨ Equip and item-use actions now use dynamic Chinese/English item search
+- 🔧 Editing an old config preserves recipe parameters that are temporarily unavailable
 
 ### v2.4.0
 - ✨ Added automatic crafting with nearby ground/container materials, recursive intermediates, technology checks, and inventory-space planning

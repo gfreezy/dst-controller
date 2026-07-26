@@ -5,6 +5,11 @@ package.path = table.concat({
 }, ";")
 
 local test_files = {
+    "tests/action_catalog_test.lua",
+    "tests/combat_action_test.lua",
+    "tests/button_handler_test.lua",
+    "tests/config_manager_test.lua",
+    "tests/pathfinding_policy_test.lua",
     "tests/target_selection_policy_test.lua",
     "tests/mixed_target_scenario_test.lua",
     "tests/actionqueue_integration_test.lua",

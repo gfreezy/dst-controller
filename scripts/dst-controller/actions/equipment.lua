@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local ActionHelpers = require("dst-controller/actions/helpers")
+local Helpers = require("dst-controller/utils/helpers")
 
 local EquipmentActions = {}
 
@@ -118,14 +119,14 @@ local function CycleEquipment(player, equipslot, direction)
     for i, entry in ipairs(item_list) do
         table.insert(items, entry.item)
         table.insert(prefab_order, entry.prefab)
-        print(string.format("[CycleEquipment] Item[%d]: %s (slot=%d)", i, entry.prefab, entry.slot))
+        Helpers.DebugPrintf("Cycle item[%d]: %s (slot=%d)", i, entry.prefab, entry.slot)
     end
 
-    print(string.format("[CycleEquipment] Found %d items in inventory (equipped: %s)",
-        #items, current_equipped and current_equipped.prefab or "none"))
+    Helpers.DebugPrintf("Found %d cycle items (equipped: %s)",
+        #items, current_equipped and current_equipped.prefab or "none")
 
     if #items == 0 then
-        print("[CycleEquipment] No items to cycle to!")
+        Helpers.DebugPrint("No items to cycle")
         return nil
     end
 
@@ -170,7 +171,7 @@ local function CycleEquipment(player, equipslot, direction)
     end
 
     local next_item = items[next_index]
-    print(string.format("[CycleEquipment] next_index=%d -> %s", next_index, next_item.prefab))
+    Helpers.DebugPrintf("Cycle next_index=%d -> %s", next_index, next_item.prefab)
 
     -- Save state for next cycle
     last_equipped_prefab[player_guid][equipslot] = next_item.prefab

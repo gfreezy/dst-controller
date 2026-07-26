@@ -2,7 +2,7 @@
 
 local Magnetism = {}
 
-Magnetism.SCAN_INTERVAL = 1 / 30
+Magnetism.SCAN_INTERVAL = 1 / 20
 Magnetism.IDLE_DELAY = 0.08
 Magnetism.RELEASE_MULTIPLIER = 1.35
 Magnetism.SNAP_DISTANCE = 10

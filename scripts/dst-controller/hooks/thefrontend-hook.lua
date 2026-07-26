@@ -65,12 +65,13 @@ function TheFrontEndHook.Install()
 
         self.PushScreen = function(self, screen)
             -- 调用原方法
-            old_PushScreen(self, screen)
+            local result = old_PushScreen(self, screen)
 
             -- 将 cursor_widget 移到最前面（在所有 screen 之上）
             if cursor_widget and cursor_widget.inst:IsValid() then
                 cursor_widget:MoveToFront()
             end
+            return result
         end
 
         print("[TheFrontEndHook] Virtual cursor hooks installed on TheFrontEnd")
