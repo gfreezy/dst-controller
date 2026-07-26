@@ -5,6 +5,7 @@ local G = require("dst-controller/global")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local Helpers = require("dst-controller/utils/helpers")
 local ActionHelpers = require("dst-controller/actions/helpers")
+local Motion = require("dst-controller/virtual-cursor/motion")
 
 local VirtualCursor = {}
 
@@ -12,6 +13,9 @@ local VirtualCursor = {}
 local BASE_SPEED_DIVISOR = 80  -- Longest screen edge / divisor = pixels per frame at 60fps
 local SPEED_RATE_DEFAULT = 9  -- Default speed multiplier (9/10 = 0.9)
 local DEAD_ZONE_DEFAULT = 0.2  -- Default dead zone threshold (20%)
+local STICK_RESPONSE_EXPONENT = 2.0
+local STICK_RESPONSE_RATE = 30
+local MAX_CURSOR_DELTA_TIME = 0.05
 local MAGNETISM_IDLE_DELAY = 0.08
 local MAGNETISM_APPROACH_RATE = 12
 local MAGNETISM_SNAP_DISTANCE = 6
@@ -22,7 +26,7 @@ local SPEED_MULTIPLIERS = {
     NORMAL = 1.0,           -- Normal movement
     UI_HOVER = 0.4,         -- Hovering over UI elements (ui_slow_rate)
     ENTITY_HOVER = 0.65,    -- Hovering over entities (slow_rate)
-    BUILDING = 0.25,        -- Building/placement mode (placer_slow_rate)
+    BUILDING = 0.6,         -- Fast at full deflection; response curve preserves precision
     PLANTING = 0.5,         -- Planting mode (plant_slow_rate)
     LIMITED = 0.7,          -- Limited speed mode
 }
@@ -49,6 +53,9 @@ local STATE = {
     speed_transition_rate = 2.0,  -- Speed recovery rate (per second)
     is_hovering_ui = false,
     is_hovering_entity = false,
+    smoothed_stick_intensity = 0,
+    dispatching_input_position = false,
+    physical_mouse_active = false,
 
     -- Magnetism state
     tracking_target = nil,  -- Current magnetism target entity
@@ -57,13 +64,22 @@ local STATE = {
     magnetism_suppressors = {},  -- Named temporary suppressors (drag selection, etc.)
 }
 
+local CONFIG_CACHE = {
+    settings = nil,
+    value = nil,
+}
+
 -- Helper function to get config with validation
 local function GetConfig()
     local settings = ConfigManager.GetRuntimeSettings()
+    if CONFIG_CACHE.settings == settings and CONFIG_CACHE.value ~= nil then
+        return CONFIG_CACHE.value
+    end
+
     local config = settings.virtual_cursor_settings or {}
 
     -- Validate and apply defaults
-    return {
+    local value = {
         enabled = config.enabled ~= false,  -- Default true
         toggle_combo = config.toggle_combo or {"LB", "RB", "RT"},
         left_click_key = "LT",
@@ -76,6 +92,9 @@ local function GetConfig()
         magnetism_range = math.floor(math.max(1, math.min(3, config.magnetism_range or 2)) + 0.5),
         target_priority = config.target_priority == true,  -- Default false
     }
+    CONFIG_CACHE.settings = settings
+    CONFIG_CACHE.value = value
+    return value
 end
 
 -- Hook management state
@@ -167,6 +186,9 @@ local function InitializeCursorPosition()
         STATE.cursor_screen_pos.y = h / 2
         STATE.current_speed_multiplier = SPEED_MULTIPLIERS.NORMAL
         STATE.target_speed_multiplier = SPEED_MULTIPLIERS.NORMAL
+        STATE.smoothed_stick_intensity = 0
+        STATE.dispatching_input_position = false
+        STATE.physical_mouse_active = false
         STATE.tracking_target = nil
         STATE.idle_state = false
         STATE.idle_wait_time = 0
@@ -308,6 +330,9 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         -- Reset button states
         STATE.button_states.primary = false
         STATE.button_states.secondary = false
+        STATE.smoothed_stick_intensity = 0
+        STATE.dispatching_input_position = false
+        STATE.physical_mouse_active = false
         STATE.tracking_target = nil
         STATE.idle_state = false
         STATE.idle_wait_time = 0
@@ -355,6 +380,42 @@ function VirtualCursor.SetCursorPosition(x, y)
     STATE.cursor_screen_pos.x = x
     STATE.cursor_screen_pos.y = y
     VirtualCursor.UpdateWorldPosition()
+end
+
+-- Physical mouse movement should use DST's native cursor only. Keep the
+-- virtual position synchronized for clicks, but hide our duplicate artwork
+-- until the player deliberately moves the right stick again.
+function VirtualCursor.OnPhysicalMouseMove(x, y)
+    if not STATE.cursor_mode_active then
+        return
+    end
+
+    STATE.physical_mouse_active = true
+    VirtualCursor.SetCursorPosition(x, y)
+    if STATE.cursor_widget ~= nil and STATE.cursor_widget.Hide ~= nil then
+        STATE.cursor_widget:Hide()
+    end
+end
+
+local function ResumeVirtualCursorDisplay(config)
+    if not STATE.physical_mouse_active then
+        return
+    end
+
+    STATE.physical_mouse_active = false
+    if STATE.cursor_widget ~= nil and STATE.cursor_widget.Show ~= nil and config.show_cursor then
+        STATE.cursor_widget:Show()
+    end
+end
+
+function VirtualCursor.IsPhysicalMouseActive()
+    return STATE.physical_mouse_active
+end
+
+-- InputSystemHook uses this to distinguish a physical mouse event from the
+-- virtual cursor notifying DST about a position it has already applied.
+function VirtualCursor.IsDispatchingInputPosition()
+    return STATE.dispatching_input_position
 end
 
 -- Get adjusted cursor speed based on scene context
@@ -490,6 +551,7 @@ function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, curr
 
     if not config.cursor_magnetism or
        VirtualCursor.IsMagnetismSuppressed() or
+       STATE.physical_mouse_active or
        magnetism_blocked or
        STATE.is_hovering_ui or
        not G.ThePlayer then
@@ -614,17 +676,21 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
     local config = GetConfig()
     local dead_zone = config.dead_zone or DEAD_ZONE_DEFAULT
 
-    -- Apply a radial dead zone and remap the remaining magnitude to [0, 1].
-    -- This gives equal speed on cardinal and diagonal movement and preserves
-    -- precise low-speed control without squaring the stick input.
-    local raw_magnitude = math.sqrt(stick_x * stick_x + stick_y * stick_y)
-    local is_idle = raw_magnitude <= dead_zone
-    local direction_x, direction_y, stick_intensity = 0, 0, 0
-    if not is_idle then
-        local clamped_magnitude = math.min(1, raw_magnitude)
-        direction_x = stick_x / raw_magnitude
-        direction_y = stick_y / raw_magnitude
-        stick_intensity = (clamped_magnitude - dead_zone) / math.max(0.001, 1 - dead_zone)
+    -- Use one radial response curve for every direction. Small stick movement
+    -- remains precise while full deflection still reaches the scene's maximum
+    -- speed. A short exponential ramp filters noisy controller samples.
+    local is_idle, direction_x, direction_y, target_intensity = Motion.ResolveStick(
+        stick_x, stick_y, dead_zone, STICK_RESPONSE_EXPONENT)
+    local movement_dt = Motion.ClampDeltaTime(dt, MAX_CURSOR_DELTA_TIME)
+    if is_idle then
+        STATE.smoothed_stick_intensity = 0
+    else
+        ResumeVirtualCursorDisplay(config)
+        STATE.smoothed_stick_intensity = Motion.SmoothIntensity(
+            STATE.smoothed_stick_intensity,
+            target_intensity,
+            movement_dt,
+            STICK_RESPONSE_RATE)
     end
 
     local old_x = STATE.cursor_screen_pos.x
@@ -635,8 +701,8 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
     if not is_idle then
         local adjusted_speed = GetAdjustedCursorSpeed(dt, config)
         local speed_per_second = adjusted_speed * 60
-        new_x = old_x + direction_x * speed_per_second * stick_intensity * dt
-        new_y = old_y + direction_y * speed_per_second * stick_intensity * dt
+        new_x = old_x + direction_x * speed_per_second * STATE.smoothed_stick_intensity * movement_dt
+        new_y = old_y + direction_y * speed_per_second * STATE.smoothed_stick_intensity * movement_dt
     end
 
     -- Run this even when the stick is fully released. The previous early return
@@ -657,33 +723,30 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
         STATE.cursor_screen_pos.x = new_x
         STATE.cursor_screen_pos.y = new_y
 
+        -- Apply the visual position exactly once. The following input calls
+        -- notify DST's UI and position event channels; their hooks must not
+        -- write the same virtual position back into the widget.
+        VirtualCursor.UpdateWorldPosition()
+        STATE.dispatching_input_position = true
+
         if G.TheInput and G.TheInput.OnMouseMove then
-            G.TheInput:OnMouseMove(new_x, new_y)
+            G.TheInput:OnMouseMove(new_x, new_y, true)
         end
 
         if G.TheInput and G.TheInput.UpdatePosition then
-            G.TheInput:UpdatePosition(new_x, new_y)
+            G.TheInput:UpdatePosition(new_x, new_y, true)
         end
-
-        VirtualCursor.UpdateWorldPosition()
+        STATE.dispatching_input_position = false
         VirtualCursor.UpdateHoverState()
     end
 end
 
--- Update world position from screen position
+-- Update the visible cursor from its authoritative screen position. World
+-- projection is performed only by callers that actually consume world space;
+-- doing it here added a costly unused projection to every cursor update.
 function VirtualCursor.UpdateWorldPosition()
     if not STATE.cursor_screen_pos then
         return
-    end
-
-    -- Project screen position to world coordinates
-    local x, y, z = G.TheSim:ProjectScreenPos(
-        STATE.cursor_screen_pos.x,
-        STATE.cursor_screen_pos.y
-    )
-
-    if not (x and y) then
-        STATE.cursor_screen_pos = {x = 400, y = 300}
     end
 
     -- Update widget position

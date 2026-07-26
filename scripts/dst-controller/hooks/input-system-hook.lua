@@ -69,8 +69,9 @@ function InputSystemHook.Install()
 
     original_input_methods.OnMouseMove = G.TheInput.OnMouseMove
     G.TheInput.OnMouseMove = function(self, p, q, from_touch)
-        if VirtualCursor.IsCursorModeActive() then
-            VirtualCursor.SetCursorPosition(p, q)
+        if VirtualCursor.IsCursorModeActive() and
+            not VirtualCursor.IsDispatchingInputPosition() then
+            VirtualCursor.OnPhysicalMouseMove(p, q)
             -- print("[InputSystemHook] OnMouseMove", p, q)
         end
         return original_input_methods.OnMouseMove(self, p, q, from_touch)
@@ -78,8 +79,9 @@ function InputSystemHook.Install()
 
     original_input_methods.OnPosition = G.TheInput.OnPosition
     G.TheInput.OnPosition = function(self, p, q)
-        if VirtualCursor.IsCursorModeActive() then
-            VirtualCursor.SetCursorPosition(p, q)
+        if VirtualCursor.IsCursorModeActive() and
+            not VirtualCursor.IsDispatchingInputPosition() then
+            VirtualCursor.OnPhysicalMouseMove(p, q)
         end
         return original_input_methods.OnPosition(self, p, q)
     end
