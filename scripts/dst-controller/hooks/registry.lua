@@ -23,6 +23,9 @@ function HookRegistry.InstallAll()
     -- 1. TheFrontEnd (global UI - virtual cursor updates and controls)
     require("dst-controller/hooks/thefrontend-hook").Install()
 
+    -- 1b. Global chat transport for manual player-location queries
+    require("dst-controller/hooks/networking-hook").Install()
+
     -- 2. Input System (TheInput global hooks)
     require("dst-controller/hooks/input-system-hook").Install()
 

@@ -31,6 +31,10 @@ local test_files = {
     "tests/item_catalog_test.lua",
     "tests/world_action_test.lua",
     "tests/focus_stick_test.lua",
+    "tests/location_protocol_test.lua",
+    "tests/location_chat_transport_test.lua",
+    "tests/favorite_locations_test.lua",
+    "tests/player_location_service_test.lua",
 }
 
 for _, path in ipairs(test_files) do

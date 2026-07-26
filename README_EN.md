@@ -14,6 +14,7 @@ A powerful controller enhancement mod for Don't Starve Together with custom butt
 - 🍲 **Half-Screen Cooking List** - Select dishes while moving, then find ingredients and an idle cooker
 - 📋 **ActionQueue Integration** - Use controller drag selection from the virtual cursor
 - 🗺️ **Map Auto-Pathfinding** - Click map to auto-navigate, intelligent path planning
+- 📍 **Player & Favorite Locations** - Manually query player snapshots, save positions, and navigate from the panel
 - 🕳️ **Wormhole Tracking** - Auto-record wormhole pairs, show numbers on map
 - ⚙️ **In-Game Configuration** - No restart needed, adjust all settings in real-time
 - 🌍 **Multi-Language Support** - Chinese/English auto-detection
@@ -160,6 +161,13 @@ Use virtual cursor on the map screen to quickly navigate to target locations:
 - **LB + Right Stick Horizontal**: Rotate camera
 - **RT**: Click map to set pathfinding target
 - **RB**: Right click (cancel/other actions)
+
+**Player and Favorite Locations**:
+- Use the map's left-side Locations panel to manually query one player or everyone; there is no background polling
+- Mod users automatically reply once to a query, with surface and cave shards kept separate
+- Player snapshots and favorites appear as read-only map markers; navigation starts from panel entries
+- “Favorite Current Position” supports naming, renaming, deletion, and per-world/per-shard persistence
+- Queries use readable world-chat messages, which players without this mod may see
 
 ### 🕳️ Wormhole Tracking System
 

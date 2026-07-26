@@ -20,6 +20,7 @@ Enhance Don't Starve Together with a flexible, mouse-like controller experience.
 [*]Equip and item-use actions support Chinese, English, and internal prefab search
 [*]Controller drag selection and queue controls for ActionQueue RB3
 [*]Map-click pathfinding compares direct and terrain-aware routes, with route display and manual-movement cancellation
+[*]Map panel manually queries mod users' positions and navigates to player snapshots or persistent favorite locations
 [*]Automatic wormhole pairing with matching numbers shown on the map
 [*]Enhanced camera rotation and zoom
 [*]Built-in Chinese and English localization based on game language
@@ -55,6 +56,7 @@ Automated tasks stop safely if materials change, an action fails, the character 
 [*]装备和物品使用动作支持中文名、英文名及内部 prefab 搜索
 [*]ActionQueue RB3 手柄框选与队列操作支持
 [*]地图点击自动寻路、路线显示和手动移动取消
+[*]地图位置面板可手动查询 Mod 玩家位置，并导航到玩家快照或持久化收藏点
 [*]自动记录虫洞配对，并在地图上显示相同编号
 [*]增强视角旋转与缩放
 [*]内置中英文，跟随游戏语言自动切换

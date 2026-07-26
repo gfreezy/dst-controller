@@ -24,6 +24,25 @@ local STRINGS_TABLE = {
         BUTTON_DELETE = "Delete",
         BUTTON_CONFIG = "Config",
 
+        -- 地图位置面板
+        LOCATION_PANEL_TITLE = "Locations",
+        LOCATION_TAB_PLAYERS = "Players",
+        LOCATION_TAB_FAVORITES = "Favorites",
+        LOCATION_QUERY_ALL = "Query All Players",
+        LOCATION_QUERY = "Query",
+        LOCATION_REFRESH = "Refresh",
+        LOCATION_ADD_CURRENT = "Favorite Current Position",
+        LOCATION_NAME_PROMPT = "Name This Position",
+        LOCATION_RENAME_PROMPT = "Rename Favorite",
+        LOCATION_DEFAULT_NAME = "Favorite %d",
+        LOCATION_NO_PLAYERS = "No players",
+        LOCATION_NO_FAVORITES = "No favorite positions in this world",
+        LOCATION_STATUS_NOT_QUERIED = "Not queried",
+        LOCATION_STATUS_QUERYING = "Querying...",
+        LOCATION_STATUS_LOCATED = "Located",
+        LOCATION_STATUS_OTHER_SHARD = "Other shard",
+        LOCATION_STATUS_UNAVAILABLE = "No response",
+
         -- 按钮组合配置
         PRESS_COUNT = "Press:%d  Release:%d",
 
@@ -228,6 +247,25 @@ local STRINGS_TABLE = {
         BUTTON_EDIT = "编辑",
         BUTTON_DELETE = "删除",
         BUTTON_CONFIG = "配置",
+
+        -- 地图位置面板
+        LOCATION_PANEL_TITLE = "位置",
+        LOCATION_TAB_PLAYERS = "玩家位置",
+        LOCATION_TAB_FAVORITES = "收藏位置",
+        LOCATION_QUERY_ALL = "查询全部玩家",
+        LOCATION_QUERY = "查询",
+        LOCATION_REFRESH = "刷新",
+        LOCATION_ADD_CURRENT = "收藏当前位置",
+        LOCATION_NAME_PROMPT = "为当前位置命名",
+        LOCATION_RENAME_PROMPT = "重命名收藏位置",
+        LOCATION_DEFAULT_NAME = "收藏点 %d",
+        LOCATION_NO_PLAYERS = "没有可查询的玩家",
+        LOCATION_NO_FAVORITES = "当前世界还没有收藏位置",
+        LOCATION_STATUS_NOT_QUERIED = "未查询",
+        LOCATION_STATUS_QUERYING = "查询中...",
+        LOCATION_STATUS_LOCATED = "已获取",
+        LOCATION_STATUS_OTHER_SHARD = "其他分片",
+        LOCATION_STATUS_UNAVAILABLE = "无响应",
 
         -- 按钮组合配置
         PRESS_COUNT = "按下:%d  松开:%d",

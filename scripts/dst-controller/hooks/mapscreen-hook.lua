@@ -7,48 +7,21 @@ local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local Helpers = require("dst-controller/utils/helpers")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local WormholeMapVisualizer = require("dst-controller/wormhole-tracker/map_visualizer")
+local LocationMapVisualizer = require("dst-controller/locations/map-visualizer")
+local LocationPanel = require("dst-controller/widgets/location-panel")
+local MapNavigation = require("dst-controller/utils/map-navigation")
 
 local MapScreenHook = {}
 
-local function StartPathfinding(wx, wy, wz)
-    local player = G.ThePlayer
-    if not player then
-        return
-    end
-
-    -- 注意：GetWorldPositionAtCursor 返回 (x, 0, z)，其中 y=0 是地面高度
-    Helpers.DebugPrintf("Path target: (%.1f, %.1f, %.1f)", wx, wy, wz)
-
-    -- 客户端模式：只使用本地地图数据计算路径。
-    Helpers.DebugPrint("Starting map pathfinding")
-    local success = ClientPathfinder.Start(wx, wz, function(path_ready, path)
-        if not path_ready or path == nil or not G.ThePlayer then
-            return
-        end
-
-        -- 搜索可能跨越多帧，路径完成后再绘制。
-        local path_points = {}
-        for _, waypoint in ipairs(path) do
-            path_points[#path_points + 1] =
-                G.Vector3(waypoint.x, 0, waypoint.z)
-        end
-        MapPathDrawer.DrawPathPoints(path_points, G.ThePlayer:GetPosition())
-        MapPathDrawer.UpdateDecorations()
-        WormholeMapVisualizer.UpdateDecorations()
-    end)
-
-    if not success then
-        Helpers.DebugPrint("Unable to start pathfinding")
-        Helpers.DebugPrint("Target may be unreachable or blocked by ocean")
-    end
-end
-
 -- Hook MapScreen constructor
 function MapScreenHook.Install()
+    LocationMapVisualizer.InstallSubscriptions()
     G.AddClassPostConstruct("screens/mapscreen", function(self)
         -- 设置当前地图屏幕
         MapPathDrawer.SetMapScreen(self)
         WormholeMapVisualizer.SetMapScreen(self)
+        LocationMapVisualizer.SetMapScreen(self)
+        self.enhanced_location_panel = self:AddChild(LocationPanel())
 
         -- Hook OnBecomeActive - 地图打开时
         local old_OnBecomeActive = self.OnBecomeActive
@@ -56,6 +29,11 @@ function MapScreenHook.Install()
             old_OnBecomeActive(self)
             MapPathDrawer.SetMapScreen(self)
             WormholeMapVisualizer.SetMapScreen(self)
+            LocationMapVisualizer.SetMapScreen(self)
+            LocationMapVisualizer.Refresh()
+            if self.enhanced_location_panel ~= nil then
+                self.enhanced_location_panel:Refresh()
+            end
 
             -- 绘制已知虫洞连接
             WormholeMapVisualizer.DrawConnections()
@@ -100,6 +78,10 @@ function MapScreenHook.Install()
             MapPathDrawer.SetMapScreen(nil)
             WormholeMapVisualizer.ClearDecorations()
             WormholeMapVisualizer.SetMapScreen(nil)
+            LocationMapVisualizer.SetMapScreen(nil)
+            if self.enhanced_location_panel ~= nil then
+                self.enhanced_location_panel:Shutdown()
+            end
 
             -- 注意：关闭地图不停止寻路，让角色继续自动走到目标
             -- 只有用户主动移动时才停止（在 playercontroller-hook 中处理）
@@ -117,6 +99,7 @@ function MapScreenHook.Install()
             old_DoZoomIn(self, ...)
             MapPathDrawer.UpdateDecorations()
             WormholeMapVisualizer.UpdateDecorations()
+            LocationMapVisualizer.UpdateDecorations()
         end
 
         local old_DoZoomOut = self.DoZoomOut
@@ -124,6 +107,7 @@ function MapScreenHook.Install()
             old_DoZoomOut(self, ...)
             MapPathDrawer.UpdateDecorations()
             WormholeMapVisualizer.UpdateDecorations()
+            LocationMapVisualizer.UpdateDecorations()
         end
 
 
@@ -134,6 +118,7 @@ function MapScreenHook.Install()
                 old_Offset(minimap_self, ...)
                 MapPathDrawer.UpdateDecorations()
                 WormholeMapVisualizer.UpdateDecorations()
+                LocationMapVisualizer.UpdateDecorations()
             end
         end
 
@@ -177,6 +162,7 @@ function MapScreenHook.Install()
                         controller.lastrottime = G.GetStaticTime()
                         MapPathDrawer.UpdateDecorations()
                         WormholeMapVisualizer.UpdateDecorations()
+                        LocationMapVisualizer.UpdateDecorations()
                     end
                 end
             end
@@ -188,12 +174,17 @@ function MapScreenHook.Install()
                 MapPathDrawer.UpdateDecorations()
                 WormholeMapVisualizer.UpdateDecorations()
             end
+            LocationMapVisualizer.UpdateDecorations()
             return result
         end
 
         -- Hook OnControl - 检测虚拟光标点击启动寻路
         local old_OnControl = self.OnControl
         self.OnControl = function(self, control, down)
+            if self.enhanced_location_panel ~= nil and
+                self.enhanced_location_panel:IsPointerOver() then
+                return old_OnControl(self, control, down)
+            end
             -- 如果按下的是LB或RB，跳过
             if Helpers.IsControlAnyOf(control, {"LB", "RB", "LT", "RT"}) then
                 return false
@@ -215,9 +206,15 @@ function MapScreenHook.Install()
                         -- G.TheFrontEnd:PopScreen()
 
                         -- 启动寻路
-                        StartPathfinding(wx, wy, wz)
+                        local success = MapNavigation.Start(wx, wz)
+                        if not success then
+                            Helpers.DebugPrint("Unable to start pathfinding")
+                            Helpers.DebugPrint(
+                                "Target may be unreachable or blocked by ocean")
+                        end
                         MapPathDrawer.UpdateDecorations()
                         WormholeMapVisualizer.UpdateDecorations()
+                        LocationMapVisualizer.UpdateDecorations()
 
                         return true
                     end
