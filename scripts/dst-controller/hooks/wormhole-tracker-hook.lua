@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local WormholeTracker = require("dst-controller/wormhole-tracker/core")
+local Helpers = require("dst-controller/utils/helpers")
 
 local WormholeTrackerHook = {}
 
@@ -20,7 +21,7 @@ local function InstallPlayerListeners(player)
     -- Listen for wormholespit event (when player exits a wormhole)
     -- Note: This may not work on pure clients as the event is server-side
     player:ListenForEvent("wormholespit", function()
-        print("[WormholeTrackerHook] wormholespit event received!")
+        Helpers.DebugPrint("Wormhole exit event received")
         WormholeTracker.OnExitWormhole(player)
     end)
 
@@ -28,7 +29,7 @@ local function InstallPlayerListeners(player)
     -- This fires when player exits a wormhole
     player:ListenForEvent("newstate", function(inst, data)
         if data and data.statename == "jumpout" then
-            print("[WormholeTrackerHook] jumpout state detected!")
+            Helpers.DebugPrint("Wormhole jumpout state detected")
             -- Delay slightly to ensure player position is updated
             player:DoTaskInTime(0.5, function()
                 WormholeTracker.OnExitWormhole(player)
@@ -41,7 +42,7 @@ local function InstallPlayerListeners(player)
         installed_players[player] = nil
     end)
 
-    print("[WormholeTrackerHook] Installed listeners for player: " .. tostring(player))
+    Helpers.DebugPrint("Installed wormhole listeners for player: " .. tostring(player))
 end
 
 -- Hook into ACTIONS.JUMPIN to detect when player enters a wormhole
@@ -49,7 +50,7 @@ local function HookJumpInAction()
     -- Hook the action's fn to capture the target wormhole
     local ACTIONS = G.ACTIONS
     if not ACTIONS or not ACTIONS.JUMPIN then
-        print("[WormholeTrackerHook] Warning: ACTIONS.JUMPIN not found")
+        Helpers.DebugPrint("ACTIONS.JUMPIN not found")
         return
     end
 
@@ -82,7 +83,7 @@ local function HookJumpInAction()
         end
     end
 
-    print("[WormholeTrackerHook] Hooked JUMPIN action")
+    Helpers.DebugPrint("Hooked JUMPIN action")
 end
 
 -- Alternative: Hook PlayerController to detect wormhole interaction
@@ -106,11 +107,11 @@ local function HookPlayerController()
         end
     end)
 
-    print("[WormholeTrackerHook] Hooked PlayerController:DoAction")
+    Helpers.DebugPrint("Hooked PlayerController:DoAction")
 end
 
 function WormholeTrackerHook.Install()
-    print("[WormholeTrackerHook] Installing wormhole tracker...")
+    Helpers.DebugPrint("Installing wormhole tracker")
 
     -- Load saved data when the hook is installed
     WormholeTracker.Load()
@@ -135,7 +136,7 @@ function WormholeTrackerHook.Install()
         end)
     end)
 
-    print("[WormholeTrackerHook] Wormhole tracker installed")
+    Helpers.DebugPrint("Wormhole tracker installed")
 end
 
 -- Export the tracker for external access

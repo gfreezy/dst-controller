@@ -12,6 +12,7 @@ local TargetSelection = require("dst-controller/target-selection/core")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local CraftingCoordinator = require("dst-controller/crafting/coordinator")
+local CookingCoordinator = require("dst-controller/cooking/coordinator")
 
 local PlayerControllerHook = {}
 
@@ -89,6 +90,7 @@ local function InstallOnControl(self)
         -- Releases are ignored, so the control that started the task cannot
         -- immediately cancel it.
         CraftingCoordinator.OnUserControl(self.inst, control, down)
+        CookingCoordinator.OnUserControl(self.inst, control, down)
 
         -- 检测用户主动移动，停止自动寻路
         -- 移动控制：左摇杆方向、WASD、点击地面移动

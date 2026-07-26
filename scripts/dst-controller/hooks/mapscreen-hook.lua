@@ -17,26 +17,29 @@ local function StartPathfinding(wx, wy, wz)
     end
 
     -- 注意：GetWorldPositionAtCursor 返回 (x, 0, z)，其中 y=0 是地面高度
-    print(string.format("StartPathfinding world pos: (%.1f, %.1f, %.1f)", wx, wy, wz))
+    Helpers.DebugPrintf("Path target: (%.1f, %.1f, %.1f)", wx, wy, wz)
 
-    -- 客户端模式：使用客户端寻路系统
-    -- 注意：locomotor 组件只在服务器端存在，客户端无法访问
-    print("[StartPathfinding] Using ClientPathfinder")
-    local success = ClientPathfinder.Start(wx, wz)
-
-    if success then
-        -- 可视化路径
-        local path = ClientPathfinder.GetCurrentPath()
-        if path then
-            local path_points = {}
-            for _, waypoint in ipairs(path) do
-                table.insert(path_points, G.Vector3(waypoint.x, 0, waypoint.z))
-            end
-            MapPathDrawer.DrawPathPoints(path_points, player:GetPosition())
+    -- 客户端模式：只使用本地地图数据计算路径。
+    Helpers.DebugPrint("Starting map pathfinding")
+    local success = ClientPathfinder.Start(wx, wz, function(path_ready, path)
+        if not path_ready or path == nil or not G.ThePlayer then
+            return
         end
-    else
-        print("[StartPathfinding] ClientPathfinder failed to generate path")
-        print("[StartPathfinding] Target may be unreachable or blocked by ocean")
+
+        -- 搜索可能跨越多帧，路径完成后再绘制。
+        local path_points = {}
+        for _, waypoint in ipairs(path) do
+            path_points[#path_points + 1] =
+                G.Vector3(waypoint.x, 0, waypoint.z)
+        end
+        MapPathDrawer.DrawPathPoints(path_points, G.ThePlayer:GetPosition())
+        MapPathDrawer.UpdateDecorations()
+        WormholeMapVisualizer.UpdateDecorations()
+    end)
+
+    if not success then
+        Helpers.DebugPrint("Unable to start pathfinding")
+        Helpers.DebugPrint("Target may be unreachable or blocked by ocean")
     end
 end
 
@@ -59,31 +62,35 @@ function MapScreenHook.Install()
 
             -- 如果正在寻路，重新显示路径
             if ClientPathfinder.IsActive() then
-                print("[MapScreenHook] Pathfinding is active, restoring path...")
+                Helpers.DebugPrint("Pathfinding is active, restoring path")
                 local path = ClientPathfinder.GetCurrentPath()
-                print("[MapScreenHook] Path: " .. tostring(path) .. ", length: " .. (path and #path or 0))
-                print("[MapScreenHook] decorationrootstatic: " .. tostring(self.decorationrootstatic))
+                Helpers.DebugPrintf("Path: %s, length: %d",
+                    tostring(path), path and #path or 0)
+                Helpers.DebugPrint(
+                    "decorationrootstatic: " .. tostring(self.decorationrootstatic))
                 if path and #path > 0 and G.ThePlayer then
                     local path_points = {}
                     -- 只显示从当前 waypoint 开始的剩余路径
                     local current_wp, total_wp = ClientPathfinder.GetProgress()
-                    print("[MapScreenHook] Progress: " .. current_wp .. "/" .. total_wp)
+                    Helpers.DebugPrintf("Pathfinding progress: %d/%d",
+                        current_wp, total_wp)
                     for i = current_wp, #path do
                         local waypoint = path[i]
                         table.insert(path_points, G.Vector3(waypoint.x, 0, waypoint.z))
                     end
                     if #path_points > 0 then
                         MapPathDrawer.DrawPathPoints(path_points, G.ThePlayer:GetPosition())
-                        print("[MapScreenHook] Restored path visualization with " .. #path_points .. " points")
+                        Helpers.DebugPrintf(
+                            "Restored path visualization with %d points", #path_points)
                     end
                 end
             else
-                print("[MapScreenHook] No active pathfinding")
+                Helpers.DebugPrint("No active pathfinding")
             end
 
             -- Auto-enable virtual cursor for map mode
             VirtualCursor.AutoEnable()
-            print("[MapScreenHook] Virtual cursor auto-enabled for map mode")
+            Helpers.DebugPrint("Virtual cursor enabled for map mode")
         end
 
         -- Hook OnDestroy - 地图关闭时清理
@@ -99,7 +106,7 @@ function MapScreenHook.Install()
 
             -- Auto-disable virtual cursor if it was auto-activated
             VirtualCursor.AutoDisable()
-            print("[MapScreenHook] Virtual cursor auto-disabled on map close")
+            Helpers.DebugPrint("Virtual cursor disabled after closing map")
 
             old_OnDestroy(self)
         end
@@ -192,7 +199,8 @@ function MapScreenHook.Install()
                 return false
             end
 
-            print("MapScreen OnControl control: " .. tostring(control) .. " down: " .. tostring(down))
+            Helpers.DebugPrintf("Map control: %s, down: %s",
+                tostring(control), tostring(down))
             -- 检查是否是虚拟光标模式下的左键点击
             if VirtualCursor.IsCursorModeActive() then
                 if control == G.CONTROL_ACCEPT and down then
@@ -200,7 +208,8 @@ function MapScreenHook.Install()
                     local wx, wy, wz = self:GetWorldPositionAtCursor()
 
                     if wx and wz then
-                        print(string.format("[MapScreen] Virtual cursor clicked at world position: (%.1f, %.1f, %.1f)", wx, wy, wz))
+                        Helpers.DebugPrintf(
+                            "Map target selected at (%.1f, %.1f, %.1f)", wx, wy, wz)
 
                         -- 关闭地图
                         -- G.TheFrontEnd:PopScreen()

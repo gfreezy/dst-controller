@@ -39,9 +39,9 @@ local HookRegistry = require("dst-controller/hooks/registry")
 -- Note: LoadTasksFromFile automatically updates RUNTIME_TASKS and RUNTIME_SETTINGS
 ConfigManager.LoadTasksFromFile(function(success, _, _)
     if success then
-        print("[Enhanced Controller] Loaded saved configuration from file")
+        Helpers.DebugPrint("Loaded saved configuration from file")
     else
-        print("[Enhanced Controller] Using default configuration")
+        Helpers.DebugPrint("Using default configuration")
     end
 end)
 

@@ -1,13 +1,15 @@
 -- Enhanced Controller - Inspection Actions
 -- Examine and inspect actions
 
+local Helpers = require("dst-controller/utils/helpers")
+
 local InspectionActions = {}
 
 -- Examine/inspect target using controller targeting
 function InspectionActions.examine(player)
     local controller = player.components.playercontroller
     if not controller then
-        print("[Enhanced Controller] Error: No playercontroller component")
+        Helpers.DebugPrint("No player controller component")
         return
     end
 
@@ -25,9 +27,9 @@ function InspectionActions.examine(player)
         controller.controller_target = target
         controller:DoInspectButton()
         controller.controller_target = original_target
-        print("[Enhanced Controller] Action: Examine (Controller)")
+        Helpers.DebugPrint("Action: Examine (Controller)")
     else
-        print("[Enhanced Controller] Examine: No target available")
+        Helpers.DebugPrint("Examine: no target available")
     end
 end
 
@@ -35,7 +37,7 @@ end
 function InspectionActions.inspect_self(player)
     if player.HUD then
         player.HUD:InspectSelf()
-        print("[Enhanced Controller] Action: Inspect Self")
+        Helpers.DebugPrint("Action: Inspect Self")
     end
 end
 

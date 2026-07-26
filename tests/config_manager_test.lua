@@ -13,6 +13,22 @@ package.loaded["dst-controller/utils/config_manager"] = nil
 local Config = require("dst-controller/utils/config_manager")
 local Helpers = require("dst-controller/utils/helpers")
 
+local original_print = print
+local captured_logs = {}
+print = function(message)
+    captured_logs[#captured_logs + 1] = tostring(message)
+end
+Helpers.SetDebugEnabled(false)
+Helpers.DebugPrint("hidden diagnostic")
+assert(#captured_logs == 0,
+    "diagnostic logs should be silent when debug logging is disabled")
+Helpers.SetDebugEnabled(true)
+Helpers.DebugPrint("visible diagnostic")
+assert(captured_logs[1] == "[Enhanced Controller] visible diagnostic",
+    "enabled diagnostic logs should use the mod prefix")
+Helpers.SetDebugEnabled(false)
+print = original_print
+
 local normalized = Config.NormalizeConfig({
     version = "1.0.0",
     tasks = {

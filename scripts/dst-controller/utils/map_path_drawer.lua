@@ -2,6 +2,7 @@
 -- 在地图界面上绘制寻路路径
 
 local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
 
 local MapPathDrawer = {}
 
@@ -38,13 +39,13 @@ end
 
 -- 绘制路径点（使用Image widget）
 function MapPathDrawer.DrawPathPoints(key_points, player_pos)
-    print("[MapPathDrawer] DrawPathPoints called with " .. #key_points .. " points")
+    Helpers.DebugPrintf("Drawing path with %d points", #key_points)
     if not current_mapscreen then
-        print("[MapPathDrawer] No mapscreen!")
+        Helpers.DebugPrint("Cannot draw path: no map screen")
         return
     end
     if not current_mapscreen.decorationrootstatic then
-        print("[MapPathDrawer] No decorationrootstatic!")
+        Helpers.DebugPrint("Cannot draw path: no decoration root")
         return
     end
 
@@ -54,7 +55,7 @@ function MapPathDrawer.DrawPathPoints(key_points, player_pos)
     local Image = require("widgets/image")
     local zoom = current_mapscreen.minimap:GetZoom()
     local zoomscale = 0.75 / zoom
-    print("[MapPathDrawer] Zoom: " .. zoom .. ", zoomscale: " .. zoomscale)
+    Helpers.DebugPrintf("Map path zoom: %.3f, scale: %.3f", zoom, zoomscale)
 
     -- 连接线点的大小
     local line_dot_scale = math.max(0.08, zoomscale * 0.15)

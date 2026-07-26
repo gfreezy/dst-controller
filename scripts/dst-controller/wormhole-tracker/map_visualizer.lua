@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local WormholeTracker = require("dst-controller/wormhole-tracker/core")
+local Helpers = require("dst-controller/utils/helpers")
 
 local WormholeMapVisualizer = {}
 
@@ -129,7 +130,7 @@ function WormholeMapVisualizer.DrawConnections()
     local count = 0
     for _ in pairs(pair_numbers) do count = count + 1 end
     if count > 0 then
-        print("[WormholeMapVisualizer] Drew " .. count .. " wormhole pair number(s)")
+        Helpers.DebugPrintf("Drew %d wormhole pair number(s)", count)
     end
 end
 

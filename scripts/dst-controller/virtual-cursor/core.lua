@@ -179,8 +179,8 @@ end
 local function CalculateBaseCursorSpeed()
     local w, h = G.TheSim:GetScreenSize()
     STATE.base_cursor_speed = math.max(w, h) / BASE_SPEED_DIVISOR
-    print(string.format("[VirtualCursor] Base speed calculated: %.2f pixels/frame (screen: %dx%d)",
-        STATE.base_cursor_speed, w, h))
+    Helpers.DebugPrintf("Cursor base speed: %.2f pixels/frame (screen: %dx%d)",
+        STATE.base_cursor_speed, w, h)
 end
 
 -- Initialize cursor position
@@ -293,8 +293,8 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
             end
         end
 
-        print(string.format("[VirtualCursor] Cursor mode activated %s",
-            STATE.auto_activated and "(auto)" or "(manual)"))
+        Helpers.DebugPrintf("Cursor mode activated %s",
+            STATE.auto_activated and "(auto)" or "(manual)")
     else
         local controller = ActionHelpers.GetPlayerController(G.ThePlayer)
         if controller and controller.ClearActionHold then
@@ -306,7 +306,7 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         if inventory and inventory.GetActiveItem and inventory:GetActiveItem() ~= nil then
             -- Return the active item to inventory instead of dropping it
             inventory:ReturnActiveItem()
-            print("[VirtualCursor] Cleared active item on cursor mode exit")
+            Helpers.DebugPrint("Cleared active item on cursor mode exit")
         end
 
         -- Exiting cursor mode
@@ -372,7 +372,7 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         -- Reset auto_activated flag
         STATE.auto_activated = false
 
-        print("[VirtualCursor] Cursor mode deactivated")
+        Helpers.DebugPrint("Cursor mode deactivated")
     end
 end
 

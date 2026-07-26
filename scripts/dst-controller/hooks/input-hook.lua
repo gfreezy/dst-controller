@@ -2,6 +2,7 @@
 -- Hooks TheInput to simulate keyboard key presses
 
 local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
 
 local InputHook = {}
 
@@ -13,7 +14,7 @@ local function HookIsKeyDown()
     local old_IsKeyDown = G.TheInput.IsKeyDown
 
     G.TheInput.IsKeyDown = function(self, key)
-        print("[InputHook] IsKeyDown", key)
+        Helpers.DebugPrintf("IsKeyDown: %s", tostring(key))
         -- Check if we have a virtual state for this key
         if virtual_key_states[key] ~= nil then
             return virtual_key_states[key]
@@ -29,7 +30,8 @@ local function HookOnRawKey()
     local old_OnRawKey = G.TheInput.OnRawKey
 
     G.TheInput.OnRawKey = function(self, key, down)
-        print("[InputHook] OnRawKey", key, down)
+        Helpers.DebugPrintf("OnRawKey: %s, down: %s",
+            tostring(key), tostring(down))
         -- Call original first
         old_OnRawKey(self, key, down)
 
@@ -53,7 +55,7 @@ function InputHook.SimulateKeyPress(key, down)
     G.TheInput:OnRawKey(key, down)
 
     -- Debug logging
-    print(string.format("[InputHook] Simulated key %d: %s", key, down and "down" or "up"))
+    Helpers.DebugPrintf("Simulated key %d: %s", key, down and "down" or "up")
 end
 
 -- Clear a specific virtual key state
@@ -77,14 +79,14 @@ end
 function InputHook.Install()
     -- Wait for TheInput to be available
     if not G.TheInput then
-        print("[InputHook] Warning: TheInput not available yet")
+        Helpers.DebugPrint("TheInput not available yet")
         return
     end
 
     HookIsKeyDown()
     HookOnRawKey()
 
-    print("[InputHook] Input hooks installed")
+    Helpers.DebugPrint("Input hooks installed")
 end
 
 return InputHook

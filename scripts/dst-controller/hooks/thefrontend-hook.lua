@@ -5,6 +5,8 @@ local G = require("dst-controller/global")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local CursorWidget = require("dst-controller/virtual-cursor/cursor_widget")
 local ActionQueueIntegration = require("dst-controller/integrations/actionqueue")
+local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
+local Helpers = require("dst-controller/utils/helpers")
 
 local TheFrontEndHook = {}
 
@@ -21,7 +23,7 @@ function TheFrontEndHook.Install()
         -- Register widget with VirtualCursor core
         VirtualCursor.SetCursorWidget(cursor_widget)
 
-        print("[TheFrontEndHook] Cursor widget added to overlayroot")
+        Helpers.DebugPrint("Cursor widget ready")
 
         -- Hook OnUpdate - 处理虚拟光标的位置更新
         local old_Update = self.Update
@@ -30,6 +32,7 @@ function TheFrontEndHook.Install()
             -- 更新虚拟光标（如果启用）
             VirtualCursor.OnUpdate(self, dt)
             ActionQueueIntegration.OnUpdate()
+            ClientPathfinder.UpdateSearch()
 
             -- 调用原方法
             return old_Update(self, dt)
@@ -74,7 +77,7 @@ function TheFrontEndHook.Install()
             return result
         end
 
-        print("[TheFrontEndHook] Virtual cursor hooks installed on TheFrontEnd")
+        Helpers.DebugPrint("Virtual cursor ready")
     end)
 end
 

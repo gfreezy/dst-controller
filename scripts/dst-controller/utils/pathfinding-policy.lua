@@ -13,4 +13,9 @@ function PathfindingPolicy.EstimateCost(gx, gz, end_gx, end_gz)
     return (diagonal * 1.414 + straight) * PathfindingPolicy.MIN_GROUND_COST
 end
 
+function PathfindingPolicy.EstimateWeightedCost(gx, gz, end_gx, end_gz, weight)
+    return PathfindingPolicy.EstimateCost(gx, gz, end_gx, end_gz) *
+        (weight or 1)
+end
+
 return PathfindingPolicy

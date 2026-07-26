@@ -5,6 +5,8 @@ local Policy = require("dst-controller/crafting/policy")
 local ContainerCache = require("dst-controller/crafting/container-cache")
 local Finder = require("dst-controller/crafting/material-finder")
 local Planner = require("dst-controller/crafting/material-planner")
+local Helpers = require("dst-controller/utils/helpers")
+local WorldAction = require("dst-controller/utils/world-action")
 local L = require("dst-controller/localization").L
 
 local Coordinator = {}
@@ -16,12 +18,11 @@ local function GetTime()
 end
 
 local function Notify(player, message)
-    print("[Enhanced Controller] " .. message)
+    local output = "[Enhanced Controller] " .. message
+    Helpers.DebugPrint(message)
     local announcer = player and player.HUD and player.HUD.eventannouncer
     if announcer ~= nil and announcer.ShowNewAnnouncement ~= nil then
-        announcer:ShowNewAnnouncement(message, { 1, 0.85, 0.35, 1 })
-    elseif G.Networking_SystemMessage ~= nil then
-        G.Networking_SystemMessage("[Enhanced Controller] " .. message)
+        announcer:ShowNewAnnouncement(output, { 1, 0.85, 0.35, 1 })
     end
 end
 
@@ -277,19 +278,7 @@ local function WaitForBuild(ctx, action, verify, on_success)
 end
 
 local function DoWorldAction(ctx, target, action)
-    local controller = ctx.player.components.playercontroller
-    local buffered = G.BufferedAction(ctx.player, target, action)
-    if not controller.ismastersim then
-        local function SendAction()
-            controller:RemoteActionButton(buffered)
-        end
-        if controller.locomotor == nil then
-            buffered.non_preview_cb = SendAction
-        else
-            buffered.preview_cb = SendAction
-        end
-    end
-    controller:DoAction(buffered)
+    return WorldAction.Do(ctx.player, target, action)
 end
 
 local function AddVerified(ctx, entity)
@@ -305,11 +294,20 @@ local function OpenContainer(ctx, entity, callback)
         return
     end
 
-    local container = entity.replica.container
-    if container:IsOpenedBy(ctx.player) then
+    if Policy.IsStorageOpenedBy(entity, ctx.player) and
+        Policy.GetStorageContainer(entity, ctx.player) ~= nil then
         ContainerCache.Snapshot(entity, ctx.player)
         AddVerified(ctx, entity)
         callback()
+        return
+    end
+
+    if not Policy.CanOpenStorage(entity) then
+        WaitUntil(ctx, function()
+            return entity:IsValid() and Policy.CanOpenStorage(entity)
+        end, Policy.ACTION_TIMEOUT, function()
+            OpenContainer(ctx, entity, callback)
+        end, L("AUTO_CRAFT_REASON_CONTAINER_OPEN_FAILED"))
         return
     end
 
@@ -323,9 +321,14 @@ local function OpenContainer(ctx, entity, callback)
         return
     end
 
-    DoWorldAction(ctx, entity, G.ACTIONS.RUMMAGE)
+    local previously_open = Policy.CaptureOpenContainers(ctx.player)
+    if not DoWorldAction(ctx, entity, G.ACTIONS.RUMMAGE) then
+        Interrupt(ctx, L("AUTO_CRAFT_REASON_CONTAINER_OPEN_FAILED"))
+        return
+    end
     WaitUntil(ctx, function()
-        return entity:IsValid() and container:IsOpenedBy(ctx.player)
+        return entity:IsValid() and Policy.IsStorageOpenedBy(entity, ctx.player) and
+            Policy.GetStorageContainer(entity, ctx.player, previously_open) ~= nil
     end, Policy.ACTION_TIMEOUT, function()
         ContainerCache.Snapshot(entity, ctx.player)
         AddVerified(ctx, entity)
@@ -429,7 +432,7 @@ end
 
 local function FindOpenContainerRecord(ctx, prefab)
     for _, entity in ipairs(ctx.verified) do
-        if entity:IsValid() and entity.replica.container:IsOpenedBy(ctx.player) then
+        if entity:IsValid() and Policy.IsStorageOpenedBy(entity, ctx.player) then
             for _, record in ipairs(Finder.GetContainerItems(entity, ctx.player)) do
                 if record.prefab == prefab and Policy.IsCraftingItem(record.item) then
                     return entity, record
@@ -562,7 +565,7 @@ local function CloseOpenContainers(ctx, callback, index)
     if entity == nil then
         callback()
         return
-    elseif not entity:IsValid() or not entity.replica.container:IsOpenedBy(ctx.player) then
+    elseif not entity:IsValid() or not Policy.IsStorageOpenedBy(entity, ctx.player) then
         CloseOpenContainers(ctx, callback, index + 1)
         return
     end
@@ -570,7 +573,7 @@ local function CloseOpenContainers(ctx, callback, index)
     ContainerCache.Snapshot(entity, ctx.player)
     DoWorldAction(ctx, entity, G.ACTIONS.RUMMAGE)
     WaitUntil(ctx, function()
-        return not entity:IsValid() or not entity.replica.container:IsOpenedBy(ctx.player)
+        return not entity:IsValid() or not Policy.IsStorageOpenedBy(entity, ctx.player)
     end, Policy.ACTION_TIMEOUT, function()
         CloseOpenContainers(ctx, callback, index + 1)
     end, L("AUTO_CRAFT_REASON_CONTAINER_CLOSE_FAILED"))

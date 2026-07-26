@@ -504,6 +504,12 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     local min_rad_sq = min_rad * min_rad
     local max_rad_sq = max_rad * max_rad
 
+    -- In endless mode a ghost can resurrect by haunting the Florid Postern.
+    -- Keep the full interaction range available so a very close hauntable
+    -- entity cannot shrink the scan before the postern is considered.
+    local portal_rez_mode = self.inst:HasTag("playerghost") and
+        G.GetPortalRez ~= nil and G.GetPortalRez()
+
     -- 动态搜索半径（如果已有目标，使用其距离；否则使用最大半径）
     local rad =
             self.controller_target ~= nil and
@@ -512,8 +518,10 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     local rad_sq = rad * rad + 0.1  -- 允许小误差
 
     -- ========== 第五步：查找附近实体 ==========
-    -- 仅在物品扫描到期时扩展到完整范围；其余帧维持原场景搜索半径。
-    local search_rad = (fishing or should_scan_item_use) and max_rad or rad
+    -- 仅在物品扫描到期或幽灵寻找复活门时扩展到完整范围；
+    -- 其余帧维持原场景搜索半径。
+    local search_rad = (fishing or should_scan_item_use or portal_rez_mode) and
+        max_rad or rad
     local nearby_ents = G.TheSim:FindEntities(x, y, z, search_rad, nil, TARGET_EXCLUDE_TAGS)
     if self.controller_target ~= nil then
         -- 如果已有目标，插到列表最前面，确保只处理一次
@@ -523,6 +531,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
     -- ========== 第六步：初始化评分变量 ==========
     local target = nil
     local target_score = 0
+    local target_priority = 0
     local target_has_rmb = false  -- 记录主目标是否有副动作
     local alternative_target = nil
     local alternative_target_score = 0
@@ -560,6 +569,8 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                 local x1, y1, z1 = v.Transform:GetWorldPosition()
                 local dx, dy, dz = x1 - x, y1 - y, z1 - z
                 local dsq = dx * dx + dz * dz  -- 先不计入Y轴
+                local is_portal_rez_target = portal_rez_mode and
+                    v:HasTag("multiplayer_portal")
 
                 -- 钓鱼特殊处理：如果在鱼点半径内，距离视为0
                 if fishing and v:HasTag("fishable") then
@@ -574,7 +585,7 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
                 if dsq < min_rad_sq then
                     -- 非常近的目标：总是在范围内
                     in_range = true
-                elseif dsq <= rad_sq then
+                elseif dsq <= (is_portal_rez_target and max_rad_sq or rad_sq) then
                     -- 在搜索半径内：需要进一步检查
                     if v == self.controller_target or v == self.controller_attack_target then
                         -- 是当前目标或攻击目标：总是在范围内
@@ -660,15 +671,21 @@ local function UpdateControllerInteractionTarget(self, dt, x, y, z, dirx, dirz, 
 
                             -- ===== 独立选择主目标（A键）=====
                             if entity_lmb ~= nil then
-                                -- 有主动作：候选为主目标
-                                -- 检查分数和穿透优先级
-                                if score > target_score or
+                                -- A usable Florid Postern must beat ordinary
+                                -- HAUNT targets while resurrection is enabled.
+                                local priority = is_portal_rez_target and 1 or 0
+                                local wins_score = score > target_score or
                                     (score == target_score and
                                         not (target ~= nil and target.CanMouseThrough ~= nil and not target:CanMouseThrough()) and
-                                        (v.CanMouseThrough == nil or not v:CanMouseThrough())) then
+                                        (v.CanMouseThrough == nil or not v:CanMouseThrough()))
+                                -- 有主动作：候选为主目标
+                                -- 检查分数和穿透优先级
+                                if priority > target_priority or
+                                    (priority == target_priority and wins_score) then
                                     -- 分数更高，或分数相同但优先级更高（不可穿透优先）
                                     target = v
                                     target_score = score
+                                    target_priority = priority
                                     target_has_rmb = entity_rmb ~= nil
                                 end
                             end

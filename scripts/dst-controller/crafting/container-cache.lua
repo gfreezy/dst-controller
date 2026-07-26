@@ -2,6 +2,7 @@
 
 local G = require("dst-controller/global")
 local Policy = require("dst-controller/crafting/policy")
+local Helpers = require("dst-controller/utils/helpers")
 
 local ContainerCache = {}
 
@@ -117,7 +118,7 @@ local function EncodeAndSave()
     PruneData()
     local ok, encoded = pcall(G.json.encode, state.data)
     if not ok then
-        print("[Enhanced Controller] Failed to encode container cache")
+        Helpers.DebugPrint("Failed to encode container cache")
         return
     end
 
@@ -215,8 +216,8 @@ function ContainerCache.Snapshot(entity, player)
         return false
     end
 
-    local container = entity.replica.container
-    if not container:IsOpenedBy(player) then
+    local container = Policy.GetStorageContainer(entity, player)
+    if container == nil or not Policy.IsStorageOpenedBy(entity, player) then
         return false
     end
 

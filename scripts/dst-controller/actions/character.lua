@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local ActionHelpers = require("dst-controller/actions/helpers")
+local Helpers = require("dst-controller/utils/helpers")
 
 local CharacterActions = {}
 
@@ -49,13 +50,13 @@ function CharacterActions.willow_cast_spell(player)
         if controller then
             local action = G.BufferedAction(player, nil, G.ACTIONS.CASTAOE, ember, target_pos)
             controller:DoAction(action)
-            print(string.format("[Enhanced Controller] Action: Willow Cast Spell at (%.1f, %.1f, %.1f)",
-                target_pos.x, target_pos.y, target_pos.z))
+            Helpers.DebugPrintf("Action: Willow Cast Spell at (%.1f, %.1f, %.1f)",
+                target_pos.x, target_pos.y, target_pos.z)
         else
-            print("[Enhanced Controller] Willow cast spell failed: No playercontroller")
+            Helpers.DebugPrint("Willow cast spell failed: no player controller")
         end
     else
-        print("[Enhanced Controller] Willow ember not found in inventory")
+        Helpers.DebugPrint("Willow ember not found in inventory")
     end
 end
 

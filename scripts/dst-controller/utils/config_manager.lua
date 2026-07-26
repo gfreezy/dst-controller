@@ -42,7 +42,7 @@ function ConfigManager.LoadTasks()
         end
         return RUNTIME_TASKS, RUNTIME_VIRTUAL_CURSOR_TASKS
     else
-        print("[ConfigManager] Failed to load tasks config, using empty config")
+        Helpers.DebugPrint("Failed to load tasks config, using empty config")
         RUNTIME_TASKS = {}
         RUNTIME_VIRTUAL_CURSOR_TASKS = {}
         return RUNTIME_TASKS, RUNTIME_VIRTUAL_CURSOR_TASKS
@@ -322,7 +322,7 @@ function ConfigManager.SaveConfigToFile(tasks, virtual_cursor_tasks, settings, c
     local success, json_str = pcall(G.json.encode, data)
 
     if not success then
-        print("[ConfigManager] Failed to encode configuration to JSON")
+        Helpers.DebugPrint("Failed to encode configuration to JSON")
         if callback then callback(false) end
         return
     end
@@ -333,9 +333,8 @@ function ConfigManager.SaveConfigToFile(tasks, virtual_cursor_tasks, settings, c
         json_str,
         false,
         function()
-            print("[ConfigManager] Configuration saved to file: " .. PERSISTENT_FILE_NAME)
+            Helpers.DebugPrint("Configuration saved to file: " .. PERSISTENT_FILE_NAME)
 
-            -- 同时打印到控制台作为备份
             ConfigManager.PrintConfigToConsole(normalized.tasks)
 
             if callback then callback(true) end
@@ -360,8 +359,6 @@ function ConfigManager.LoadTasksFromFile(callback)
 
                 local normalized = success and ConfigManager.NormalizeConfig(data) or nil
                 if normalized ~= nil then
-                    print("[ConfigManager] Configuration loaded from file (version: " .. normalized.version .. ")")
-
                     -- 更新运行时缓存
                     RUNTIME_TASKS = ConfigManager.DeepCopy(normalized.tasks)
                     RUNTIME_VIRTUAL_CURSOR_TASKS = ConfigManager.DeepCopy(normalized.virtual_cursor_tasks)
@@ -369,6 +366,9 @@ function ConfigManager.LoadTasksFromFile(callback)
                     if Helpers.SetDebugEnabled ~= nil then
                         Helpers.SetDebugEnabled(RUNTIME_SETTINGS.debug_logging)
                     end
+                    Helpers.DebugPrint(
+                        "Configuration loaded from file (version: " ..
+                        normalized.version .. ")")
 
                     if callback then
                         callback(true, normalized.tasks, normalized.virtual_cursor_tasks,
@@ -376,10 +376,10 @@ function ConfigManager.LoadTasksFromFile(callback)
                     end
                     return
                 else
-                    print("[ConfigManager] Failed to decode saved configuration")
+                    Helpers.DebugPrint("Failed to decode saved configuration")
                 end
             else
-                print("[ConfigManager] No saved configuration found")
+                Helpers.DebugPrint("No saved configuration found")
             end
 
             -- 加载失败，使用默认配置
@@ -407,7 +407,7 @@ function ConfigManager.LoadDefaultTasks()
             return ConfigManager.DeepCopy(config), ConfigManager.DeepCopy(config)
         end
     else
-        print("[ConfigManager] Failed to load default tasks config, using empty config")
+        Helpers.DebugPrint("Failed to load default tasks config, using empty config")
         local empty = ConfigManager.CreateEmptyTasks()
         return empty, ConfigManager.DeepCopy(empty)
     end
@@ -428,14 +428,19 @@ end
 
 -- 打印配置到控制台（备份方案）
 function ConfigManager.PrintConfigToConsole(tasks)
-    local lua_code = ConfigManager.GenerateLuaCode(tasks)
+    if Helpers.IsDebugEnabled == nil or not Helpers.IsDebugEnabled() then
+        return
+    end
 
-    print("\n========== TASKS CONFIGURATION (BACKUP) ==========")
-    print("Configuration has been saved to: client_save/" .. PERSISTENT_FILE_NAME)
-    print("If needed, you can manually copy this to: scripts/config/tasks.lua")
-    print("==================================================")
-    print(lua_code)
-    print("==================================================\n")
+    local lua_code = ConfigManager.GenerateLuaCode(tasks)
+    Helpers.DebugPrint(table.concat({
+        "========== TASKS CONFIGURATION (BACKUP) ==========",
+        "Configuration has been saved to: client_save/" .. PERSISTENT_FILE_NAME,
+        "If needed, you can manually copy this to: scripts/config/tasks.lua",
+        "==================================================",
+        lua_code,
+        "==================================================",
+    }, "\n"))
 end
 
 -- 生成Lua代码字符串
@@ -524,7 +529,7 @@ function ConfigManager.DeleteSavedConfig(callback)
     G.TheSim:ErasePersistentString(
         PERSISTENT_FILE_NAME,
         function()
-            print("[ConfigManager] Saved configuration deleted")
+            Helpers.DebugPrint("Saved configuration deleted")
             RUNTIME_TASKS = nil
             RUNTIME_VIRTUAL_CURSOR_TASKS = nil
             RUNTIME_SETTINGS = nil

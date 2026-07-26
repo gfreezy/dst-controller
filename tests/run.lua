@@ -9,7 +9,9 @@ local test_files = {
     "tests/combat_action_test.lua",
     "tests/button_handler_test.lua",
     "tests/config_manager_test.lua",
+    "tests/cooking_planner_test.lua",
     "tests/pathfinding_policy_test.lua",
+    "tests/client_pathfinder_search_test.lua",
     "tests/target_selection_policy_test.lua",
     "tests/mixed_target_scenario_test.lua",
     "tests/actionqueue_integration_test.lua",
@@ -20,11 +22,13 @@ local test_files = {
     "tests/input_system_hook_test.lua",
     "tests/material_planner_test.lua",
     "tests/container_cache_scope_test.lua",
+    "tests/storage_access_policy_test.lua",
     "tests/action_executor_async_test.lua",
     "tests/crafting_menu_policy_test.lua",
     "tests/crafting_return_policy_test.lua",
     "tests/recipe_catalog_test.lua",
     "tests/item_catalog_test.lua",
+    "tests/world_action_test.lua",
 }
 
 for _, path in ipairs(test_files) do

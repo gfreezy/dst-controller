@@ -194,25 +194,25 @@ function EquipmentActions.equip_item(player, item_name)
     if not inventory then return end
 
     if not item_name then
-        print("[Enhanced Controller] Error: equip_item requires item name parameter")
+        Helpers.DebugPrint("equip_item requires an item name")
         return
     end
 
     local target_item = ActionHelpers.FindItemByName(player, item_name)
     if not target_item then
-        print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
+        Helpers.DebugPrintf("Item '%s' not found in inventory", item_name)
         return
     end
 
     -- 客户端只能访问 replica.equippable
     local equippable = target_item.replica and target_item.replica.equippable
     if not equippable then
-        print(string.format("[Enhanced Controller] Item '%s' is not equippable", item_name))
+        Helpers.DebugPrintf("Item '%s' is not equippable", item_name)
         return
     end
 
     if ActionHelpers.DoControllerUseItemOnSelf(player, target_item) then
-        print(string.format("[Enhanced Controller] Action: Equip Item (%s)", target_item.prefab))
+        Helpers.DebugPrintf("Action: Equip Item (%s)", target_item.prefab)
     end
 end
 
@@ -224,7 +224,7 @@ end
 function EquipmentActions.cycle_hand(player)
     local result = CycleEquipment(player, G.EQUIPSLOTS.HANDS, 1)
     if result then
-        print(string.format("[Enhanced Controller] Action: Cycle Hand (Next) -> %s", result))
+        Helpers.DebugPrintf("Action: Cycle Hand (Next) -> %s", result)
     end
 end
 
@@ -232,7 +232,7 @@ end
 function EquipmentActions.cycle_hand_prev(player)
     local result = CycleEquipment(player, G.EQUIPSLOTS.HANDS, -1)
     if result then
-        print(string.format("[Enhanced Controller] Action: Cycle Hand (Prev) -> %s", result))
+        Helpers.DebugPrintf("Action: Cycle Hand (Prev) -> %s", result)
     end
 end
 
@@ -240,7 +240,7 @@ end
 function EquipmentActions.cycle_head(player)
     local result = CycleEquipment(player, G.EQUIPSLOTS.HEAD, 1)
     if result then
-        print(string.format("[Enhanced Controller] Action: Cycle Head (Next) -> %s", result))
+        Helpers.DebugPrintf("Action: Cycle Head (Next) -> %s", result)
     end
 end
 
@@ -248,7 +248,7 @@ end
 function EquipmentActions.cycle_head_prev(player)
     local result = CycleEquipment(player, G.EQUIPSLOTS.HEAD, -1)
     if result then
-        print(string.format("[Enhanced Controller] Action: Cycle Head (Prev) -> %s", result))
+        Helpers.DebugPrintf("Action: Cycle Head (Prev) -> %s", result)
     end
 end
 
@@ -256,7 +256,7 @@ end
 function EquipmentActions.cycle_body(player)
     local result = CycleEquipment(player, G.EQUIPSLOTS.BODY, 1)
     if result then
-        print(string.format("[Enhanced Controller] Action: Cycle Body (Next) -> %s", result))
+        Helpers.DebugPrintf("Action: Cycle Body (Next) -> %s", result)
     end
 end
 
@@ -264,7 +264,7 @@ end
 function EquipmentActions.cycle_body_prev(player)
     local result = CycleEquipment(player, G.EQUIPSLOTS.BODY, -1)
     if result then
-        print(string.format("[Enhanced Controller] Action: Cycle Body (Prev) -> %s", result))
+        Helpers.DebugPrintf("Action: Cycle Body (Prev) -> %s", result)
     end
 end
 
@@ -276,7 +276,7 @@ end
 function EquipmentActions.swap_hand_last(player)
     local result = SwapToLastEquipped(player, G.EQUIPSLOTS.HANDS)
     if result then
-        print(string.format("[Enhanced Controller] Action: Swap Hand Last -> %s", result))
+        Helpers.DebugPrintf("Action: Swap Hand Last -> %s", result)
     end
 end
 
@@ -284,7 +284,7 @@ end
 function EquipmentActions.swap_head_last(player)
     local result = SwapToLastEquipped(player, G.EQUIPSLOTS.HEAD)
     if result then
-        print(string.format("[Enhanced Controller] Action: Swap Head Last -> %s", result))
+        Helpers.DebugPrintf("Action: Swap Head Last -> %s", result)
     end
 end
 
@@ -292,7 +292,7 @@ end
 function EquipmentActions.swap_body_last(player)
     local result = SwapToLastEquipped(player, G.EQUIPSLOTS.BODY)
     if result then
-        print(string.format("[Enhanced Controller] Action: Swap Body Last -> %s", result))
+        Helpers.DebugPrintf("Action: Swap Body Last -> %s", result)
     end
 end
 
@@ -308,10 +308,10 @@ function EquipmentActions.save_hand_item(player)
     local current_hand = inventory:GetEquippedItem(G.EQUIPSLOTS.HANDS)
     if current_hand then
         player._saved_hand_item = current_hand.prefab
-        print(string.format("[Enhanced Controller] Action: Saved hand item (%s)", current_hand.prefab))
+        Helpers.DebugPrintf("Action: Saved hand item (%s)", current_hand.prefab)
     else
         player._saved_hand_item = nil
-        print("[Enhanced Controller] Action: No hand item to save")
+        Helpers.DebugPrint("Action: No hand item to save")
     end
 end
 
@@ -326,14 +326,16 @@ function EquipmentActions.restore_hand_item(player)
         local saved_item = ActionHelpers.FindItemByName(player, player._saved_hand_item)
         if saved_item and ItemMatchesEquipSlot(saved_item, G.EQUIPSLOTS.HANDS) then
             ActionHelpers.DoControllerUseItemOnSelf(player, saved_item)
-            print(string.format("[Enhanced Controller] Action: Restored hand item (%s)", player._saved_hand_item))
+            Helpers.DebugPrintf("Action: Restored hand item (%s)",
+                player._saved_hand_item)
         else
-            print(string.format("[Enhanced Controller] Cannot restore hand item: %s not found", player._saved_hand_item))
+            Helpers.DebugPrintf("Cannot restore hand item: %s not found",
+                player._saved_hand_item)
         end
         player._saved_hand_item = nil
     else
         -- No saved item, do nothing (safe behavior)
-        print("[Enhanced Controller] Action: No saved hand item to restore")
+        Helpers.DebugPrint("Action: No saved hand item to restore")
     end
 end
 
@@ -345,10 +347,10 @@ function EquipmentActions.save_head_item(player)
     local current_head = inventory:GetEquippedItem(G.EQUIPSLOTS.HEAD)
     if current_head then
         player._saved_head_item = current_head.prefab
-        print(string.format("[Enhanced Controller] Action: Saved head item (%s)", current_head.prefab))
+        Helpers.DebugPrintf("Action: Saved head item (%s)", current_head.prefab)
     else
         player._saved_head_item = nil
-        print("[Enhanced Controller] Action: No head item to save")
+        Helpers.DebugPrint("Action: No head item to save")
     end
 end
 
@@ -361,13 +363,15 @@ function EquipmentActions.restore_head_item(player)
         local saved_item = ActionHelpers.FindItemByName(player, player._saved_head_item)
         if saved_item and ItemMatchesEquipSlot(saved_item, G.EQUIPSLOTS.HEAD) then
             ActionHelpers.DoControllerUseItemOnSelf(player, saved_item)
-            print(string.format("[Enhanced Controller] Action: Restored head item (%s)", player._saved_head_item))
+            Helpers.DebugPrintf("Action: Restored head item (%s)",
+                player._saved_head_item)
         else
-            print(string.format("[Enhanced Controller] Cannot restore head item: %s not found", player._saved_head_item))
+            Helpers.DebugPrintf("Cannot restore head item: %s not found",
+                player._saved_head_item)
         end
         player._saved_head_item = nil
     else
-        print("[Enhanced Controller] Action: No saved head item to restore")
+        Helpers.DebugPrint("Action: No saved head item to restore")
     end
 end
 
@@ -379,10 +383,10 @@ function EquipmentActions.save_body_item(player)
     local current_body = inventory:GetEquippedItem(G.EQUIPSLOTS.BODY)
     if current_body then
         player._saved_body_item = current_body.prefab
-        print(string.format("[Enhanced Controller] Action: Saved body item (%s)", current_body.prefab))
+        Helpers.DebugPrintf("Action: Saved body item (%s)", current_body.prefab)
     else
         player._saved_body_item = nil
-        print("[Enhanced Controller] Action: No body item to save")
+        Helpers.DebugPrint("Action: No body item to save")
     end
 end
 
@@ -395,13 +399,15 @@ function EquipmentActions.restore_body_item(player)
         local saved_item = ActionHelpers.FindItemByName(player, player._saved_body_item)
         if saved_item and ItemMatchesEquipSlot(saved_item, G.EQUIPSLOTS.BODY) then
             ActionHelpers.DoControllerUseItemOnSelf(player, saved_item)
-            print(string.format("[Enhanced Controller] Action: Restored body item (%s)", player._saved_body_item))
+            Helpers.DebugPrintf("Action: Restored body item (%s)",
+                player._saved_body_item)
         else
-            print(string.format("[Enhanced Controller] Cannot restore body item: %s not found", player._saved_body_item))
+            Helpers.DebugPrintf("Cannot restore body item: %s not found",
+                player._saved_body_item)
         end
         player._saved_body_item = nil
     else
-        print("[Enhanced Controller] Action: No saved body item to restore")
+        Helpers.DebugPrint("Action: No saved body item to restore")
     end
 end
 
@@ -427,7 +433,8 @@ function EquipmentActions.unequip_item(player, slot_type)
     elseif slot_type == "body" then
         equipslot = G.EQUIPSLOTS.BODY
     else
-        print(string.format("[Enhanced Controller] Invalid slot type: %s (must be hand/head/body)", tostring(slot_type)))
+        Helpers.DebugPrintf("Invalid slot type: %s (must be hand/head/body)",
+            tostring(slot_type))
         return
     end
 
@@ -437,10 +444,11 @@ function EquipmentActions.unequip_item(player, slot_type)
         -- For equipped items, it automatically creates UNEQUIP action
         -- This handles all edge cases: prevention checks, heavy items, etc.
         if ActionHelpers.DoControllerUseItemOnSelf(player, equipped_item) then
-            print(string.format("[Enhanced Controller] Action: Unequipping %s from %s slot", equipped_item.prefab, slot_type))
+            Helpers.DebugPrintf("Action: Unequipping %s from %s slot",
+                equipped_item.prefab, slot_type)
         end
     else
-        print(string.format("[Enhanced Controller] Action: No item equipped in %s slot", slot_type))
+        Helpers.DebugPrintf("Action: No item equipped in %s slot", slot_type)
     end
 end
 
@@ -467,7 +475,8 @@ function EquipmentActions.use_equip(player, slot_type)
     elseif slot_type == "body" then
         equipslot = G.EQUIPSLOTS.BODY
     else
-        print(string.format("[Enhanced Controller] Invalid slot type: %s (must be hand/head/body)", tostring(slot_type)))
+        Helpers.DebugPrintf("Invalid slot type: %s (must be hand/head/body)",
+            tostring(slot_type))
         return
     end
 
@@ -478,9 +487,10 @@ function EquipmentActions.use_equip(player, slot_type)
         -- - For tools/weapons: uses them on scene/target
         -- - For other equipped items: uses them on detected targets
         controller:DoControllerUseItemOnSceneFromInvTile(equipped_item)
-        print(string.format("[Enhanced Controller] Action: Using equipped %s from %s slot on scene", equipped_item.prefab, slot_type))
+        Helpers.DebugPrintf("Action: Using equipped %s from %s slot on scene",
+            equipped_item.prefab, slot_type)
     else
-        print(string.format("[Enhanced Controller] Action: No item equipped in %s slot", slot_type))
+        Helpers.DebugPrintf("Action: No item equipped in %s slot", slot_type)
     end
 end
 

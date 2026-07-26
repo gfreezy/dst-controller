@@ -32,6 +32,17 @@ local UNSAFE_CONTAINER_TYPES = {
     hand_inv = true,
 }
 
+local PROXY_SOURCE_PREFABS = {
+    chester = "shadow_container",
+    magician_chest = "shadow_container",
+    rabbitkinghorn_chest = "rabbitkinghorn_container",
+}
+
+-- Container proxies expose the interaction target on the visible entity, but
+-- their slots live on a separate pocket-dimension container. Remember that
+-- source after it becomes visible to the local player's HUD.
+local resolved_proxy_sources = setmetatable({}, { __mode = "kv" })
+
 local PROTECTED_STAGE_TAGS = {
     "backpack",
     "bundle",
@@ -49,6 +60,107 @@ function Policy.IsCraftingItem(item)
     return item ~= nil and item:IsValid() and not item:HasTag("nocrafting")
 end
 
+function Policy.GetStorageOpener(entity)
+    if entity == nil then
+        return nil
+    end
+    local container = entity.replica and entity.replica.container
+    if container ~= nil then
+        return container
+    end
+    return entity.components and entity.components.container_proxy or nil
+end
+
+function Policy.CanOpenStorage(entity)
+    local opener = Policy.GetStorageOpener(entity)
+    return opener ~= nil and opener.CanBeOpened ~= nil and opener:CanBeOpened()
+end
+
+function Policy.IsStorageOpenedBy(entity, player)
+    local opener = Policy.GetStorageOpener(entity)
+    return opener ~= nil and opener.IsOpenedBy ~= nil and opener:IsOpenedBy(player)
+end
+
+function Policy.CaptureOpenContainers(player)
+    local inventory = player and player.replica and player.replica.inventory
+    local open = inventory and inventory:GetOpenContainers() or nil
+    local result = {}
+    for entity in pairs(open or {}) do
+        result[entity] = true
+    end
+    return result
+end
+
+local function IsOpenContainerSource(entity, player)
+    if entity == nil or entity.replica == nil then
+        return false
+    end
+    local container = entity.replica.container
+    return container ~= nil and
+        (entity.IsValid == nil or entity:IsValid()) and
+        (container.IsOpenedBy == nil or container:IsOpenedBy(player))
+end
+
+local function FindProxySource(entity, player, previously_open)
+    local mapped = resolved_proxy_sources[entity]
+    if IsOpenContainerSource(mapped, player) then
+        return mapped
+    end
+    resolved_proxy_sources[entity] = nil
+
+    local inventory = player and player.replica and player.replica.inventory
+    local open = inventory and inventory:GetOpenContainers() or nil
+    if open == nil then
+        return nil
+    end
+
+    local expected_prefab = PROXY_SOURCE_PREFABS[entity.prefab]
+    local new_sources = {}
+    local all_sources = {}
+    for source in pairs(open) do
+        if IsOpenContainerSource(source, player) then
+            table.insert(all_sources, source)
+            if previously_open ~= nil and not previously_open[source] then
+                table.insert(new_sources, source)
+            end
+        end
+    end
+
+    local function Select(sources)
+        if expected_prefab ~= nil then
+            for _, source in ipairs(sources) do
+                if source.prefab == expected_prefab then
+                    return source
+                end
+            end
+        end
+        if #sources == 1 then
+            return sources[1]
+        end
+    end
+
+    mapped = Select(new_sources) or Select(all_sources)
+    if mapped ~= nil then
+        resolved_proxy_sources[entity] = mapped
+    end
+    return mapped
+end
+
+-- Returns the slot-bearing replica. For ordinary chests this is attached to
+-- the target itself; for proxy storage (such as Shadow Chester) it is the
+-- newly opened pocket-dimension container.
+function Policy.GetStorageContainer(entity, player, previously_open)
+    local container = entity and entity.replica and entity.replica.container
+    if container ~= nil then
+        return container
+    end
+    if not Policy.IsStorageOpenedBy(entity, player) then
+        return nil
+    end
+    local source = FindProxySource(entity, player, previously_open)
+    return source and source.replica and source.replica.container or nil
+end
+
 function Policy.IsStorageContainer(entity, player)
     if entity == nil or not entity:IsValid() or entity == player or
         entity:HasTag("INLIMBO") or entity:HasTag("NOCLICK") then
@@ -56,18 +168,31 @@ function Policy.IsStorageContainer(entity, player)
     end
 
     local container = entity.replica and entity.replica.container
-    if container == nil or not container:CanBeOpened() or
-        container:IsReadOnlyContainer() or container.excludefromcrafting then
+    local opener = Policy.GetStorageOpener(entity)
+    if opener == nil then
         return false
     end
 
-    if UNSAFE_CONTAINER_TYPES[container.type] or container.usespecificslotsforitems then
+    -- Chester closes its container while locomoting. Keep it as a candidate
+    -- and let the coordinator wait for its idle state instead of permanently
+    -- dropping it from the material search.
+    if not Policy.CanOpenStorage(entity) and not entity:HasTag("chester") then
         return false
     end
 
-    local widget = container.GetWidget and container:GetWidget() or container.widget
-    if widget ~= nil and (widget.buttoninfo ~= nil or widget.overrideactionfn ~= nil) then
-        return false
+    if container ~= nil then
+        if container:IsReadOnlyContainer() or container.excludefromcrafting then
+            return false
+        end
+
+        if UNSAFE_CONTAINER_TYPES[container.type] or container.usespecificslotsforitems then
+            return false
+        end
+
+        local widget = container.GetWidget and container:GetWidget() or container.widget
+        if widget ~= nil and (widget.buttoninfo ~= nil or widget.overrideactionfn ~= nil) then
+            return false
+        end
     end
 
     local inventory_item = entity.replica and entity.replica.inventoryitem

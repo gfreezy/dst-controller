@@ -3,6 +3,7 @@
 -- Since teleporter component is server-only, we learn connections through actual usage
 
 local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
 
 local WormholeTracker = {}
 
@@ -62,10 +63,11 @@ function WormholeTracker.Save()
 
     if success and json_str then
         G.TheSim:SetPersistentString(filename, json_str, false, function()
-            print("[WormholeTracker] Saved " .. WormholeTracker.GetPairCount() .. " connections to " .. filename)
+            Helpers.DebugPrintf("Saved %d wormhole connections to %s",
+                WormholeTracker.GetPairCount(), filename)
         end)
     else
-        print("[WormholeTracker] Failed to encode wormhole data")
+        Helpers.DebugPrint("Failed to encode wormhole data")
     end
 end
 
@@ -78,13 +80,14 @@ function WormholeTracker.Load(callback)
             local ok, pairs = pcall(G.json.decode, data)
             if ok and type(pairs) == "table" then
                 wormhole_data.pairs = pairs
-                print("[WormholeTracker] Loaded " .. WormholeTracker.GetPairCount() .. " connections from " .. filename)
+                Helpers.DebugPrintf("Loaded %d wormhole connections from %s",
+                    WormholeTracker.GetPairCount(), filename)
             else
-                print("[WormholeTracker] Failed to decode saved data")
+                Helpers.DebugPrint("Failed to decode saved wormhole data")
                 wormhole_data.pairs = {}
             end
         else
-            print("[WormholeTracker] No saved wormhole data found for this world")
+            Helpers.DebugPrint("No saved wormhole data found for this world")
             wormhole_data.pairs = {}
         end
 
@@ -115,7 +118,7 @@ function WormholeTracker.OnEnterWormhole(wormhole)
     wormhole_data.pending_entry_time = current_time
     wormhole_data.entry_pos = {x = x, z = z}
 
-    print("[WormholeTracker] Entering wormhole at " .. wormhole_data.pending_entry)
+    Helpers.DebugPrint("Entering wormhole at " .. wormhole_data.pending_entry)
 
     -- Start a timer to detect exit by position change
     WormholeTracker.StartExitDetection()
@@ -148,7 +151,7 @@ function WormholeTracker.StartExitDetection()
 
         -- If player moved more than 50 units, they likely teleported
         if dist > 50 then
-            print("[WormholeTracker] Position change detected! Distance: " .. string.format("%.1f", dist))
+            Helpers.DebugPrintf("Wormhole position change detected: %.1f", dist)
             WormholeTracker.OnExitWormhole(player)
             return
         end
@@ -157,7 +160,7 @@ function WormholeTracker.StartExitDetection()
         if check_count < max_checks then
             wormhole_data.exit_task = player:DoTaskInTime(0.5, CheckForExit)
         else
-            print("[WormholeTracker] Exit detection timed out")
+            Helpers.DebugPrint("Wormhole exit detection timed out")
             wormhole_data.pending_entry = nil
             wormhole_data.entry_pos = nil
         end
@@ -190,7 +193,7 @@ function WormholeTracker.OnExitWormhole(player)
     local current_time = G.GetTime and G.GetTime() or os.time()
     if wormhole_data.pending_entry_time and
        (current_time - wormhole_data.pending_entry_time) > ENTRY_TIMEOUT then
-        print("[WormholeTracker] Entry timed out, ignoring exit")
+        Helpers.DebugPrint("Wormhole entry timed out, ignoring exit")
         CleanupState()
         return
     end
@@ -215,13 +218,14 @@ function WormholeTracker.OnExitWormhole(player)
             wormhole_data.pairs[wormhole_data.pending_entry] = exit_key
             wormhole_data.pairs[exit_key] = wormhole_data.pending_entry
 
-            print("[WormholeTracker] Recorded connection: " .. wormhole_data.pending_entry .. " <-> " .. exit_key)
+            Helpers.DebugPrintf("Recorded wormhole connection: %s <-> %s",
+                wormhole_data.pending_entry, exit_key)
 
             -- Save to file
             WormholeTracker.Save()
         end
     else
-        print("[WormholeTracker] No wormhole found near exit point")
+        Helpers.DebugPrint("No wormhole found near exit point")
     end
 
     CleanupState()
@@ -292,7 +296,7 @@ function WormholeTracker.Clear()
     -- Delete the saved file
     local filename = GetFilename()
     G.TheSim:ErasePersistentString(filename, function()
-        print("[WormholeTracker] Cleared all wormhole data")
+        Helpers.DebugPrint("Cleared all wormhole data")
     end)
 end
 
@@ -311,19 +315,19 @@ end
 
 -- Debug: Print all known connections
 function WormholeTracker.DebugPrint()
-    print("[WormholeTracker] Known connections:")
+    Helpers.DebugPrint("Known wormhole connections:")
     local seen = {}
 
     for key, paired_key in pairs(wormhole_data.pairs) do
         local pair_id = key < paired_key and (key .. "|" .. paired_key) or (paired_key .. "|" .. key)
         if not seen[pair_id] then
             seen[pair_id] = true
-            print("  " .. key .. " <-> " .. paired_key)
+            Helpers.DebugPrint("  " .. key .. " <-> " .. paired_key)
         end
     end
 
     if not next(seen) then
-        print("  (none)")
+        Helpers.DebugPrint("  (none)")
     end
 end
 

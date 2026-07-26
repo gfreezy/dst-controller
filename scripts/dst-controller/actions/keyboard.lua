@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local InputHook = require("dst-controller/hooks/input-hook")
+local Helpers = require("dst-controller/utils/helpers")
 
 -- 键盘按键映射表（DST KEY_ 常量）
 -- 注意：只包含DST constants.lua中实际定义的按键
@@ -84,7 +85,7 @@ local function ParseKeyCombo(key_string)
         if key_code then
             table.insert(keys, key_code)
         else
-            print("[KeyboardAction] Warning: Unknown key '" .. key_name .. "'")
+            Helpers.DebugPrint("Unknown key '" .. key_name .. "'")
         end
     end
 
@@ -101,7 +102,7 @@ local function TriggerKey(player, key_string, down)
 
     local keys = ParseKeyCombo(key_string)
     if #keys == 0 then
-        print("[KeyboardAction] No valid keys to trigger")
+        Helpers.DebugPrint("No valid keys to trigger")
         return
     end
 
@@ -109,7 +110,7 @@ local function TriggerKey(player, key_string, down)
     if down == nil then
         -- Mode 1: Press and release (default)
         -- Press all keys
-        print("[KeyboardAction] Pressing keys:", key_string)
+        Helpers.DebugPrint("Pressing keys: " .. tostring(key_string))
         for _, key in ipairs(keys) do
             InputHook.SimulateKeyPress(key, true)
         end
@@ -122,19 +123,20 @@ local function TriggerKey(player, key_string, down)
         end)
     elseif down then
         -- Mode 2: Press only (hold)
-        print("[KeyboardAction] Holding keys:", key_string)
+        Helpers.DebugPrint("Holding keys: " .. tostring(key_string))
         for _, key in ipairs(keys) do
             InputHook.SimulateKeyPress(key, true)
         end
     else
         -- Mode 3: Release only
-        print("[KeyboardAction] Releasing keys:", key_string)
+        Helpers.DebugPrint("Releasing keys: " .. tostring(key_string))
         for _, key in ipairs(keys) do
             InputHook.SimulateKeyPress(key, false)
         end
     end
 
-    print("[KeyboardAction] Triggered keys:", key_string, "down:", down)
+    Helpers.DebugPrintf("Triggered keys: %s, down: %s",
+        tostring(key_string), tostring(down))
 end
 
 return {

@@ -10,6 +10,7 @@ local function MakeEntity(name, x)
     }
     function value:IsValid() return true end
     function value:HasTag(tag) return tags[tag] == true end
+    function value:AddTestTag(tag) tags[tag] = true end
     function value:GetPosition() return { x = x, y = 0, z = 0 } end
     function value:GetPhysicsRadius() return 0 end
     return value
@@ -123,3 +124,34 @@ for _ = 1, 2 do
     TargetSelection.UpdateControllerTargets(controller, 0.016)
 end
 assert(item_action_queries > first_scan_queries, "item-use target scan should resume after its interval")
+
+-- A nearby player used to keep the dynamic interaction radius too small to
+-- discover the Florid Postern, then win HAUNT targeting by distance.
+local postern = MakeEntity("multiplayer_portal_moonrock", 4)
+postern:AddTestTag("multiplayer_portal")
+local nearby_player = MakeEntity("wilson", 0.5)
+nearby_player:AddTestTag("player")
+function player:HasTag(tag)
+    return tag == "idle" or tag == "playerghost"
+end
+G.GetPortalRez = function() return true end
+local ghost_search_radius
+G.TheSim.FindEntities = function(_, _, _, _, radius)
+    ghost_search_radius = radius
+    return { nearby_player, postern }
+end
+function controller:GetSceneItemControllerAction(target)
+    if target == nearby_player or target == postern then
+        return { target = target, action = { id = "HAUNT" } }
+    end
+end
+controller.controller_target = nearby_player
+controller.controller_target_age = math.huge
+controller._enhanced_target_scan_age = 1
+controller.controller_item_use_target = nil
+controller.controller_item_use_source = nil
+TargetSelection.UpdateControllerTargets(controller, 0.016)
+assert(ghost_search_radius == 8,
+    "ghost resurrection targeting should keep the full interaction scan radius")
+assert(controller.controller_target == postern,
+    "a usable Florid Postern must outrank a closer player for ghost resurrection")

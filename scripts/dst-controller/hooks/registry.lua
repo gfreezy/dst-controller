@@ -3,6 +3,7 @@
 -- Ensures each class/component is hooked exactly once
 
 local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
 
 local HookRegistry = {}
 
@@ -17,7 +18,7 @@ function HookRegistry.InstallAll()
     -- 6. Controls widget hooks (cursor widget injection)
     -- 7. Screen hooks (specific screen behaviors)
 
-    print("[HookRegistry] Installing all hooks...")
+    Helpers.DebugPrint("Installing all hooks")
 
     -- 1. TheFrontEnd (global UI - virtual cursor updates and controls)
     require("dst-controller/hooks/thefrontend-hook").Install()
@@ -40,6 +41,9 @@ function HookRegistry.InstallAll()
     -- 6. CraftingMenu Widget (hide bottom layer and block RSTICK)
     require("dst-controller/hooks/craftingmenu-hook").Install()
 
+    -- 6b. Cookbook Widget (Search & Cook button and focus routing)
+    require("dst-controller/hooks/cookbook-hook").Install()
+
     -- 7. Controls Widget (cursor widget injection)
     require("dst-controller/hooks/controls-hook").Install()
 
@@ -49,7 +53,7 @@ function HookRegistry.InstallAll()
     -- 9. Wormhole Tracker (tracks wormhole connections through usage)
     require("dst-controller/hooks/wormhole-tracker-hook").Install()
 
-    print("[HookRegistry] All hooks installed successfully")
+    Helpers.DebugPrint("All hooks installed successfully")
 end
 
 return HookRegistry

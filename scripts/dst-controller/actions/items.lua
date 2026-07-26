@@ -3,6 +3,7 @@
 
 local G = require("dst-controller/global")
 local ActionHelpers = require("dst-controller/actions/helpers")
+local Helpers = require("dst-controller/utils/helpers")
 
 local ItemActions = {}
 
@@ -14,20 +15,20 @@ function ItemActions.use_item_on_self(player, item_name)
     if not inventory or not controller then return end
 
     if not item_name then
-        print("[Enhanced Controller] Error: use_item_on_self requires item name parameter")
+        Helpers.DebugPrint("use_item_on_self requires an item name")
         return
     end
 
     -- Find specific item by name
     local target_item = ActionHelpers.FindItemByName(player, item_name)
     if not target_item then
-        print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
+        Helpers.DebugPrintf("Item '%s' not found in inventory", item_name)
         return
     end
 
     -- Use official DST API - handles state checking, network sync, and action selection
     controller:DoControllerUseItemOnSelfFromInvTile(target_item)
-    print(string.format("[Enhanced Controller] Action: Use Item On Self (%s)", target_item.prefab))
+    Helpers.DebugPrintf("Action: Use Item On Self (%s)", target_item.prefab)
 end
 
 -- Use item on scene/target by name (item_name is required)
@@ -38,20 +39,20 @@ function ItemActions.use_item_on_scene(player, item_name)
     if not inventory or not controller then return end
 
     if not item_name then
-        print("[Enhanced Controller] Error: use_item_on_scene requires item name parameter")
+        Helpers.DebugPrint("use_item_on_scene requires an item name")
         return
     end
 
     -- Find specific item by name
     local target_item = ActionHelpers.FindItemByName(player, item_name)
     if not target_item then
-        print(string.format("[Enhanced Controller] Item '%s' not found in inventory", item_name))
+        Helpers.DebugPrintf("Item '%s' not found in inventory", item_name)
         return
     end
 
     -- Use official DST API - handles target detection, range checking, and action selection
     controller:DoControllerUseItemOnSceneFromInvTile(target_item)
-    print(string.format("[Enhanced Controller] Action: Use Item On Scene (%s)", target_item.prefab))
+    Helpers.DebugPrintf("Action: Use Item On Scene (%s)", target_item.prefab)
 end
 
 -- Use currently active item on self (no parameter needed)
@@ -68,13 +69,13 @@ function ItemActions.use_active_item_on_self(player)
     end
 
     if not active_item then
-        print("[Enhanced Controller] No item in selected inventory slot")
+        Helpers.DebugPrint("No item in selected inventory slot")
         return
     end
 
     -- Use official DST API
     controller:DoControllerUseItemOnSelfFromInvTile(active_item)
-    print(string.format("[Enhanced Controller] Action: Use Active Item On Self (%s)", active_item.prefab))
+    Helpers.DebugPrintf("Action: Use Active Item On Self (%s)", active_item.prefab)
 end
 
 -- Use currently active item on scene/target (no parameter needed)
@@ -91,13 +92,13 @@ function ItemActions.use_active_item_on_scene(player)
     end
 
     if not active_item then
-        print("[Enhanced Controller] No item in selected inventory slot")
+        Helpers.DebugPrint("No item in selected inventory slot")
         return
     end
 
     -- Use official DST API
     controller:DoControllerUseItemOnSceneFromInvTile(active_item)
-    print(string.format("[Enhanced Controller] Action: Use Active Item On Scene (%s)", active_item.prefab))
+    Helpers.DebugPrintf("Action: Use Active Item On Scene (%s)", active_item.prefab)
 end
 
 return ItemActions

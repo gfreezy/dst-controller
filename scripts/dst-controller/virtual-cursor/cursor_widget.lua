@@ -2,6 +2,7 @@
 -- Displays cursor icon on screen
 
 local G = require("dst-controller/global")
+local Helpers = require("dst-controller/utils/helpers")
 local Widget = require("widgets/widget")
 local Image = require("widgets/image")
 
@@ -34,7 +35,7 @@ function CursorWidget:LoadCustomCursor()
     local modname = G.modname or "enhanced_controller"
     local cursor_atlas = "../mods/" .. modname .. "/images/cursor.xml"
 
-    print("[CursorWidget] Loading custom cursor: " .. cursor_atlas)
+    Helpers.DebugPrint("Loading custom cursor: " .. cursor_atlas)
 
     local success = pcall(function()
         -- 移除旧光标
@@ -59,9 +60,9 @@ function CursorWidget:LoadCustomCursor()
     end)
 
     if success then
-        print("[CursorWidget] Custom cursor loaded!")
+        Helpers.DebugPrint("Custom cursor loaded")
     else
-        print("[CursorWidget] Failed to load custom cursor")
+        Helpers.DebugPrint("Failed to load custom cursor")
     end
 end
 

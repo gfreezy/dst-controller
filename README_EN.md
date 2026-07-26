@@ -11,6 +11,7 @@ A powerful controller enhancement mod for Don't Starve Together with custom butt
 - 🎮 **12 Custom Button Combos** - Fully configurable gamepad button mapping
 - 🖱️ **Virtual Cursor System** - Gamepad-controlled mouse cursor, full screen interaction
 - 🧰 **Automatic Crafting** - Find nearby materials/containers and craft intermediates
+- 🍲 **Search & Cook** - Find nearby ingredients and an idle cooker from the Cookbook
 - 📋 **ActionQueue Integration** - Use controller drag selection from the virtual cursor
 - 🗺️ **Map Auto-Pathfinding** - Click map to auto-navigate, intelligent path planning
 - 🕳️ **Wormhole Tracking** - Auto-record wormhole pairs, show numbers on map
@@ -67,6 +68,17 @@ When inventory materials are insufficient, the crafting menu and `craft_item` ac
 - For an externally acquired material type absent from the starting inventory, remaining whole stacks are dropped after completion; types already owned at startup are left untouched
 
 Recipes satisfiable from nearby materials are labeled “Auto Build” in the crafting menu. Selecting one closes the menu, verifies containers, and then executes the plan.
+
+### 🍲 Search & Cook
+
+In the in-game Cookbook, select a dish with a discovered ingredient combination and choose “Search & Cook”:
+
+- Plans only from four-slot combinations actually recorded in the Cookbook
+- Finds a nearby empty compatible cookpot, archive cookpot, or portable cookpot
+- Collects ingredients from personal inventory, the ground, and verified nearby containers
+- Revalidates every cooker slot before invoking the native Cook button
+- Shares Auto Build's radius, smart/thorough search mode, and container limit
+- Supports mouse and controller focus navigation and stops safely on manual input or changed state
 
 ### 📋 ActionQueue Controller Integration
 
@@ -126,7 +138,7 @@ Use virtual cursor on the map screen to quickly navigate to target locations:
 
 **Features**:
 - ✅ Virtual cursor click on map to start auto-pathfinding
-- ✅ Hybrid pathfinding system (A* algorithm for long distance + direct walk for short distance)
+- ✅ Compares direct travel with terrain-aware detours and selects a route that is at least 2% faster
 - ✅ Real-time path visualization (path points shown on map)
 - ✅ Manual movement auto-cancels pathfinding
 - ✅ Automatic obstacle avoidance
@@ -372,6 +384,7 @@ dst-controller/
 │   ├── localization.lua       # Multi-language support
 │   ├── actions/               # Action implementations
 │   ├── crafting/              # Automatic crafting, planning, and container cache
+│   ├── cooking/               # Search & Cook and four-slot recipe planning
 │   ├── core/                  # Core logic
 │   │   ├── button-handler.lua
 │   │   └── action-executor.lua
@@ -435,6 +448,7 @@ A: Path visualization only shows when the map is open. After closing the map, th
 ## 📝 Changelog
 
 ### v2.6.0
+- ✨ Added Cookbook “Search & Cook” to find nearby ingredients, containers, and an empty compatible cooker
 - ✨ Added a native controller attack mapping and reliable release actions when combo modifiers are released first
 - ✨ Added smart/thorough container search, search radius, and container-limit settings for Auto Build
 - ✨ Added Chinese/English action and recipe search with empty-result validation and capped result rendering

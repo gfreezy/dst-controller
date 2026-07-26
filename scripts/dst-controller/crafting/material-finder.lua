@@ -130,7 +130,7 @@ end
 function Finder.FindNearbyGroundItems(player, radius)
     local items = {}
     for _, entity in ipairs(Finder.FindNearbyEntities(player, radius)) do
-        if (entity.replica == nil or entity.replica.container == nil) and
+        if Policy.GetStorageOpener(entity) == nil and
             Policy.IsGroundCraftingItem(entity, player) then
             table.insert(items, entity)
         end
@@ -146,8 +146,8 @@ function Finder.GetContainerItems(entity, player)
     if not Policy.IsStorageContainer(entity, player) then
         return records
     end
-    local container = entity.replica.container
-    if not container:IsOpenedBy(player) then
+    local container = Policy.GetStorageContainer(entity, player)
+    if container == nil or not Policy.IsStorageOpenedBy(entity, player) then
         return records
     end
     AddContainerItems(records, container, entity)
@@ -180,8 +180,7 @@ function Finder.BuildMenuStock(player, radius)
     end
 
     for _, entity in ipairs(containers) do
-        local container = entity.replica.container
-        if container:IsOpenedBy(player) then
+        if Policy.IsStorageOpenedBy(entity, player) then
             local records = Finder.GetContainerItems(entity, player)
             AddRecordsToCounts(external, records)
             for _, record in ipairs(records) do
@@ -229,7 +228,7 @@ function Finder.BuildVerifiedSources(player, verified_containers, radius)
 
     for _, entity in ipairs(verified_containers or {}) do
         local records = Finder.GetContainerItems(entity, player)
-        if #records > 0 or entity.replica.container:IsOpenedBy(player) then
+        if #records > 0 or Policy.IsStorageOpenedBy(entity, player) then
             table.insert(sources.containers, entity)
             for _, record in ipairs(records) do
                 if Policy.IsCraftingItem(record.item) then
