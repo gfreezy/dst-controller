@@ -10,6 +10,8 @@ A powerful controller enhancement mod for Don't Starve Together with custom butt
 
 - 🎮 **12 Custom Button Combos** - Fully configurable gamepad button mapping
 - 🖱️ **Virtual Cursor System** - Gamepad-controlled mouse cursor, full screen interaction
+- 🧰 **Automatic Crafting** - Find nearby materials/containers and craft intermediates
+- 📋 **ActionQueue Integration** - Use controller drag selection from the virtual cursor
 - 🗺️ **Map Auto-Pathfinding** - Click map to auto-navigate, intelligent path planning
 - 🕳️ **Wormhole Tracking** - Auto-record wormhole pairs, show numbers on map
 - ⚙️ **In-Game Configuration** - No restart needed, adjust all settings in real-time
@@ -39,16 +41,42 @@ Use the right stick to control a mouse cursor for full mouse-mode operations:
 **Features**:
 
 - ✅ Right stick controls cursor movement (full screen)
-- ✅ RT button = Left mouse click
-- ✅ RB button = Right mouse click
+- ✅ LT button = Left mouse click
+- ✅ RT button = Right mouse click
 - ✅ Hover detection and entity highlighting
 - ✅ Drag-to-walk support (8-frame detection threshold)
 - ✅ Click UI elements (inventory, crafting menu, etc.)
+- ✅ Configurable magnetism for actionable world entities and UI controls
+- ✅ World targets use the real engine hit-region centroid without animation-induced jitter
+- ✅ No extra mod-side dead zone; a nonlinear response preserves fine control and full-stick travel
 - ✅ Configurable cursor speed (0.5x - 2.0x)
-- ✅ Configurable dead zone (0.0 - 0.5)
 - ✅ Show/hide cursor icon
 
 **Default toggle**: LB + RB + RT (press simultaneously)
+
+### 🧰 Automatic Crafting
+
+When inventory materials are insufficient, the crafting menu and `craft_item` action can start a verified automatic-crafting transaction:
+
+- Searches ground items and safe storage containers within 6 world units
+- Caches inspected container contents per world/cave shard and verifies them before use
+- Prefers existing intermediates, then recursively plans and crafts missing intermediates
+- If inventory is full, temporarily stages only safe ordinary items not needed by the recipe
+- Building recipes enter the native placement mode after material preparation
+- Manual control, death, failed actions, or changed materials interrupt the task; completed moves/crafts are not rolled back
+- For an externally acquired material type absent from the starting inventory, remaining whole stacks are dropped after completion; types already owned at startup are left untouched
+
+Recipes satisfiable from nearby materials are labeled “Auto Build” in the crafting menu. Selecting one closes the menu, verifies containers, and then executes the plan.
+
+### 📋 ActionQueue Controller Integration
+
+With ActionQueue RB3 installed, enable “ActionQueue Controller” in settings and activate the virtual cursor:
+
+- **Hold RB + drag LT**: left-click selection/queue
+- **Hold RB + drag RT**: right-click selection/queue
+- **RB + B**: cancel selection and queued actions
+
+Cursor magnetism is temporarily disabled during drag selection. Inventory, map, and other UI do not start world selection.
 
 ### 🎯 Multi-Target Selection System
 
@@ -181,7 +209,7 @@ Automatically record wormhole pair connections - no manual marking needed!
 
 ### Crafting
 
-- **craft_item**: Craft specified item
+- **craft_item**: Find nearby materials/containers and craft the requested item; later sequence actions wait for completion or interruption
 
 ### System
 
@@ -264,8 +292,11 @@ The system automatically adds 0.3s delay between `equip_item` and `use_item_on_s
 ### Virtual Cursor Settings
 
 - **Cursor Speed**: 0.5x - 2.0x (default 1.0x)
-- **Dead Zone**: 0.0 - 0.5 (default 0.1)
 - **Show Cursor**: On/Off
+- **Cursor Magnetism**: On/Off
+- **Magnetism Range**: Short/Medium/Long
+- **Magnetism Priority**: Near cursor/Near player
+- **ActionQueue Controller**: On/Off (requires ActionQueue RB3)
 
 ## 🛠️ Configuration File
 
@@ -289,11 +320,14 @@ Configuration saved to: `client_save/enhanced_controller_config.json`
     "virtual_cursor_settings": {
       "enabled": true,
       "toggle_combo": ["LB", "RB", "RT"],
-      "left_click_key": "RT",
-      "right_click_key": "RB",
+      "left_click_key": "LT",
+      "right_click_key": "RT",
       "cursor_speed": 1.0,
-      "dead_zone": 0.1,
-      "show_cursor": true
+      "show_cursor": true,
+      "cursor_magnetism": true,
+      "magnetism_range": 2,
+      "target_priority": false,
+      "actionqueue_integration": true
     }
   }
 }
@@ -322,7 +356,7 @@ Configuration saved to: `client_save/enhanced_controller_config.json`
 
 ## 🔧 Development Info
 
-- **Version**: 2.3.0
+- **Version**: 2.4.0
 - **Author**: feichao
 - **API Version**: 10
 - **Compatibility**: Don't Starve Together
@@ -337,6 +371,7 @@ dst-controller/
 │   ├── global.lua             # Global references
 │   ├── localization.lua       # Multi-language support
 │   ├── actions/               # Action implementations
+│   ├── crafting/              # Automatic crafting, planning, and container cache
 │   ├── core/                  # Core logic
 │   │   ├── button-handler.lua
 │   │   └── action-executor.lua
@@ -350,7 +385,8 @@ dst-controller/
 │   │   └── taskconfig-screen.lua
 │   ├── virtual-cursor/        # Virtual cursor
 │   │   ├── core.lua
-│   │   └── cursor_widget.lua
+│   │   ├── cursor_widget.lua
+│   │   └── magnetism.lua      # World/UI magnetism policy
 │   ├── target-selection/      # Target selection
 │   │   └── core.lua
 │   ├── pathfinding/           # Pathfinding system (deprecated)
@@ -397,6 +433,15 @@ A: Any manual movement (stick input) will automatically cancel pathfinding. This
 A: Path visualization only shows when the map is open. After closing the map, the character will follow the planned path, but path points won't be visible.
 
 ## 📝 Changelog
+
+### v2.4.0
+- ✨ Added automatic crafting with nearby ground/container materials, recursive intermediates, technology checks, and inventory-space planning
+- ✨ Crafting menu exposes “Auto Build”; `craft_item` now waits for the asynchronous task
+- ✨ Added ActionQueue RB3 controller integration: `RB+LT/RT` selection and `RB+B` cancellation
+- ✨ Added configurable magnetism for UI controls and actionable world entities
+- 🔧 World magnetism now uses the engine hit-region centroid anchored to the entity origin, preventing animation/highlight jitter
+- 🔧 Removed the duplicate mod-side dead zone, added nonlinear stick response, and lowered full-stick speed
+- 🔧 Reduced per-frame cursor work by avoiding duplicate position writes and unused world projection
 
 ### v2.3.0
 - ✨ Added Wormhole Tracking System
