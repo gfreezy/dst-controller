@@ -18,6 +18,8 @@ local test_files = {
     "tests/action_executor_async_test.lua",
     "tests/crafting_menu_policy_test.lua",
     "tests/crafting_return_policy_test.lua",
+    "tests/recipe_catalog_test.lua",
+    "tests/item_catalog_test.lua",
 }
 
 for _, path in ipairs(test_files) do

@@ -1,0 +1,105 @@
+-- Searchable item-prefab catalog for parameterized inventory actions.
+
+local SearchCatalog = require("dst-controller/crafting/recipe-catalog")
+
+local ItemCatalog = {}
+
+local function AddItem(candidates, prefab_name, prefabs, allow_unknown)
+    if type(prefab_name) ~= "string" or prefab_name == "" then
+        return
+    end
+
+    local prefab = prefabs and prefabs[prefab_name] or nil
+    if prefab and prefab.is_skin then
+        return
+    end
+    if prefabs and not prefab and not allow_unknown then
+        return
+    end
+    if string.sub(prefab_name, 1, 4) == "MOD_" then
+        return
+    end
+
+    candidates[prefab_name] = {
+        name = prefab_name,
+        product = prefab_name,
+    }
+end
+
+local function AddInventoryItems(candidates, items, prefabs)
+    for _, item in pairs(items or {}) do
+        if item and item.prefab then
+            AddItem(candidates, item.prefab, prefabs, true)
+        end
+    end
+end
+
+local function CollectPlayerItems(candidates, player, prefabs)
+    local inventory = player
+        and player.replica
+        and player.replica.inventory
+        or nil
+    if not inventory then
+        return
+    end
+
+    if inventory.GetItems then
+        AddInventoryItems(candidates, inventory:GetItems(), prefabs)
+    end
+    if inventory.GetEquips then
+        AddInventoryItems(candidates, inventory:GetEquips(), prefabs)
+    end
+
+    local overflow = inventory.GetOverflowContainer
+        and inventory:GetOverflowContainer()
+        or nil
+    if overflow then
+        local overflow_items = overflow.GetItems and overflow:GetItems() or nil
+        if (not overflow_items or next(overflow_items) == nil)
+                and overflow.classified
+                and overflow.classified.GetItems then
+            overflow_items = overflow.classified:GetItems()
+        end
+        AddInventoryItems(candidates, overflow_items, prefabs)
+    end
+end
+
+---Build the inventory-item catalog from current game data.
+---The scrapbook filters vanilla entries to actual items/food. Mod prefabs and
+---currently carried items are included even when they lack scrapbook metadata.
+---@param options table
+---@return table
+function ItemCatalog.Build(options)
+    options = options or {}
+    local candidates = {}
+    local prefabs = options.prefabs
+
+    for key, entry in pairs(options.scrapbook_data or {}) do
+        if type(entry) == "table" and (entry.type == "item" or entry.type == "food") then
+            AddItem(candidates, entry.prefab or key, prefabs, false)
+        end
+    end
+
+    for _, mod in ipairs(options.mods or {}) do
+        for prefab_name in pairs(mod.Prefabs or {}) do
+            AddItem(candidates, prefab_name, prefabs, true)
+        end
+    end
+
+    CollectPlayerItems(candidates, options.player, prefabs)
+
+    local entries = SearchCatalog.Build(
+        candidates,
+        options.names,
+        options.aliases
+    )
+    for _, entry in ipairs(entries) do
+        entry.prefab_name = entry.recipe_name
+    end
+    return entries
+end
+
+ItemCatalog.Search = SearchCatalog.Search
+ItemCatalog.ToSpinnerOptions = SearchCatalog.ToSpinnerOptions
+
+return ItemCatalog

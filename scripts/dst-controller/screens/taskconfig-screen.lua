@@ -5,6 +5,9 @@ local G = require("dst-controller/global")
 local Layout = require("dst-controller/utils/layout")
 local L10N = require("dst-controller/localization")
 local L = L10N.L
+local RecipeCatalog = require("dst-controller/crafting/recipe-catalog")
+local RecipeAliases = require("dst-controller/crafting/recipe-aliases")
+local ItemCatalog = require("dst-controller/items/item-catalog")
 
 local Screen = require("widgets/screen")
 local Widget = require("widgets/widget")
@@ -18,6 +21,12 @@ local ImageButton = require("widgets/imagebutton")
 -- 前置声明（避免循环引用警告）
 local ActionDetailScreen
 local ActionEditorDialog
+
+local SEARCHABLE_ITEM_ACTIONS = {
+    equip_item = true,
+    use_item_on_self = true,
+    use_item_on_scene = true,
+}
 
 -- 按钮组合列表
 local BUTTON_COMBOS = {
@@ -1236,6 +1245,24 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     -- 缓存每个动作的自定义输入内容
     self.custom_input_cache = {}
+    self.recipe_search_text = ""
+    self.updating_param_ui = false
+
+    -- Build from the live registry so character, event, and third-party mod
+    -- recipes are included. The validity check mirrors craft_item itself.
+    self.recipe_catalog = RecipeCatalog.Build(
+        G.AllRecipes or {},
+        (G.STRINGS and G.STRINGS.NAMES) or {},
+        RecipeAliases,
+        function(recipe_name)
+            local get_valid_recipe = G.GetValidRecipe
+            if not get_valid_recipe then
+                return true
+            end
+            local ok, recipe = pcall(get_valid_recipe, recipe_name)
+            return ok and recipe ~= nil
+        end
+    )
 
     -- 解析现有action
     if action then
@@ -1310,8 +1337,8 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.param_panel = self.root:AddChild(Widget("param_panel"))
     self.param_panel:SetPosition(0, 30, 0)
 
-    local param_label = self.param_panel:AddChild(Text(G.NEWFONT, 32, L("LABEL_PARAM")))
-    param_label:SetColour(1, 1, 1, 1)  -- 白色文字
+    self.param_label = self.param_panel:AddChild(Text(G.NEWFONT, 32, L("LABEL_PARAM")))
+    self.param_label:SetColour(1, 1, 1, 1)  -- 白色文字
 
     self.param_spinner = self.param_panel:AddChild(
         Spinner(ITEM_PRESETS, 280, 45, {font=G.NEWFONT, size=28}, nil, nil, nil, true)
@@ -1320,7 +1347,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     -- 使用水平布局
     Layout.HorizontalRow({
-        {widget = param_label, width = 80},
+        {widget = self.param_label, width = 80},
         {widget = self.param_spinner, width = 280},
     }, {
         spacing = 20,
@@ -1375,6 +1402,56 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.custom_input_panel:SetOnLoseFocus(function() self.custom_textbox:OnLoseFocus() end)
     self.custom_input_panel.focus_forward = self.custom_textbox
 
+    -- 配方/物品搜索框（仅需要名称参数的动作显示）
+    self.recipe_search_panel = self.root:AddChild(Widget("recipe_search"))
+    self.recipe_search_panel:SetPosition(0, -45, 0)
+    self.recipe_search_panel:Hide()
+
+    self.search_label = self.recipe_search_panel:AddChild(
+        Text(G.NEWFONT, 28, L("LABEL_RECIPE_SEARCH"))
+    )
+    self.search_label:SetColour(1, 1, 1, 1)
+
+    self.recipe_search_root = self.recipe_search_panel:AddChild(
+        TEMPLATES.StandardSingleLineTextEntry(nil, 300, 45)
+    )
+    self.recipe_search_box = self.recipe_search_root.textbox
+    self.recipe_search_box:SetTextLengthLimit(80)
+    self.recipe_search_box:SetForceEdit(false)
+    self.recipe_search_box:EnableWordWrap(false)
+    self.recipe_search_box:EnableScrollEditWindow(true)
+    self.recipe_search_box:SetHelpTextEdit("")
+    self.recipe_search_box:SetHelpTextApply("")
+
+    Layout.HorizontalRow({
+        {widget = self.search_label, width = 140},
+        {widget = self.recipe_search_root, width = 300},
+    }, {
+        spacing = 20,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
+    self.recipe_search_hint = self.recipe_search_panel:AddChild(
+        Text(G.NEWFONT, 21, "")
+    )
+    self.recipe_search_hint:SetColour(0.75, 0.75, 0.75, 1)
+    self.recipe_search_hint:SetPosition(50, -36, 0)
+
+    self.recipe_search_box.OnTextInputted = function()
+        self.recipe_search_text = self.recipe_search_box:GetString() or ""
+        if SEARCHABLE_ITEM_ACTIONS[self.action_name] then
+            self:UpdateItemSearch(self.recipe_search_text, self.action_param)
+        else
+            self:UpdateRecipeSearch(self.recipe_search_text, self.action_param)
+        end
+    end
+
+    self.recipe_search_panel:SetOnGainFocus(function() self.recipe_search_box:OnGainFocus() end)
+    self.recipe_search_panel:SetOnLoseFocus(function() self.recipe_search_box:OnLoseFocus() end)
+    self.recipe_search_panel.focus_forward = self.recipe_search_box
+
     -- 设置初始值
     self.param_spinner:SetSelected(self.action_param)
     if self.action_param == "" then
@@ -1385,6 +1462,21 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     -- 设置回调
     self.param_spinner.onchangedfn = function(selected_data)
+        if self.updating_param_ui then
+            return
+        end
+
+        if self.action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[self.action_name] then
+            if selected_data and selected_data ~= "" then
+                self.action_param = selected_data
+            end
+            self:HideCustomInput()
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            return
+        end
+
         if selected_data == "" then
             -- 恢复该动作的缓存输入内容
             local cached_input = self.custom_input_cache[self.action_name] or ""
@@ -1408,9 +1500,6 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
         end
     end
 
-    -- 初始化参数面板显示状态
-    self:OnActionChanged(self.action_name)
-
     -- CurlyWindow 已经管理了底部按钮的布局，但需要手动设置 focus navigation
 
     -- 设置底部按钮之间的水平导航
@@ -1427,8 +1516,99 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.save_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
     self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.custom_input_panel)
 
+    self.recipe_search_panel:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
+    self.recipe_search_panel:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
+
+    -- Must run after the default focus links above so action-specific links win.
+    self:OnActionChanged(self.action_name)
+
     self.default_focus = self.action_spinner
 end)
+
+function ActionEditorDialog:UpdateSearchResults(catalog, catalog_api, query, preferred_value,
+                                                 results_key, empty_key, unavailable_key)
+    query = query or ""
+    preferred_value = preferred_value or ""
+    local matches = catalog_api.Search(catalog, query)
+    local options = catalog_api.ToSpinnerOptions(matches)
+    local preferred_found = false
+
+    if preferred_value ~= "" then
+        for _, option in ipairs(options) do
+            if option.data == preferred_value then
+                preferred_found = true
+                break
+            end
+        end
+    end
+
+    -- Preserve an old configuration even if that recipe/item is no longer active.
+    if query == "" and preferred_value ~= "" and not preferred_found then
+        table.insert(options, 1, {
+            data = preferred_value,
+            text = L(unavailable_key, preferred_value),
+        })
+        preferred_found = true
+    end
+
+    self.updating_param_ui = true
+    if #options == 0 then
+        self.param_spinner:SetOptions({
+            { data = "", text = L(empty_key) },
+        })
+        self.param_spinner:SetSelectedIndex(1)
+        self.recipe_search_hint:SetString(L(empty_key))
+    else
+        self.param_spinner:SetOptions(options)
+        if preferred_found then
+            self.param_spinner:SetSelected(preferred_value)
+        else
+            self.param_spinner:SetSelectedIndex(1)
+            self.action_param = options[1].data
+        end
+        self.recipe_search_hint:SetString(L(results_key, #matches))
+    end
+    self.updating_param_ui = false
+end
+
+function ActionEditorDialog:UpdateRecipeSearch(query, preferred_recipe)
+    self:UpdateSearchResults(
+        self.recipe_catalog,
+        RecipeCatalog,
+        query,
+        preferred_recipe,
+        "RECIPE_SEARCH_RESULTS",
+        "RECIPE_SEARCH_EMPTY",
+        "RECIPE_UNAVAILABLE"
+    )
+end
+
+function ActionEditorDialog:GetItemCatalog()
+    if not self.item_catalog then
+        local ok, scrapbook_data = pcall(require, "screens/redux/scrapbookdata")
+        self.item_catalog = ItemCatalog.Build({
+            scrapbook_data = ok and scrapbook_data or {},
+            prefabs = G.Prefabs or {},
+            mods = (G.ModManager and G.ModManager.mods) or {},
+            player = G.ThePlayer,
+            names = (G.STRINGS and G.STRINGS.NAMES) or {},
+            aliases = RecipeAliases,
+        })
+    end
+    return self.item_catalog
+end
+
+function ActionEditorDialog:UpdateItemSearch(query, preferred_item)
+    self:UpdateSearchResults(
+        self:GetItemCatalog(),
+        ItemCatalog,
+        query,
+        preferred_item,
+        "ITEM_SEARCH_RESULTS",
+        "ITEM_SEARCH_EMPTY",
+        "ITEM_UNAVAILABLE"
+    )
+end
 
 function ActionEditorDialog:OnActionChanged(action_name)
     -- 查找动作是否需要参数
@@ -1441,6 +1621,34 @@ function ActionEditorDialog:OnActionChanged(action_name)
     end
 
     if needs_param then
+        if action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[action_name] then
+            local is_recipe = action_name == "craft_item"
+            self.param_label:SetString(L(is_recipe and "LABEL_RECIPE_RESULT" or "LABEL_ITEM_RESULT"))
+            self.search_label:SetString(L(is_recipe and "LABEL_RECIPE_SEARCH" or "LABEL_ITEM_SEARCH"))
+            self.custom_input_panel:Hide()
+            self.recipe_search_panel:Show()
+            self.recipe_search_box:SetString("")
+            self.recipe_search_text = ""
+            if is_recipe then
+                self:UpdateRecipeSearch("", self.action_param or "")
+            else
+                self:UpdateItemSearch("", self.action_param or "")
+            end
+
+            self.param_panel:Show()
+            self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.recipe_search_panel)
+            self.recipe_search_panel:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
+            self.recipe_search_panel:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
+            self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.recipe_search_panel)
+            self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
+            self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            self.cancel_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
+            return
+        end
+
+        self.param_label:SetString(L("LABEL_PARAM"))
+        self.recipe_search_panel:Hide()
+
         -- 根据动作类型更新参数选择器的选项
         local presets = ITEM_PRESETS  -- 默认使用物品预设
         if action_name == "trigger_key" then
@@ -1517,6 +1725,8 @@ function ActionEditorDialog:OnActionChanged(action_name)
     else
         self.param_panel:Hide()
         self.custom_input_panel:Hide()
+        self.recipe_search_panel:Hide()
+        self.param_label:SetString(L("LABEL_PARAM"))
         self.action_param = ""
         -- 无参数时，action_spinner 直接向下到 save_button
         self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)

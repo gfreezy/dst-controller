@@ -14,6 +14,7 @@ NC='\033[0m' # No Color
 # 获取脚本所在目录（即 mod 源目录）
 MOD_SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MOD_NAME="enhanced_controller"
+PUBLISH_DIR="$MOD_SOURCE_DIR/publish"
 
 # 检测操作系统并设置目标目录
 detect_dst_mods_dir() {
@@ -61,6 +62,7 @@ echo "========================================"
 echo "饥荒联机版 Mod 同步工具"
 echo "========================================"
 echo -e "源目录: ${YELLOW}$MOD_SOURCE_DIR${NC}"
+echo -e "发布目录: ${YELLOW}$PUBLISH_DIR${NC}"
 echo -e "目标目录: ${YELLOW}$MOD_TARGET_DIR${NC}"
 echo ""
 
@@ -100,34 +102,48 @@ if [ ! -w "$MOD_TARGET_DIR" ]; then
     exit 1
 fi
 
-# 排除的目录和文件（不同步这些）
-EXCLUDED_PATTERNS=(
-    "scripts-raw"
-    ".git"
-    ".vscode"
-    ".claude"
-    "reference-mods"
-    "node_modules"
-    "sync.sh"
-    "sync.config"
-    "CLAUDE.md"
-    ".gitignore"
+# 只同步发布所需内容，避免把 scripts-raw、测试、文档和开发配置上传到创意工坊。
+# /*** 会同时匹配目录本身及其全部子项。
+INCLUDED_PATTERNS=(
+    "/modinfo.lua"
+    "/modmain.lua"
+    "/modicon.xml"
+    "/modicon.tex"
+    "/preview.jpg"
+    "/preview.jpeg"
+    "/preview.png"
+    "/scripts/***"
+    "/images/***"
+    "/anim/***"
+    "/sound/***"
+    "/fonts/***"
+    "/bigportraits/***"
+    "/minimap/***"
+    "/portraits/***"
 )
 
-# 构建 rsync exclude 参数
-EXCLUDE_ARGS=()
-for pattern in "${EXCLUDED_PATTERNS[@]}"; do
-    EXCLUDE_ARGS+=(--exclude="$pattern")
+INCLUDE_ARGS=()
+for pattern in "${INCLUDED_PATTERNS[@]}"; do
+    INCLUDE_ARGS+=(--include="$pattern")
 done
 
-# 使用 rsync 同步文件
-echo -e "${GREEN}开始同步文件...${NC}"
-rsync -av --delete "${EXCLUDE_ARGS[@]}" "$MOD_SOURCE_DIR/" "$MOD_TARGET_DIR/"
+# 先在源码目录生成一份可直接交给 Steam Mod Uploader 的发布目录。
+# --delete-excluded 会清理发布目录中以前残留的开发文件。
+echo -e "${GREEN}生成发布目录...${NC}"
+mkdir -p "$PUBLISH_DIR"
+rsync -av --delete --delete-excluded --prune-empty-dirs \
+    --exclude=".DS_Store" "${INCLUDE_ARGS[@]}" --exclude="*" \
+    "$MOD_SOURCE_DIR/" "$PUBLISH_DIR/"
 
-# 显示排除的内容
+# 游戏目录与发布目录保持完全一致。
 echo ""
-echo -e "${YELLOW}已排除以下内容:${NC}"
-for pattern in "${EXCLUDED_PATTERNS[@]}"; do
+echo -e "${GREEN}同步到游戏 Mod 目录...${NC}"
+rsync -av --delete "$PUBLISH_DIR/" "$MOD_TARGET_DIR/"
+
+# 显示发布白名单
+echo ""
+echo -e "${YELLOW}只同步以下发布内容:${NC}"
+for pattern in "${INCLUDED_PATTERNS[@]}"; do
     echo "  - $pattern"
 done
 

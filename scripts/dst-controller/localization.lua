@@ -97,6 +97,16 @@ local STRINGS_TABLE = {
         LABEL_PARAM = "Parameter:",
         LABEL_CUSTOM_PARAM = "Custom Parameter:",
         HINT_CUSTOM_PARAM = "Hint: Select from dropdown or edit in config file manually",
+        LABEL_RECIPE_SEARCH = "Recipe Search:",
+        LABEL_RECIPE_RESULT = "Recipe:",
+        RECIPE_SEARCH_RESULTS = "%d recipes; use the arrows below to choose",
+        RECIPE_SEARCH_EMPTY = "No matching recipe; try another keyword",
+        RECIPE_UNAVAILABLE = "%s [Currently unavailable]",
+        LABEL_ITEM_SEARCH = "Item Search:",
+        LABEL_ITEM_RESULT = "Item:",
+        ITEM_SEARCH_RESULTS = "%d items; use the arrows below to choose",
+        ITEM_SEARCH_EMPTY = "No matching item; try another keyword",
+        ITEM_UNAVAILABLE = "%s [Currently unavailable]",
 
         -- 参数预设
         PRESET_CUSTOM = "【Custom Input】",
@@ -218,6 +228,16 @@ local STRINGS_TABLE = {
         LABEL_PARAM = "参数:",
         LABEL_CUSTOM_PARAM = "自定义参数:",
         HINT_CUSTOM_PARAM = "提示：请在参数下拉中选择或在配置文件中手动编辑",
+        LABEL_RECIPE_SEARCH = "搜索配方:",
+        LABEL_RECIPE_RESULT = "配方:",
+        RECIPE_SEARCH_RESULTS = "找到 %d 个配方，请用下方箭头选择",
+        RECIPE_SEARCH_EMPTY = "没有匹配的配方，请更换关键词",
+        RECIPE_UNAVAILABLE = "%s [当前不可用]",
+        LABEL_ITEM_SEARCH = "搜索物品:",
+        LABEL_ITEM_RESULT = "物品:",
+        ITEM_SEARCH_RESULTS = "找到 %d 个物品，请用下方箭头选择",
+        ITEM_SEARCH_EMPTY = "没有匹配的物品，请更换关键词",
+        ITEM_UNAVAILABLE = "%s [当前不可用]",
 
         -- 参数预设
         PRESET_CUSTOM = "【自定义输入】",
