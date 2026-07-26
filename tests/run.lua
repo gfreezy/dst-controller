@@ -10,6 +10,7 @@ local test_files = {
     "tests/button_handler_test.lua",
     "tests/config_manager_test.lua",
     "tests/cooking_planner_test.lua",
+    "tests/cooking_menu_data_test.lua",
     "tests/pathfinding_policy_test.lua",
     "tests/client_pathfinder_search_test.lua",
     "tests/target_selection_policy_test.lua",
@@ -29,6 +30,7 @@ local test_files = {
     "tests/recipe_catalog_test.lua",
     "tests/item_catalog_test.lua",
     "tests/world_action_test.lua",
+    "tests/focus_stick_test.lua",
 }
 
 for _, path in ipairs(test_files) do

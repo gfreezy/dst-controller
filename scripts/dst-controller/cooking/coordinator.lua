@@ -392,13 +392,25 @@ end
 local ExecuteIngredients
 
 local function TryPlan(ctx, final_attempt)
-    local plan = Planner.Find(
-        ctx.request.product,
-        ctx.request.recipes,
-        BuildAvailableCounts(ctx),
-        ctx.cooker.prefab,
-        cooking.CalculateRecipe
-    )
+    local available = BuildAvailableCounts(ctx)
+    local plan
+    if #ctx.request.recipes > 0 then
+        plan = Planner.Find(
+            ctx.request.product,
+            ctx.request.recipes,
+            available,
+            ctx.cooker.prefab,
+            cooking.CalculateRecipe
+        )
+    end
+    if plan == nil and ctx.request.dynamic_recipes then
+        plan = Planner.FindAvailable(
+            ctx.request.product,
+            available,
+            ctx.cooker.prefab,
+            cooking
+        )
+    end
     if plan ~= nil then
         ctx.plan = plan
         ctx.needed_prefabs = {}
@@ -430,7 +442,11 @@ local function VerifyNextContainer(ctx)
     end
     TryOpenStorage(ctx, entity, function()
         ctx.task.progress.checked = ctx.task.progress.checked + 1
-        if ctx.search_mode == "smart" and TryPlan(ctx, false) then
+        -- Dynamic planning enumerates ingredient combinations. Run it once
+        -- before opening containers and once after the final container instead
+        -- of repeating the heavier search after every cache update.
+        if ctx.search_mode == "smart" and
+            not ctx.request.dynamic_recipes and TryPlan(ctx, false) then
             return
         end
         VerifyNextContainer(ctx)
@@ -819,6 +835,11 @@ local function BuildCookerCandidates(ctx)
         end
     end
     table.sort(candidates, function(a, b)
+        local a_priority = ctx.cooker_priority[a.prefab] or 100
+        local b_priority = ctx.cooker_priority[b.prefab] or 100
+        if a_priority ~= b_priority then
+            return a_priority < b_priority
+        end
         return DistanceSq(ctx.player, a) < DistanceSq(ctx.player, b)
     end)
     return candidates
@@ -826,13 +847,16 @@ end
 
 function Coordinator.Start(player, request)
     if player == nil or not player:IsValid() or type(request) ~= "table" or
-        type(request.product) ~= "string" or type(request.recipes) ~= "table" or
+        type(request.product) ~= "string" or
+        (request.recipes ~= nil and type(request.recipes) ~= "table") or
         type(request.cooker_prefabs) ~= "table" or
         player.replica == nil or player.replica.inventory == nil or
         player.components == nil or player.components.playercontroller == nil then
         return nil
     end
-    if #request.recipes == 0 or #request.cooker_prefabs == 0 then
+    request.recipes = request.recipes or {}
+    if (#request.recipes == 0 and not request.dynamic_recipes) or
+        #request.cooker_prefabs == 0 then
         Notify(player, L("AUTO_COOK_INTERRUPTED",
             L("AUTO_COOK_REASON_NO_DISCOVERED_RECIPE")))
         return nil
@@ -865,12 +889,14 @@ function Coordinator.Start(player, request)
         return_prefabs = {},
         initial_owned = Finder.GetPersonalCounts(player),
         allowed_cookers = {},
+        cooker_priority = {},
         next_container_index = 1,
     }
     active_tasks[player.GUID] = ctx
 
-    for _, prefab in ipairs(request.cooker_prefabs) do
+    for index, prefab in ipairs(request.cooker_prefabs) do
         ctx.allowed_cookers[prefab] = true
+        ctx.cooker_priority[prefab] = index
     end
     local settings = Policy.GetAutomationSettings()
     ctx.search_radius = settings.search_radius
@@ -893,7 +919,12 @@ function Coordinator.Start(player, request)
             end
             local score = 1
             for prefab, amount in pairs(record.items or {}) do
-                if ingredient_prefabs[prefab] then
+                local is_dynamic_ingredient = false
+                if request.dynamic_recipes then
+                    local ok, result = pcall(cooking.IsCookingIngredient, prefab)
+                    is_dynamic_ingredient = ok and result == true
+                end
+                if ingredient_prefabs[prefab] or is_dynamic_ingredient then
                     score = score + amount
                 end
             end

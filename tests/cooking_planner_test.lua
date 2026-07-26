@@ -49,3 +49,53 @@ local cooker_prefabs = Planner.ResolveCookerPrefabs({
 assert(table.concat(cooker_prefabs, ",") ==
     "cookpot,archive_cookpot,portablecookpot",
     "compatible cookers should be stable and prefer common nearby pots")
+
+local cooking_api = {
+    ingredients = {
+        meat = { tags = { meat = 1 } },
+        berries = { tags = { fruit = 0.5 } },
+        twigs = { tags = { inedible = 1 } },
+    },
+    IsCookingIngredient = function(prefab)
+        return prefab == "meat" or prefab == "berries" or prefab == "twigs"
+    end,
+    recipes = {
+        cookpot = {
+            kabobs = {
+                priority = 5,
+                test = function(_, names, tags)
+                    return (names.meat or 0) >= 1 and
+                        (tags.inedible or 0) == 1
+                end,
+            },
+            meatballs = {
+                priority = -1,
+                test = function(_, _, tags)
+                    return (tags.meat or 0) > 0
+                end,
+            },
+        },
+    },
+}
+
+local dynamic = Planner.FindAvailable("kabobs", {
+    meat = 1,
+    berries = 2,
+    twigs = 1,
+}, "cookpot", cooking_api)
+assert(dynamic ~= nil and dynamic.required.twigs == 1 and
+    #dynamic.ingredients == 4,
+    "nearby ingredients should produce a plan without cookbook recipes")
+
+cooking_api.recipes.cookpot.tie = {
+    priority = 5,
+    test = function(_, names, tags)
+        return (names.meat or 0) >= 1 and (tags.inedible or 0) == 1
+    end,
+}
+assert(Planner.FindAvailable("kabobs", {
+    meat = 1,
+    berries = 2,
+    twigs = 1,
+}, "cookpot", cooking_api) == nil,
+    "a same-priority random result must not be used for automatic cooking")

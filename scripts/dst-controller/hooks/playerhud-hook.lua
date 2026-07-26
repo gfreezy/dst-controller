@@ -8,6 +8,28 @@ local ButtonHandler = require("dst-controller/executor/button-handler")
 
 local PlayerHudHook = {}
 
+local function InstallCookingMenu(self)
+    if self.controls == nil or self.controls.left_root == nil then
+        return
+    end
+    local CookingMenuHUD = require("dst-controller/widgets/cooking-menu-hud")
+    local menu = self.controls.left_root:AddChild(CookingMenuHUD(self.owner))
+    self.controls.enhanced_cooking_menu = menu
+
+    local old_CloseCookbookScreen = self.CloseCookbookScreen
+    self.OpenCookbookScreen = function(hud_self)
+        if hud_self.cookbookscreen ~= nil then
+            old_CloseCookbookScreen(hud_self)
+        end
+        menu:Toggle()
+        return true
+    end
+    self.CloseCookbookScreen = function(hud_self)
+        menu:Close()
+        return old_CloseCookbookScreen(hud_self)
+    end
+end
+
 -- Hook: PlayerHud:OnControl (wrap)
 local function InstallOnControl(self)
     local old_OnControl = self.OnControl
@@ -24,6 +46,13 @@ local function InstallOnControl(self)
         if need_handle then
             -- print("[PlayerHudHook] Blocking control: " .. control)
             return false
+        end
+
+        local cooking_menu = hud_self.controls and
+            hud_self.controls.enhanced_cooking_menu
+        if cooking_menu ~= nil and
+            cooking_menu:HandleControl(control, down) then
+            return true
         end
 
         -- 当有 examine_target 时，阻止 PlayerHud 的 InspectSelf 逻辑
@@ -51,6 +80,7 @@ end
 function PlayerHudHook.Install()
     -- Hook PlayerHud:OnControl for task config shortcut
     G.AddClassPostConstruct("screens/playerhud", function(self)
+        InstallCookingMenu(self)
         InstallOnControl(self)
     end)
 end

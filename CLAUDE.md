@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a **Don't Starve Together (DST) mod** that enhances gamepad/controller functionality with custom button combinations, camera controls, and in-game configuration UI. It's a client-only mod written in Lua using the DST Modding API (version 10).
 
-**Version**: 2.6.0
+**Version**: 2.7.0
 **Author**: feichao
 
 ## DST Game Scripts Reference

@@ -14,7 +14,8 @@ Enhance Don't Starve Together with a flexible, mouse-like controller experience.
 [*]Configurable cursor magnetism, range, priority, speed, and visibility
 [*]Auto Build finds nearby ground items and containers, then crafts required intermediates
 [*]Configurable Auto Build radius, smart/thorough scanning, and container limit
-[*]Cookbook Search & Cook finds ingredients and an empty compatible cooker, then starts cooking
+[*]Half-screen cooking list stays usable while moving and does not require Cookbook unlocks
+[*]Right-stick dish selection dynamically plans nearby ingredients and finds an empty compatible cooker
 [*]Craft actions support Chinese/English recipe search and recipes added by other mods
 [*]Equip and item-use actions support Chinese, English, and internal prefab search
 [*]Controller drag selection and queue controls for ActionQueue RB3
@@ -48,7 +49,8 @@ Automated tasks stop safely if materials change, an action fails, the character 
 [*]光标智能磁吸，可调整范围、优先级、速度和显示方式
 [*]自动建造：搜索附近地面材料与容器，并自动制作所需的次级材料
 [*]自动建造可设置搜索半径、智能/完整扫描与容器数量上限
-[*]烹饪指南“搜索并烹饪”：查找附近食材与兼容空锅并自动开火
+[*]半屏烹饪列表不暂停人物移动，也不依赖菜谱书解锁记录
+[*]右摇杆选择料理，按附近实际食材动态规划并查找兼容空锅
 [*]制作动作支持中英文配方搜索，并自动收录其他 Mod 添加的配方
 [*]装备和物品使用动作支持中文名、英文名及内部 prefab 搜索
 [*]ActionQueue RB3 手柄框选与队列操作支持

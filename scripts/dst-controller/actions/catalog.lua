@@ -34,6 +34,7 @@ local DEFINITIONS = {
     { id = "use_active_item_on_scene", module = "items", label = "ACTION_USE_ACTIVE_ITEM_ON_SCENE", exposed = true },
 
     { id = "craft_item", module = "crafting", label = "ACTION_CRAFT_ITEM", exposed = true, has_param = true },
+    { id = "toggle_cooking_menu", module = "cooking", label = "ACTION_TOGGLE_COOKING_MENU", exposed = true },
     { id = "willow_cast_spell", module = "character" },
     { id = "trigger_key", module = "keyboard", label = "ACTION_TRIGGER_KEY", exposed = true, has_param = true },
     { id = "enable_virtual_cursor", module = "system", label = "ACTION_ENABLE_VIRTUAL_CURSOR", exposed = true },

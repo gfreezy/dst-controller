@@ -11,7 +11,7 @@ A powerful controller enhancement mod for Don't Starve Together with custom butt
 - 🎮 **12 Custom Button Combos** - Fully configurable gamepad button mapping
 - 🖱️ **Virtual Cursor System** - Gamepad-controlled mouse cursor, full screen interaction
 - 🧰 **Automatic Crafting** - Find nearby materials/containers and craft intermediates
-- 🍲 **Search & Cook** - Find nearby ingredients and an idle cooker from the Cookbook
+- 🍲 **Half-Screen Cooking List** - Select dishes while moving, then find ingredients and an idle cooker
 - 📋 **ActionQueue Integration** - Use controller drag selection from the virtual cursor
 - 🗺️ **Map Auto-Pathfinding** - Click map to auto-navigate, intelligent path planning
 - 🕳️ **Wormhole Tracking** - Auto-record wormhole pairs, show numbers on map
@@ -71,9 +71,13 @@ Recipes satisfiable from nearby materials are labeled “Auto Build” in the cr
 
 ### 🍲 Search & Cook
 
-In the in-game Cookbook, select a dish with a discovered ingredient combination and choose “Search & Cook”:
+The Cookbook entry now opens a half-screen HUD cooking list. You can also assign “Open Cooking List” to any mod button combination:
 
-- Plans only from four-slot combinations actually recorded in the Cookbook
+- Does not pause or enter native crafting navigation; the left stick keeps moving the character
+- Use the right stick to select, A to Search & Cook, and B to close
+- Reads cooker recipes registered by the game and other mods without Cookbook unlock data
+- Dynamically plans a four-slot combination from actual nearby ingredients
+- Rejects combinations that may randomly produce another same-priority dish
 - Finds a nearby empty compatible cookpot, archive cookpot, or portable cookpot
 - Collects ingredients from personal inventory, the ground, and verified nearby containers
 - Revalidates every cooker slot before invoking the native Cook button
@@ -222,6 +226,7 @@ Automatically record wormhole pair connections - no manual marking needed!
 ### Crafting
 
 - **craft_item**: Find nearby materials/containers and craft the requested item; later sequence actions wait for completion or interruption
+- **toggle_cooking_menu**: Open or close the half-screen cooking list without blocking movement
 
 ### System
 
@@ -368,7 +373,7 @@ Configuration saved to: `client_save/enhanced_controller_config.json`
 
 ## 🔧 Development Info
 
-- **Version**: 2.6.0
+- **Version**: 2.7.0
 - **Author**: feichao
 - **API Version**: 10
 - **Compatibility**: Don't Starve Together
@@ -446,6 +451,11 @@ A: Any manual movement (stick input) will automatically cancel pathfinding. This
 A: Path visualization only shows when the map is open. After closing the map, the character will follow the planned path, but path points won't be visible.
 
 ## 📝 Changelog
+
+### v2.7.0
+- ✨ Replaced the Cookbook entry with a half-screen HUD cooking list usable while moving
+- ✨ Added an assignable Open Cooking List action and right-stick list navigation
+- ✨ Cooking no longer requires discovered Cookbook recipes and dynamically plans deterministic four-slot combinations from nearby ingredients
 
 ### v2.6.0
 - ✨ Added Cookbook “Search & Cook” to find nearby ingredients, containers, and an empty compatible cooker
