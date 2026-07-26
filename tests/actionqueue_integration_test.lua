@@ -1,6 +1,7 @@
 local RB, B, LT, RT = 11, 12, 13, 14
 local cursor_active = true
 local magnetism_suppressed = false
+local rb_pressed = false
 
 local existing = { name = "existing" }
 local added = { name = "added" }
@@ -68,6 +69,9 @@ package.loaded["dst-controller/utils/helpers"] = {
             (name == "LT" and control == LT) or
             (name == "RT" and control == RT)
     end,
+    IsButtonPressed = function(name)
+        return name == "RB" and rb_pressed
+    end,
     DebugPrintf = function() end,
 }
 package.loaded["dst-controller/utils/config_manager"] = {
@@ -105,3 +109,14 @@ ActionQueueIntegration.OnCursorModeChanged(false)
 assert(actionqueuer.selected_ents[existing] ~= nil, "interrupted selection should preserve prior selection")
 assert(actionqueuer.selected_ents[added] == nil, "interrupted selection should remove only its own delta")
 assert(magnetism_suppressed == false, "interrupted selection should restore cursor magnetism")
+
+-- Mouse input mode may omit the RB OnControl event. Its polled physical state
+-- must still activate the modifier when LT/RT arrives.
+rb_pressed = true
+assert(ActionQueueIntegration.OnControl(LT, true) == true,
+    "a physically held RB should start selection without an RB OnControl event")
+assert(magnetism_suppressed == true, "polled RB selection should suppress cursor magnetism")
+rb_pressed = false
+assert(ActionQueueIntegration.OnControl(LT, false) == true,
+    "the captured selection release should finish after polled RB is released")
+assert(magnetism_suppressed == false, "finished polled RB selection should restore cursor magnetism")

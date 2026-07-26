@@ -73,5 +73,12 @@ assert(widget_updates == 1, "one virtual movement frame must write the widget on
 assert(mouse_move_calls == 1, "one virtual movement frame must send one UI mouse notification")
 assert(position_calls == 1, "one virtual movement frame must send one input position notification")
 assert(not VirtualCursor.IsDispatchingInputPosition(), "input dispatch guard must be cleared")
-assert(state.cursor_screen_pos.x > 90 and state.cursor_screen_pos.y == 90,
-    "full horizontal input must move only along the x axis")
+assert(state.cursor_screen_pos.x > 96 and state.cursor_screen_pos.x < 97 and
+    state.cursor_screen_pos.y == 90,
+    "the normal setting must use the reduced full-stick speed baseline")
+
+local before_small_input = state.cursor_screen_pos.x
+state.smoothed_stick_intensity = 0
+VirtualCursor.UpdateCursorPositionDelta(1 / 60, 0.05, 0)
+assert(state.cursor_screen_pos.x > before_small_input,
+    "a small non-zero stick value must not be blocked by the saved mod dead zone")

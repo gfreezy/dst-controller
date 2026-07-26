@@ -411,7 +411,6 @@ function TaskConfigScreen:BuildSettingsContent()
         self.settings_data.virtual_cursor_settings = {
             enabled = true,
             cursor_speed = 1.0,
-            dead_zone = 0.1,
             show_cursor = true,
             cursor_magnetism = true,
             magnetism_range = 2,
@@ -436,7 +435,6 @@ function TaskConfigScreen:BuildSettingsContent()
         virtual_cursor_settings = {
             enabled = vc_settings.enabled,
             cursor_speed = vc_settings.cursor_speed,
-            dead_zone = vc_settings.dead_zone,
             show_cursor = vc_settings.show_cursor,
             cursor_magnetism = vc_settings.cursor_magnetism,
             magnetism_range = vc_settings.magnetism_range,
@@ -661,7 +659,6 @@ function TaskConfigScreen:Apply()
         local vc_settings = self.settings_data.virtual_cursor_settings
         vc_settings.enabled = temp_vc.enabled
         vc_settings.cursor_speed = temp_vc.cursor_speed
-        vc_settings.dead_zone = temp_vc.dead_zone
         vc_settings.show_cursor = temp_vc.show_cursor
         vc_settings.cursor_magnetism = temp_vc.cursor_magnetism
         vc_settings.magnetism_range = temp_vc.magnetism_range

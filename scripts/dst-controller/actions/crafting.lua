@@ -2,13 +2,14 @@
 -- Crafting and recipe-related actions
 
 local CraftingActions = {}
+local Coordinator = require("dst-controller/crafting/coordinator")
 
--- Craft item by recipe name (automatically crafts intermediate ingredients)
--- Uses DST's MakeRecipeFromMenu which handles intermediate crafting automatically
+-- Craft an item through the same verified automatic-crafting coordinator used
+-- by the crafting menu. The returned task pauses subsequent configured actions.
 function CraftingActions.craft_item(player, recipe_name)
     if not recipe_name then
         print("[Enhanced Controller] Error: No recipe name provided")
-        return
+        return nil
     end
 
     -- 客户端只能访问 replica.builder
@@ -16,29 +17,23 @@ function CraftingActions.craft_item(player, recipe_name)
     local builder = player.replica and player.replica.builder
     if not builder then
         print("[Enhanced Controller] Error: Player has no builder replica")
-        return
+        return nil
     end
 
     -- Get the recipe
     local recipe = GetValidRecipe(recipe_name)
     if not recipe then
         print(string.format("[Enhanced Controller] Error: Recipe '%s' not found or not valid", recipe_name))
-        return
+        return nil
     end
 
-    -- Check if player knows this recipe or can learn it
-    if not builder:KnowsRecipe(recipe) and
-       not builder:CanLearn(recipe.name) then
-        print(string.format("[Enhanced Controller] Cannot craft '%s': Recipe not known and cannot be learned", recipe_name))
-        return
+    local can_use, reason = Coordinator.CanUseRecipe(player, recipe)
+    if not can_use then
+        print(string.format("[Enhanced Controller] Cannot craft '%s': %s", recipe_name, tostring(reason)))
+        return nil
     end
 
-    -- MakeRecipeFromMenu will automatically:
-    -- 1. Check if we have ingredients
-    -- 2. If missing ingredients, try to craft them first (intermediate products)
-    -- 3. Craft the final item
-    builder:MakeRecipeFromMenu(recipe)
-    print(string.format("[Enhanced Controller] Action: Craft Item (%s)", recipe_name))
+    return Coordinator.Start(player, recipe)
 end
 
 return CraftingActions

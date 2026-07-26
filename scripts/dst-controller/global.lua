@@ -183,6 +183,18 @@ function G.Init(global_arg, env_arg)
     }
 end
 
+-- Explicit global access is required for replacing global UI helpers such as
+-- DoRecipeClick. Assigning to G itself would only shadow the proxy value.
+function G.GetGlobal(name)
+    return GLOBAL_REF ~= nil and rawget(GLOBAL_REF, name) or nil
+end
+
+function G.SetGlobal(name, value)
+    if GLOBAL_REF ~= nil then
+        rawset(GLOBAL_REF, name, value)
+    end
+end
+
 -- Use metatable to dynamically proxy all GLOBAL and env accesses
 -- This ensures we always get the latest values, even for objects created after Init()
 setmetatable(G, {

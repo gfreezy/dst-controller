@@ -2,6 +2,7 @@
 -- Handles execution of actions from task definitions
 
 local Helpers = require("dst-controller/utils/helpers")
+local unpack_params = unpack or table.unpack
 
 local ActionExecutor = {}
 
@@ -50,7 +51,7 @@ end
 -- action_def can be:
 --   - A string: "action_name" (simple action)
 --   - A table: {"action_name", "param1", "param2", ...} (action with parameters)
--- Returns: delay_time (auto-delay or explicit delay), nil if no delay
+-- Returns: delay_time, pending task, or nil.
 function ActionExecutor.ExecuteAction(player, action_def, actions)
     if not player then
         Helpers.DebugPrint("No player found")
@@ -85,7 +86,10 @@ function ActionExecutor.ExecuteAction(player, action_def, actions)
     -- Execute action
     local action_func = actions[action_name]
     if action_func then
-        action_func(player, unpack(params))
+        local result = action_func(player, unpack_params(params))
+        if type(result) == "table" and result.pending and result.OnComplete ~= nil then
+            return result
+        end
         -- Return auto-delay for this action type
         return GetAutoDelay(action_name)
     else
@@ -100,15 +104,22 @@ local function ExecuteRemainingActions(player, action_list, actions, start_index
     local i = start_index
     while i <= #action_list do
         local action_def = action_list[i]
-        local delay_time = ActionExecutor.ExecuteAction(player, action_def, actions)
+        local result = ActionExecutor.ExecuteAction(player, action_def, actions)
 
         -- Check if there are more actions after this one
         local has_more_actions = i < #action_list
 
-        if delay_time and delay_time > 0 and has_more_actions then
+        if type(result) == "table" and result.pending and result.OnComplete ~= nil then
+            result:OnComplete(function(status)
+                if status == "success" and has_more_actions and player:IsValid() then
+                    ExecuteRemainingActions(player, action_list, actions, i + 1)
+                end
+            end)
+            return
+        elseif type(result) == "number" and result > 0 and has_more_actions then
             -- Schedule remaining actions after delay
             if player:IsValid() then
-                player:DoTaskInTime(delay_time, function()
+                player:DoTaskInTime(result, function()
                     if player:IsValid() then
                         ExecuteRemainingActions(player, action_list, actions, i + 1)
                     end

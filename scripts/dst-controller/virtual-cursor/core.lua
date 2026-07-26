@@ -6,20 +6,19 @@ local ConfigManager = require("dst-controller/utils/config_manager")
 local Helpers = require("dst-controller/utils/helpers")
 local ActionHelpers = require("dst-controller/actions/helpers")
 local Motion = require("dst-controller/virtual-cursor/motion")
+local Magnetism = require("dst-controller/virtual-cursor/magnetism")
 
 local VirtualCursor = {}
 
 -- Constants (inspired by dst-mod khy_fs.lua)
 local BASE_SPEED_DIVISOR = 80  -- Longest screen edge / divisor = pixels per frame at 60fps
-local SPEED_RATE_DEFAULT = 9  -- Default speed multiplier (9/10 = 0.9)
-local DEAD_ZONE_DEFAULT = 0.2  -- Default dead zone threshold (20%)
-local STICK_RESPONSE_EXPONENT = 2.0
+local SPEED_RATE_DEFAULT = 8  -- Lower full-stick speed without changing fine-control response
+local STICK_RESPONSE_EXPONENT = 2.4  -- Preserve tiny input while making low/mid travel more precise
 local STICK_RESPONSE_RATE = 30
 local MAX_CURSOR_DELTA_TIME = 0.05
-local MAGNETISM_IDLE_DELAY = 0.08
-local MAGNETISM_APPROACH_RATE = 12
-local MAGNETISM_SNAP_DISTANCE = 6
-local MAGNETISM_WORLD_RANGES = {1.25, 2.5, 4}
+local INTERACTION_SAMPLE_GRID = 7
+local INTERACTION_SAMPLE_PADDING = 0
+local INTERACTION_SAMPLE_MAX_SPAN = 260
 
 -- Scene-specific speed multipliers
 local SPEED_MULTIPLIERS = {
@@ -61,6 +60,17 @@ local STATE = {
     tracking_target = nil,  -- Current magnetism target entity
     idle_state = false,  -- Whether the stick is inside the configured dead zone
     idle_wait_time = 0,  -- Time since stick became idle
+    magnetism_scan_age = Magnetism.SCAN_INTERVAL,
+    interaction_target = nil,
+    interaction_offset_x = 0,
+    interaction_offset_y = 0,
+    interaction_sampled = false,
+    interaction_use_origin = false,
+    interaction_camera_heading = nil,
+    interaction_camera_distance = nil,
+    ui_tracking_widget = nil,  -- Current HUD widget magnetism target
+    ui_idle_state = false,
+    ui_idle_wait_time = 0,
     magnetism_suppressors = {},  -- Named temporary suppressors (drag selection, etc.)
 }
 
@@ -85,7 +95,6 @@ local function GetConfig()
         left_click_key = "LT",
         right_click_key = "RT",
         cursor_speed = math.max(0.1, math.min(3.0, config.cursor_speed or 1.0)),  -- Clamp 0.1-3.0
-        dead_zone = math.max(0.0, math.min(0.5, config.dead_zone or DEAD_ZONE_DEFAULT)),  -- Clamp 0.0-0.5, default 0.2
         show_cursor = config.show_cursor ~= false,  -- Default true
         -- Magnetism settings
         cursor_magnetism = config.cursor_magnetism ~= false,  -- Default true
@@ -192,6 +201,17 @@ local function InitializeCursorPosition()
         STATE.tracking_target = nil
         STATE.idle_state = false
         STATE.idle_wait_time = 0
+        STATE.magnetism_scan_age = Magnetism.SCAN_INTERVAL
+        STATE.interaction_target = nil
+        STATE.interaction_offset_x = 0
+        STATE.interaction_offset_y = 0
+        STATE.interaction_sampled = false
+        STATE.interaction_use_origin = false
+        STATE.interaction_camera_heading = nil
+        STATE.interaction_camera_distance = nil
+        STATE.ui_tracking_widget = nil
+        STATE.ui_idle_state = false
+        STATE.ui_idle_wait_time = 0
         STATE.magnetism_suppressors = {}
 
         -- Project to world position
@@ -336,6 +356,17 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         STATE.tracking_target = nil
         STATE.idle_state = false
         STATE.idle_wait_time = 0
+        STATE.magnetism_scan_age = Magnetism.SCAN_INTERVAL
+        STATE.interaction_target = nil
+        STATE.interaction_offset_x = 0
+        STATE.interaction_offset_y = 0
+        STATE.interaction_sampled = false
+        STATE.interaction_use_origin = false
+        STATE.interaction_camera_heading = nil
+        STATE.interaction_camera_distance = nil
+        STATE.ui_tracking_widget = nil
+        STATE.ui_idle_state = false
+        STATE.ui_idle_wait_time = 0
         STATE.magnetism_suppressors = {}
 
         -- Reset auto_activated flag
@@ -367,6 +398,17 @@ function VirtualCursor.SetMagnetismSuppressed(source, suppressed)
     STATE.tracking_target = nil
     STATE.idle_state = false
     STATE.idle_wait_time = 0
+    STATE.magnetism_scan_age = Magnetism.SCAN_INTERVAL
+    STATE.interaction_target = nil
+    STATE.interaction_offset_x = 0
+    STATE.interaction_offset_y = 0
+    STATE.interaction_sampled = false
+    STATE.interaction_use_origin = false
+    STATE.interaction_camera_heading = nil
+    STATE.interaction_camera_distance = nil
+    STATE.ui_tracking_widget = nil
+    STATE.ui_idle_state = false
+    STATE.ui_idle_wait_time = 0
 end
 
 function VirtualCursor.IsMagnetismSuppressed()
@@ -477,56 +519,78 @@ end
 -- Exclude tags for magnetism targets
 local MAGNETISM_EXCLUDE_TAGS = {"FX", "DECOR", "INLIMBO", "NOCLICK", "notarget"}
 
--- Find nearest target for magnetism
--- Returns: distance_sq, screen_pos, entity
-local function FindNearestTarget(center_pos, entities, exclude_entity)
-    local nearest_dist_sq = math.huge
-    local nearest_screen_pos = nil
-    local nearest_entity = nil
-
-    for _, entity in ipairs(entities) do
-        -- Skip invalid entities
-        if entity ~= exclude_entity and
-           entity ~= G.ThePlayer and
-           entity.entity:IsVisible() and
-           entity:IsValid() then
-
-            -- Check exclude tags
-            local has_exclude_tag = false
-            for _, tag in ipairs(MAGNETISM_EXCLUDE_TAGS) do
-                if entity:HasTag(tag) then
-                    has_exclude_tag = true
-                    break
-                end
-            end
-
-            if not has_exclude_tag then
-                -- Get screen position
-                local screen_pos = VirtualCursor.GetScreenPointFromEntity(entity)
-                if screen_pos then
-                    -- Calculate distance squared
-                    local dist_sq = entity:GetDistanceSqToPoint(center_pos)
-
-                    if dist_sq < nearest_dist_sq then
-                        nearest_dist_sq = dist_sq
-                        nearest_screen_pos = screen_pos
-                        nearest_entity = entity
-                    end
-                end
-            end
-        end
-    end
-
-    return nearest_dist_sq, nearest_screen_pos, nearest_entity
+local function IsFiniteNumber(value)
+    return type(value) == "number" and value == value and
+        value > -math.huge and value < math.huge
 end
 
--- Get screen position from entity (helper for magnetism)
-function VirtualCursor.GetScreenPointFromEntity(entity)
-    if not entity or not entity:IsValid() then
+local function GetEntityVisualBB(entity)
+    if entity.AnimState == nil or entity.AnimState.GetVisualBB == nil then
         return nil
     end
 
+    local ok, min_x, min_y, max_x, max_y = pcall(
+        entity.AnimState.GetVisualBB, entity.AnimState)
+    if not ok or not IsFiniteNumber(min_x) or not IsFiniteNumber(min_y) or
+        not IsFiniteNumber(max_x) or not IsFiniteNumber(max_y) or
+        max_x < min_x or max_y < min_y then
+        return nil
+    end
+    return min_x, min_y, max_x, max_y
+end
+
+local function GetCameraRightVector()
+    local camera = G.TheCamera
+    if camera ~= nil and camera.GetRightVec ~= nil then
+        local ok, right = pcall(camera.GetRightVec, camera)
+        if ok and right ~= nil then
+            return right.x or 0, right.z or 0
+        end
+    end
+    return 1, 0
+end
+
+-- Aim at the centre of the currently drawn animation instead of the entity
+-- origin (which is usually at its feet). GetVisualBB returns local visual
+-- min/max coordinates with AnimState scaling already applied.
+local function GetEntityVisualCenter(entity)
     local x, y, z = entity.Transform:GetWorldPosition()
+    local center_x, center_y = 0, nil
+
+    local min_x, min_y, max_x, max_y = GetEntityVisualBB(entity)
+    if min_x ~= nil then
+        center_x = (min_x + max_x) * 0.5
+        center_y = (min_y + max_y) * 0.5
+    end
+
+    -- A few entities do not have an AnimState on the client. Their collision
+    -- radius gives a conservative centre-above-ground fallback.
+    if center_y == nil then
+        local ok, radius = false, 0
+        if entity.GetPhysicsRadius ~= nil then
+            ok, radius = pcall(entity.GetPhysicsRadius, entity, 0)
+        end
+        center_y = ok and IsFiniteNumber(radius) and math.max(0, radius) or 0
+    end
+
+    -- Anim art is camera-facing, so its local X axis follows the camera's
+    -- right vector rather than the world's X axis when the camera rotates.
+    if center_x ~= 0 then
+        local right_x, right_z = GetCameraRightVector()
+        x = x + right_x * center_x
+        z = z + right_z * center_x
+    end
+
+    return x, y + center_y, z
+end
+
+-- Get the visual centre's screen position from an entity.
+function VirtualCursor.GetScreenPointFromEntity(entity)
+    if not entity or not entity:IsValid() or entity.Transform == nil then
+        return nil
+    end
+
+    local x, y, z = GetEntityVisualCenter(entity)
     local screen_x, screen_y = G.TheSim:GetScreenPos(x, y, z)
 
     if screen_x and screen_y then
@@ -539,132 +603,635 @@ function VirtualCursor.GetScreenPointFromEntity(entity)
     return nil
 end
 
+local function GetEntityOriginScreenPoint(entity)
+    if entity == nil or entity.Transform == nil then
+        return nil
+    end
+    local world_x, world_y, world_z = entity.Transform:GetWorldPosition()
+    local screen_x, screen_y = G.TheSim:GetScreenPos(world_x, world_y, world_z)
+    if not IsFiniteNumber(screen_x) or not IsFiniteNumber(screen_y) then
+        return nil
+    end
+    return {x = screen_x, y = screen_y}
+end
+
+local function IncludeScreenPoint(bounds, world_x, world_y, world_z)
+    local screen_x, screen_y = G.TheSim:GetScreenPos(world_x, world_y, world_z)
+    if not IsFiniteNumber(screen_x) or not IsFiniteNumber(screen_y) then
+        return
+    end
+    bounds.min_x = math.min(bounds.min_x, screen_x)
+    bounds.min_y = math.min(bounds.min_y, screen_y)
+    bounds.max_x = math.max(bounds.max_x, screen_x)
+    bounds.max_y = math.max(bounds.max_y, screen_y)
+end
+
+-- Get a conservative screen rectangle that contains either a billboard or a
+-- ground-oriented animation. DST exposes SetOrientation but no corresponding
+-- getter, so both projections are included before the actual hit test narrows
+-- the result down.
+local function GetInteractionSampleBounds(entity, approximate)
+    local origin_x, origin_y, origin_z = entity.Transform:GetWorldPosition()
+    local bounds = {
+        min_x = approximate.x,
+        min_y = approximate.y,
+        max_x = approximate.x,
+        max_y = approximate.y,
+    }
+    IncludeScreenPoint(bounds, origin_x, origin_y, origin_z)
+
+    local min_x, min_y, max_x, max_y = GetEntityVisualBB(entity)
+    if min_x ~= nil then
+        local right_x, right_z = GetCameraRightVector()
+        local down_x, down_z = nil, nil
+        local camera = G.TheCamera
+        if camera ~= nil and camera.GetDownVec ~= nil then
+            local ok, down = pcall(camera.GetDownVec, camera)
+            if ok and down ~= nil then
+                down_x, down_z = down.x or 0, down.z or 0
+            end
+        end
+
+        for _, local_x in ipairs({min_x, max_x}) do
+            for _, local_y in ipairs({min_y, max_y}) do
+                -- Billboard projection.
+                IncludeScreenPoint(bounds,
+                    origin_x + right_x * local_x,
+                    origin_y + local_y,
+                    origin_z + right_z * local_x)
+
+                -- Ground-plane projection for dropped/flat art.
+                if down_x ~= nil then
+                    IncludeScreenPoint(bounds,
+                        origin_x + right_x * local_x + down_x * local_y,
+                        origin_y,
+                        origin_z + right_z * local_x + down_z * local_y)
+                end
+            end
+        end
+    else
+        bounds.min_x = bounds.min_x - 16
+        bounds.min_y = bounds.min_y - 16
+        bounds.max_x = bounds.max_x + 16
+        bounds.max_y = bounds.max_y + 16
+    end
+
+    local center_x = (bounds.min_x + bounds.max_x) * 0.5
+    local center_y = (bounds.min_y + bounds.max_y) * 0.5
+    local width = math.max(12, bounds.max_x - bounds.min_x +
+        INTERACTION_SAMPLE_PADDING * 2)
+    local height = math.max(12, bounds.max_y - bounds.min_y +
+        INTERACTION_SAMPLE_PADDING * 2)
+    width = math.min(width, INTERACTION_SAMPLE_MAX_SPAN)
+    height = math.min(height, INTERACTION_SAMPLE_MAX_SPAN)
+
+    local screen_w, screen_h = G.TheSim:GetScreenSize()
+    return {
+        min_x = math.max(0, center_x - width * 0.5),
+        min_y = math.max(0, center_y - height * 0.5),
+        max_x = math.min(screen_w, center_x + width * 0.5),
+        max_y = math.min(screen_h, center_y + height * 0.5),
+    }
+end
+
+local function ScreenHitMatchesTarget(hit, target)
+    if hit == target then
+        return true
+    end
+    if hit ~= nil and hit.client_forward_target == target then
+        return true
+    end
+    return target.client_forward_target ~= nil and
+        target.client_forward_target == hit
+end
+
+local function ScreenPointHitsTarget(target, screen_x, screen_y)
+    if G.TheSim.GetEntitiesAtScreenPoint == nil then
+        return false
+    end
+    local ok, entities = pcall(
+        G.TheSim.GetEntitiesAtScreenPoint, G.TheSim, screen_x, screen_y)
+    if not ok or type(entities) ~= "table" then
+        return false
+    end
+    for _, hit in ipairs(entities) do
+        if ScreenHitMatchesTarget(hit, target) then
+            return true
+        end
+    end
+    return false
+end
+
+-- Sample the engine's real mouse hit test only for the selected target. The
+-- uniform hit-point centroid is more useful than the visual centre for art
+-- with transparent space, shadows, offsets, or a ground orientation.
+local function SampleInteractionCenter(target, approximate)
+    if G.TheSim.GetEntitiesAtScreenPoint == nil then
+        return nil
+    end
+
+    local bounds = GetInteractionSampleBounds(target, approximate)
+    local width = bounds.max_x - bounds.min_x
+    local height = bounds.max_y - bounds.min_y
+    if width <= 0 or height <= 0 then
+        return nil
+    end
+
+    local sum_x, sum_y, hit_count = 0, 0, 0
+    local divisions = INTERACTION_SAMPLE_GRID - 1
+    for row = 0, divisions do
+        local screen_y = bounds.min_y + height * row / divisions
+        for column = 0, divisions do
+            local screen_x = bounds.min_x + width * column / divisions
+            if ScreenPointHitsTarget(target, screen_x, screen_y) then
+                sum_x = sum_x + screen_x
+                sum_y = sum_y + screen_y
+                hit_count = hit_count + 1
+            end
+        end
+    end
+
+    if hit_count == 0 then
+        return nil
+    end
+    return {x = sum_x / hit_count, y = sum_y / hit_count}
+end
+
+local function GetCameraSignature()
+    local camera = G.TheCamera
+    if camera == nil then
+        return nil, nil
+    end
+
+    local heading, distance = nil, nil
+    if camera.GetHeading ~= nil then
+        local ok, value = pcall(camera.GetHeading, camera)
+        heading = ok and IsFiniteNumber(value) and value or nil
+    end
+    if camera.GetDistance ~= nil then
+        local ok, value = pcall(camera.GetDistance, camera)
+        distance = ok and IsFiniteNumber(value) and value or nil
+    end
+    return heading, distance
+end
+
+local function CameraProjectionChanged(heading, distance)
+    local old_heading = STATE.interaction_camera_heading
+    if heading ~= nil and old_heading ~= nil then
+        local difference = math.abs((heading - old_heading + 180) % 360 - 180)
+        if difference > 1 then
+            return true
+        end
+    end
+
+    local old_distance = STATE.interaction_camera_distance
+    return distance ~= nil and old_distance ~= nil and
+        math.abs(distance - old_distance) > math.max(0.1, old_distance * 0.02)
+end
+
+local function ResetInteractionPoint()
+    STATE.interaction_target = nil
+    STATE.interaction_offset_x = 0
+    STATE.interaction_offset_y = 0
+    STATE.interaction_sampled = false
+    STATE.interaction_use_origin = false
+    STATE.interaction_camera_heading = nil
+    STATE.interaction_camera_distance = nil
+end
+
+-- Returns a cached real-hit centroid that follows ordinary camera panning by
+-- storing its offset from the cheap visual centre. Expensive sampling can be
+-- deferred until stick release; rotation and zoom invalidate the old offset.
+function VirtualCursor.GetInteractionScreenPointFromEntity(
+    entity, approximate, allow_sampling)
+    approximate = approximate or VirtualCursor.GetScreenPointFromEntity(entity)
+    if approximate == nil then
+        return nil
+    end
+    allow_sampling = allow_sampling ~= false
+
+    local heading, distance = GetCameraSignature()
+    if STATE.interaction_target ~= entity or
+        CameraProjectionChanged(heading, distance) then
+        STATE.interaction_target = entity
+        STATE.interaction_offset_x = 0
+        STATE.interaction_offset_y = 0
+        STATE.interaction_sampled = false
+        STATE.interaction_use_origin = false
+        STATE.interaction_camera_heading = heading
+        STATE.interaction_camera_distance = distance
+    end
+
+    if allow_sampling and not STATE.interaction_sampled then
+        local sampled = SampleInteractionCenter(entity, approximate)
+        local origin = sampled ~= nil and GetEntityOriginScreenPoint(entity) or nil
+        STATE.interaction_use_origin = origin ~= nil
+        STATE.interaction_offset_x = origin ~= nil and sampled.x - origin.x or 0
+        STATE.interaction_offset_y = origin ~= nil and sampled.y - origin.y or 0
+        STATE.interaction_sampled = true
+        STATE.interaction_camera_heading = heading
+        STATE.interaction_camera_distance = distance
+    end
+
+    local anchor = STATE.interaction_use_origin and
+        GetEntityOriginScreenPoint(entity) or approximate
+    if anchor == nil then
+        return nil
+    end
+    local screen_x = anchor.x + STATE.interaction_offset_x
+    local screen_y = anchor.y + STATE.interaction_offset_y
+    local screen_w, screen_h = G.TheSim:GetScreenSize()
+    if screen_x < 0 or screen_x > screen_w or
+        screen_y < 0 or screen_y > screen_h then
+        return nil
+    end
+    return {x = screen_x, y = screen_y}
+end
+
+local function ResetMagnetismTracking()
+    STATE.tracking_target = nil
+    STATE.idle_state = false
+    STATE.idle_wait_time = 0
+    STATE.magnetism_scan_age = Magnetism.SCAN_INTERVAL
+    ResetInteractionPoint()
+end
+
+local function ResetUIMagnetismTracking()
+    STATE.ui_tracking_widget = nil
+    STATE.ui_idle_state = false
+    STATE.ui_idle_wait_time = 0
+end
+
+local function GetUIWidgetScreenPoint(widget)
+    if widget == nil or widget == STATE.cursor_widget or
+        widget.GetWorldPosition == nil then
+        return nil
+    end
+
+    if widget.inst ~= nil and widget.inst.IsValid ~= nil and
+        not widget.inst:IsValid() then
+        return nil
+    end
+
+    if widget.IsVisible ~= nil then
+        local ok, visible = pcall(widget.IsVisible, widget)
+        if not ok or not visible then
+            return nil
+        end
+    end
+    if widget.IsEnabled ~= nil then
+        local ok, enabled = pcall(widget.IsEnabled, widget)
+        if not ok or not enabled then
+            return nil
+        end
+    end
+
+    local ok, position = pcall(widget.GetWorldPosition, widget)
+    if not ok or position == nil or
+        not IsFiniteNumber(position.x) or not IsFiniteNumber(position.y) then
+        return nil
+    end
+
+    local screen_w, screen_h = G.TheSim:GetScreenSize()
+    if position.x < 0 or position.x > screen_w or
+        position.y < 0 or position.y > screen_h then
+        return nil
+    end
+    return {x = position.x, y = position.y}
+end
+
+-- The HUD entity under the pointer is often a button's child image. Walk to
+-- the nearest focused ancestor so the target is the control centre rather
+-- than an icon/text offset inside that control.
+local function GetHoveredUIWidget()
+    local input = G.TheInput
+    if input == nil or input.GetHUDEntityUnderMouse == nil then
+        return nil, nil, false
+    end
+
+    local hud_entity = input:GetHUDEntityUnderMouse()
+    if hud_entity == nil then
+        return nil, nil, false
+    end
+
+    local widget = hud_entity.widget
+    if widget == nil then
+        return nil, nil, true
+    end
+
+    local current = widget
+    while current ~= nil and not current.is_screen do
+        if current.focus and current.GetWorldPosition ~= nil then
+            widget = current
+            break
+        end
+        current = current.parent
+    end
+
+    return widget, GetUIWidgetScreenPoint(widget), true
+end
+
+-- UI magnetism deliberately acquires only a widget already under the pointer.
+-- This centres inventory slots and buttons without repeatedly scanning the
+-- entire widget tree or pulling the cursor across neighbouring controls.
+-- Returns: assisted position or nil, and whether UI currently owns the cursor.
+function VirtualCursor.UpdateUIMagnetismCursor(dt, is_idle, old_x, old_y,
+    raw_x, raw_y, direction_x, direction_y, intensity)
+    local config = GetConfig()
+    local hovered_widget, hovered_pos, hud_under_cursor = GetHoveredUIWidget()
+
+    if not config.cursor_magnetism or
+       VirtualCursor.IsMagnetismSuppressed() or
+       STATE.physical_mouse_active then
+        ResetUIMagnetismTracking()
+        return nil, hud_under_cursor
+    end
+
+    if hovered_widget ~= nil and hovered_pos ~= nil then
+        STATE.ui_tracking_widget = hovered_widget
+    end
+
+    local target_pos = STATE.ui_tracking_widget ~= nil and
+        GetUIWidgetScreenPoint(STATE.ui_tracking_widget) or nil
+    if target_pos == nil then
+        ResetUIMagnetismTracking()
+        return nil, hud_under_cursor
+    end
+
+    if is_idle then
+        if not STATE.ui_idle_state then
+            STATE.ui_idle_state = true
+            STATE.ui_idle_wait_time = 0
+        end
+        STATE.ui_idle_wait_time = STATE.ui_idle_wait_time + dt
+    else
+        STATE.ui_idle_state = false
+        STATE.ui_idle_wait_time = 0
+    end
+
+    local screen_w, screen_h = G.TheSim:GetScreenSize()
+    local acquire_radius = Magnetism.GetScreenRadius(
+        config.magnetism_range, screen_w, screen_h)
+    local dx = target_pos.x - old_x
+    local dy = target_pos.y - old_y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    local alignment = is_idle and 1 or
+        Magnetism.GetAlignment(direction_x, direction_y, dx, dy)
+
+    if Magnetism.ShouldRelease(
+        distance, acquire_radius, is_idle, alignment, intensity) then
+        ResetUIMagnetismTracking()
+        return nil, hud_under_cursor
+    end
+
+    local new_x, new_y = Magnetism.ApplyAssist(
+        old_x, old_y, raw_x, raw_y,
+        target_pos.x, target_pos.y,
+        acquire_radius, is_idle, STATE.ui_idle_wait_time,
+        alignment, dt)
+    return {x = new_x, y = new_y}, true
+end
+
+local function IsEntityAction(action, target)
+    return action ~= nil and action.target == target
+end
+
+-- Return nil for decorative/non-actionable entities. An active inventory item
+-- represents the strongest current intent, followed by scene actions and then
+-- attackable targets.
+local function GetInteractionPriority(target)
+    local player = G.ThePlayer
+    local controller = ActionHelpers.GetPlayerController(player)
+    if controller == nil then
+        return nil
+    end
+
+    if controller.GetCursorInventoryObject ~= nil and controller.GetItemUseAction ~= nil then
+        local item_ok, active_item = pcall(controller.GetCursorInventoryObject, controller)
+        if item_ok and active_item ~= nil then
+            local action_ok, item_action = pcall(controller.GetItemUseAction,
+                controller, active_item, target)
+            if action_ok and IsEntityAction(item_action, target) then
+                return 3
+            end
+        end
+    end
+
+    if controller.GetSceneItemControllerAction ~= nil then
+        local action_ok, left_action, right_action = pcall(
+            controller.GetSceneItemControllerAction, controller, target)
+        if action_ok and
+            (IsEntityAction(left_action, target) or IsEntityAction(right_action, target)) then
+            return 2
+        end
+    end
+
+    local combat = player and player.replica and player.replica.combat or nil
+    if combat ~= nil and combat.CanTarget ~= nil then
+        local combat_ok, can_target = pcall(combat.CanTarget, combat, target)
+        if combat_ok and can_target then
+            return 1
+        end
+    end
+
+    return nil
+end
+
+local function IsUsableMagnetismTarget(target)
+    if target == nil or target == G.ThePlayer or not target:IsValid() or
+        target.entity == nil or not target.entity:IsVisible() then
+        return false
+    end
+    for _, tag in ipairs(MAGNETISM_EXCLUDE_TAGS) do
+        if target:HasTag(tag) then
+            return false
+        end
+    end
+    return G.CanEntitySeeTarget == nil or G.CanEntitySeeTarget(G.ThePlayer, target)
+end
+
+local function GetPlayerDistance(target)
+    if target.GetDistanceSqToInst ~= nil then
+        return math.sqrt(math.max(0, target:GetDistanceSqToInst(G.ThePlayer)))
+    end
+    local px, _, pz = G.ThePlayer.Transform:GetWorldPosition()
+    local tx, _, tz = target.Transform:GetWorldPosition()
+    local dx, dz = tx - px, tz - pz
+    return math.sqrt(dx * dx + dz * dz)
+end
+
+-- Convert the screen-space assist circle to a conservative world-space query
+-- radius. Candidate acceptance still uses exact screen pixels afterwards.
+local function GetWorldSearch(center_x, center_y, screen_radius)
+    local world_x, world_y, world_z = G.TheSim:ProjectScreenPos(center_x, center_y)
+    if world_x == nil or world_z == nil then
+        return nil
+    end
+
+    local world_radius = 0
+    local offsets = {
+        {screen_radius, 0}, {-screen_radius, 0},
+        {0, screen_radius}, {0, -screen_radius},
+    }
+    for _, offset in ipairs(offsets) do
+        local x, _, z = G.TheSim:ProjectScreenPos(center_x + offset[1], center_y + offset[2])
+        if x ~= nil and z ~= nil then
+            local dx, dz = x - world_x, z - world_z
+            world_radius = math.max(world_radius, math.sqrt(dx * dx + dz * dz))
+        end
+    end
+
+    world_radius = math.max(1.5, math.min(Magnetism.WORLD_SEARCH_MAX, world_radius * 1.35))
+    return G.Vector3(world_x, world_y or 0, world_z), world_radius
+end
+
+local function FindBestMagnetismTarget(center_x, center_y, acquire_radius,
+    is_idle, direction_x, direction_y, prefer_player)
+    local search_center, world_radius = GetWorldSearch(center_x, center_y, acquire_radius)
+    if search_center == nil then
+        return nil
+    end
+
+    local entities = G.TheSim:FindEntities(
+        search_center.x, search_center.y, search_center.z,
+        world_radius, nil, MAGNETISM_EXCLUDE_TAGS)
+    if STATE.tracking_target ~= nil then
+        table.insert(entities, 1, STATE.tracking_target)
+    end
+
+    local seen = {}
+    local best_target, best_screen_pos, best_score = nil, nil, -math.huge
+    for _, raw_entity in ipairs(entities) do
+        local target = raw_entity.client_forward_target or raw_entity
+        if not seen[target] and IsUsableMagnetismTarget(target) then
+            seen[target] = true
+            local screen_pos = VirtualCursor.GetScreenPointFromEntity(target)
+            if screen_pos ~= nil then
+                local is_locked = target == STATE.tracking_target
+                if is_locked then
+                    screen_pos = VirtualCursor.GetInteractionScreenPointFromEntity(
+                        target, screen_pos, is_idle)
+                end
+                if screen_pos ~= nil then
+                    local dx = screen_pos.x - center_x
+                    local dy = screen_pos.y - center_y
+                    local distance = math.sqrt(dx * dx + dy * dy)
+                    local alignment = is_idle and 1 or
+                        Magnetism.GetAlignment(direction_x, direction_y, dx, dy)
+                    local priority = GetInteractionPriority(target)
+                    if priority ~= nil then
+                        local player_distance = prefer_player and GetPlayerDistance(target) or nil
+                        local score = Magnetism.ScoreCandidate(
+                            distance, acquire_radius, alignment, is_idle,
+                            priority, is_locked, prefer_player, player_distance)
+                        if score ~= nil and score > best_score then
+                            best_target = target
+                            best_screen_pos = screen_pos
+                            best_score = score
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return best_target, best_screen_pos
+end
+
+local function IsBuildingPlacementActive()
+    local controller = ActionHelpers.GetPlayerController(G.ThePlayer)
+    return controller ~= nil and
+        (controller.placer ~= nil or controller.deployplacer ~= nil)
+end
+
 -- Update magnetism cursor position
 -- Returns: new_screen_pos {x, y} or nil
-function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, current_screen_x, current_screen_y)
+function VirtualCursor.UpdateMagnetismCursor(dt, is_idle, old_x, old_y,
+    raw_x, raw_y, direction_x, direction_y, intensity)
     local config = GetConfig()
 
     -- Magnetism targets world entities. It must not run on the full-map screen,
     -- where ProjectScreenPos refers to the world camera behind the map.
     local active_screen = G.TheFrontEnd and G.TheFrontEnd:GetActiveScreen() or nil
     local magnetism_blocked = active_screen ~= nil and active_screen.name == "MapScreen"
+    local hud_under_cursor = G.TheInput ~= nil and
+        G.TheInput.GetHUDEntityUnderMouse ~= nil and
+        G.TheInput:GetHUDEntityUnderMouse() ~= nil
 
     if not config.cursor_magnetism or
        VirtualCursor.IsMagnetismSuppressed() or
        STATE.physical_mouse_active or
        magnetism_blocked or
-       STATE.is_hovering_ui or
+       IsBuildingPlacementActive() or
+       hud_under_cursor or
        not G.ThePlayer then
-        STATE.tracking_target = nil
-        STATE.idle_state = false
-        STATE.idle_wait_time = 0
+        ResetMagnetismTracking()
         return nil
     end
 
-    -- Any deliberate stick input releases the target immediately. The previous
-    -- < 0.5 threshold caused magnetism to fight slow, precise movement.
-    if not is_idle then
-        STATE.tracking_target = nil
-        STATE.idle_state = false
-        STATE.idle_wait_time = 0
-        return nil
-    end
-
-    if not STATE.idle_state then
-        STATE.idle_state = true
-        STATE.idle_wait_time = 0
-    end
-    STATE.idle_wait_time = STATE.idle_wait_time + dt
-    if STATE.idle_wait_time < MAGNETISM_IDLE_DELAY then
-        return nil
-    end
-
-    -- ===== Step 1: Determine search center and radius =====
-    local search_center
-    local search_radius
-
-    if config.target_priority then
-        -- Priority mode: search around player
-        search_center = G.Vector3(G.ThePlayer.Transform:GetWorldPosition())
-        search_radius = config.magnetism_range * 10
+    if is_idle then
+        if not STATE.idle_state then
+            STATE.idle_state = true
+            STATE.idle_wait_time = 0
+        end
+        STATE.idle_wait_time = STATE.idle_wait_time + dt
     else
-        -- Normal mode: search around cursor
-        local world_x, world_y, world_z = G.TheSim:ProjectScreenPos(current_screen_x, current_screen_y)
-        if not world_x or not world_z then
+        STATE.idle_state = false
+        STATE.idle_wait_time = 0
+    end
+
+    local screen_w, screen_h = G.TheSim:GetScreenSize()
+    local acquire_radius = Magnetism.GetScreenRadius(config.magnetism_range, screen_w, screen_h)
+    local approximate_screen_pos = STATE.tracking_target ~= nil and
+        VirtualCursor.GetScreenPointFromEntity(STATE.tracking_target) or nil
+    local screen_pos = approximate_screen_pos ~= nil and
+        VirtualCursor.GetInteractionScreenPointFromEntity(
+            STATE.tracking_target, approximate_screen_pos, is_idle) or nil
+
+    if screen_pos ~= nil then
+        local dx = screen_pos.x - old_x
+        local dy = screen_pos.y - old_y
+        local distance = math.sqrt(dx * dx + dy * dy)
+        local alignment = is_idle and 1 or
+            Magnetism.GetAlignment(direction_x, direction_y, dx, dy)
+        if Magnetism.ShouldRelease(distance, acquire_radius, is_idle, alignment, intensity) then
             STATE.tracking_target = nil
-            return nil
-        end
-        search_center = G.Vector3(world_x, world_y or 0, world_z)
-
-        -- Short/medium/long must all be usable. The old short range was zero,
-        -- which effectively disabled target acquisition.
-        search_radius = MAGNETISM_WORLD_RANGES[config.magnetism_range]
-
-        -- A slightly larger release radius prevents flicker at the boundary.
-        if STATE.tracking_target then
-            search_radius = search_radius * 1.35
+            ResetInteractionPoint()
+            screen_pos = nil
+            STATE.magnetism_scan_age = Magnetism.SCAN_INTERVAL
         end
     end
 
-    -- ===== Step 2: Find entities in range =====
-    local entities = G.TheSim:FindEntities(
-        search_center.x, search_center.y, search_center.z,
-        search_radius,
-        nil,  -- No must_have_tags
-        MAGNETISM_EXCLUDE_TAGS  -- Exclude tags
-    )
-
-    -- ===== Step 3: Find nearest target =====
-    local current_target = STATE.tracking_target
-    local dist_sq, screen_pos, new_target
-
-    -- Check if current target is still valid and in range
-    if current_target and current_target:IsValid() then
-        local still_in_range = false
-        for _, entity in ipairs(entities) do
-            if entity == current_target then
-                still_in_range = true
-                break
-            end
-        end
-
-        if still_in_range then
-            -- Keep current target
-            dist_sq = current_target:GetDistanceSqToPoint(search_center)
-            screen_pos = VirtualCursor.GetScreenPointFromEntity(current_target)
-            new_target = current_target
+    STATE.magnetism_scan_age = STATE.magnetism_scan_age + dt
+    if STATE.magnetism_scan_age >= Magnetism.SCAN_INTERVAL then
+        STATE.magnetism_scan_age = 0
+        STATE.tracking_target, screen_pos = FindBestMagnetismTarget(
+            old_x, old_y, acquire_radius, is_idle,
+            direction_x, direction_y, config.target_priority)
+        if STATE.tracking_target ~= nil and screen_pos ~= nil then
+            screen_pos = VirtualCursor.GetInteractionScreenPointFromEntity(
+                STATE.tracking_target, screen_pos, is_idle)
         else
-            -- Current target out of range, find new one
-            dist_sq, screen_pos, new_target = FindNearestTarget(search_center, entities, current_target)
+            ResetInteractionPoint()
         end
-    else
-        -- No current target or invalid, find new one
-        dist_sq, screen_pos, new_target = FindNearestTarget(search_center, entities, nil)
+    elseif screen_pos == nil then
+        return nil
     end
 
-    -- Update tracking target
-    STATE.tracking_target = new_target
-
-    -- ===== Step 4: Calculate magnetism position =====
-    if new_target and screen_pos and dist_sq then
-        local screen_dx = screen_pos.x - current_screen_x
-        local screen_dy = screen_pos.y - current_screen_y
-        local screen_dist_sq = screen_dx * screen_dx + screen_dy * screen_dy
-
-        if screen_dist_sq <= MAGNETISM_SNAP_DISTANCE * MAGNETISM_SNAP_DISTANCE then
-            return {x = screen_pos.x, y = screen_pos.y}
-        else
-            -- Frame-rate independent exponential approach.
-            local alpha = 1 - math.exp(-MAGNETISM_APPROACH_RATE * dt)
-
-            return {
-                x = current_screen_x + screen_dx * alpha,
-                y = current_screen_y + screen_dy * alpha
-            }
-        end
+    if STATE.tracking_target == nil or screen_pos == nil then
+        return nil
     end
 
-    return nil
+    local dx = screen_pos.x - old_x
+    local dy = screen_pos.y - old_y
+    local alignment = is_idle and 1 or
+        Magnetism.GetAlignment(direction_x, direction_y, dx, dy)
+    local new_x, new_y = Magnetism.ApplyAssist(
+        old_x, old_y, raw_x, raw_y,
+        screen_pos.x, screen_pos.y,
+        acquire_radius, is_idle, STATE.idle_wait_time,
+        alignment, dt)
+    return {x = new_x, y = new_y}
 end
 
 -- Update cursor position based on right stick input (optimized algorithm from dst-mod)
@@ -674,13 +1241,12 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
     end
 
     local config = GetConfig()
-    local dead_zone = config.dead_zone or DEAD_ZONE_DEFAULT
 
-    -- Use one radial response curve for every direction. Small stick movement
-    -- remains precise while full deflection still reaches the scene's maximum
-    -- speed. A short exponential ramp filters noisy controller samples.
+    -- Do not add a mod-side dead zone. The game/driver input reaches the radial
+    -- response curve unchanged, so even small non-zero stick values can move.
+    -- The response curve still keeps small movement precise.
     local is_idle, direction_x, direction_y, target_intensity = Motion.ResolveStick(
-        stick_x, stick_y, dead_zone, STICK_RESPONSE_EXPONENT)
+        stick_x, stick_y, 0, STICK_RESPONSE_EXPONENT)
     local movement_dt = Motion.ClampDeltaTime(dt, MAX_CURSOR_DELTA_TIME)
     if is_idle then
         STATE.smoothed_stick_intensity = 0
@@ -705,9 +1271,18 @@ function VirtualCursor.UpdateCursorPositionDelta(dt, stick_x, stick_y)
         new_y = old_y + direction_y * speed_per_second * STATE.smoothed_stick_intensity * movement_dt
     end
 
-    -- Run this even when the stick is fully released. The previous early return
-    -- made true idle magnetism impossible and only activated it during a light push.
-    local magnetism_pos = VirtualCursor.UpdateMagnetismCursor(dt, is_idle, new_x, new_y)
+    -- HUD controls own magnetism whenever the pointer is over one. Otherwise
+    -- the world-target policy applies; the two systems never pull at once.
+    local magnetism_pos, ui_owns_cursor = VirtualCursor.UpdateUIMagnetismCursor(
+        dt, is_idle, old_x, old_y, new_x, new_y,
+        direction_x, direction_y, STATE.smoothed_stick_intensity)
+    if ui_owns_cursor then
+        ResetMagnetismTracking()
+    else
+        magnetism_pos = VirtualCursor.UpdateMagnetismCursor(
+            dt, is_idle, old_x, old_y, new_x, new_y,
+            direction_x, direction_y, STATE.smoothed_stick_intensity)
+    end
     if magnetism_pos then
         new_x = magnetism_pos.x
         new_y = magnetism_pos.y
@@ -765,14 +1340,13 @@ function VirtualCursor.UpdateHoverState()
     STATE.is_hovering_ui = false
     STATE.is_hovering_entity = false
 
-    -- Check if hovering over a widget (UI element)
-    -- TheFrontEnd:GetFocusWidget() returns the currently focused widget
-    if G.TheFrontEnd then
-        local focus_widget = G.TheFrontEnd:GetFocusWidget()
-        if focus_widget then
-            STATE.is_hovering_ui = true
-            return  -- UI takes priority over entities
-        end
+    -- Controller navigation can retain a focused widget even while the pointer
+    -- is over the world. Only a HUD entity actually under the pointer should
+    -- block world magnetism and activate UI slowdown.
+    if G.TheInput.GetHUDEntityUnderMouse ~= nil and
+        G.TheInput:GetHUDEntityUnderMouse() ~= nil then
+        STATE.is_hovering_ui = true
+        return  -- UI takes priority over entities
     end
 
     -- Check if hovering over an entity

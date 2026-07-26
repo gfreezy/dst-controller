@@ -56,7 +56,6 @@ function ConfigManager.LoadDefaultSettings()
             left_click_key = "LT",
             right_click_key = "RT",
             cursor_speed = 1.0,
-            dead_zone = 0.1,
             show_cursor = true,
             -- 磁吸设置
             cursor_magnetism = true,        -- 是否启用光标磁吸

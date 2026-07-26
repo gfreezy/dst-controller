@@ -83,6 +83,7 @@ local STRINGS_TABLE = {
         ACTION_USE_ITEM_ON_SCENE = "Use Item on Scene [Needs Param]",
         ACTION_CRAFT_ITEM = "Craft Item [Needs Param]",
         ACTION_TRIGGER_KEY = "Trigger Key [Needs Param]",
+        AUTO_CRAFT = "Auto Build",
 
         -- 动作详情界面
         DETAIL_TITLE_SUFFIX = " - Action Config",
@@ -203,6 +204,7 @@ local STRINGS_TABLE = {
         ACTION_USE_ITEM_ON_SCENE = "对场景使用物品 [需要参数]",
         ACTION_CRAFT_ITEM = "制作物品 [需要参数]",
         ACTION_TRIGGER_KEY = "触发按键 [需要参数]",
+        AUTO_CRAFT = "自动建造",
 
         -- 动作详情界面
         DETAIL_TITLE_SUFFIX = " - 动作配置",

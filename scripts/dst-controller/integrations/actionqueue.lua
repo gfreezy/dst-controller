@@ -222,6 +222,13 @@ local function HasQueueWork(actionqueuer)
            (actionqueuer.selected_ents ~= nil and next(actionqueuer.selected_ents) ~= nil)
 end
 
+local function IsModifierDown()
+    -- FrontEnd does not consistently emit a dedicated RB OnControl event after
+    -- virtual cursor mode switches the game to the mouse input scheme. Poll the
+    -- physical state as a fallback so RB+LT/RT still reaches ActionQueue.
+    return STATE.modifier_down or Helpers.IsButtonPressed("RB")
+end
+
 -- Called before the normal virtual mouse button handler.
 function ActionQueueIntegration.OnControl(control, down)
     if not VirtualCursor.IsCursorModeActive() or not IsEnabled() then
@@ -267,7 +274,7 @@ function ActionQueueIntegration.OnControl(control, down)
     if Helpers.IsControlNamedButton(control, "B") then
         -- Keep normal B/alternate actions available. Queue cancellation belongs
         -- to the same RB modifier namespace as selection: RB+B.
-        if down and STATE.modifier_down and valid_context and HasQueueWork(actionqueuer) then
+        if down and IsModifierDown() and valid_context and HasQueueWork(actionqueuer) then
             CancelQueue(actionqueuer)
             STATE.cancel_button_owned = true
             return true
@@ -277,7 +284,7 @@ function ActionQueueIntegration.OnControl(control, down)
         end
     end
 
-    if button ~= nil and down and STATE.modifier_down and valid_context and not IsPointerOverHud() then
+    if button ~= nil and down and IsModifierDown() and valid_context and not IsPointerOverHud() then
         return BeginSelection(actionqueuer, button, rightclick)
     end
 
