@@ -61,6 +61,23 @@ function ButtonHandler.RemovePlayer(player_or_guid)
     end
 end
 
+-- Modal screens can consume the release event that normally clears a combo.
+-- Clear only transient pressed state while keeping the player lifecycle entry.
+function ButtonHandler.ClearPressedStates(player_or_guid)
+    local guid = type(player_or_guid) == "table" and
+        player_or_guid.GUID or player_or_guid
+    local player_states = guid ~= nil and button_states[guid] or nil
+    if player_states == nil then
+        return
+    end
+    for _, face_buttons in pairs(player_states) do
+        for _, state in pairs(face_buttons) do
+            state.pressed = false
+            state.release_actions = nil
+        end
+    end
+end
+
 -- Check if a physical control matches a logical button
 function ButtonHandler.IsButton(control, button_name)
     local mappings = G.BUTTON_MAPPINGS[button_name]

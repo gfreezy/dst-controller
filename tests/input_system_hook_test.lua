@@ -4,6 +4,8 @@ local set_position_calls = 0
 local physical_move_calls = 0
 local mouse_move_calls = 0
 local position_calls = 0
+local pressed_controls = {}
+local game_postinit
 local profile = {
     GetControlScheme = function(_, scheme_id)
         return scheme_id == 99 and 7 or 1
@@ -11,7 +13,9 @@ local profile = {
 }
 
 local input = {
-    IsControlPressed = function() return false end,
+    IsControlPressed = function(_, control)
+        return pressed_controls[control] == true
+    end,
     GetActiveControlScheme = function() return 1 end,
     GetControllerID = function() return 1 end,
     ControllerAttached = function() return true end,
@@ -24,6 +28,7 @@ local input = {
 }
 
 package.loaded["dst-controller/global"] = {
+    AddGamePostInit = function(fn) game_postinit = fn end,
     TheInput = input,
     Profile = profile,
     CONTROL_SCHEME_CAM_AND_INV = 10,
@@ -51,6 +56,13 @@ package.loaded["dst-controller/hooks/input-system-hook"] = nil
 local InputSystemHook = require("dst-controller/hooks/input-system-hook")
 InputSystemHook.Install()
 
+assert(InputSystemHook.IsControllerPhysicallyAttached(),
+    "physical controller detection must bypass virtual cursor mouse mode")
+assert(InputSystemHook.GetPhysicalControllerID() == 1,
+    "physical controller id must bypass virtual cursor mouse mode")
+assert(not input:ControllerAttached(),
+    "virtual cursor mode should still present mouse mode to native DST UI")
+
 assert(input:GetActiveControlScheme(10) == 2,
     "the camera and inventory controls should use scheme 2")
 assert(profile:GetControlScheme(10) == 2,
@@ -58,6 +70,19 @@ assert(profile:GetControlScheme(10) == 2,
 assert(input:GetActiveControlScheme(99) == 1 and
     profile:GetControlScheme(99) == 7,
     "unrelated control schemes should preserve native behavior")
+assert(type(game_postinit) == "function",
+    "the profile override must register a late-install fallback")
+
+local late_profile = {
+    GetControlScheme = function(_, scheme_id)
+        return scheme_id == 99 and 8 or 1
+    end,
+}
+package.loaded["dst-controller/global"].Profile = late_profile
+game_postinit()
+assert(late_profile:GetControlScheme(10) == 2 and
+    late_profile:GetControlScheme(99) == 8,
+    "a profile created after mod loading must still expose scheme 2")
 
 input:OnMouseMove(10, 20)
 assert(set_position_calls == 1, "a physical mouse move must update the visible cursor")
@@ -81,6 +106,14 @@ assert(position_calls == 2, "an external position event must still reach DST")
 cursor_active = false
 assert(input:GetActiveControlScheme(10) == 2,
     "normal gameplay should keep using the mod's required scheme")
+
+pressed_controls[3] = true
+pressed_controls[20] = true
+assert(input:IsControlPressed(3),
+    "inventory navigation should keep native behavior outside cursor mode")
+assert(input:IsControlPressed(20),
+    "unrelated controls should preserve native polling")
+
 local wrapped_is_control_pressed = input.IsControlPressed
 InputSystemHook.Install()
 assert(input.IsControlPressed == wrapped_is_control_pressed,

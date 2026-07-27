@@ -42,6 +42,9 @@ local STRINGS_TABLE = {
         LOCATION_STATUS_LOCATED = "Located",
         LOCATION_STATUS_OTHER_SHARD = "Other shard",
         LOCATION_STATUS_UNAVAILABLE = "No response",
+        MAP_HELP_CAMERA = "Zoom / rotate map",
+        MAP_HELP_OPEN_LOCATIONS = "Open locations",
+        MAP_HELP_NAVIGATE = "Navigate",
 
         -- 按钮组合配置
         PRESS_COUNT = "Press:%d  Release:%d",
@@ -109,16 +112,11 @@ local STRINGS_TABLE = {
         ACTION_USE_ITEM_ON_SELF = "Use Item on Self [Needs Param]",
         ACTION_USE_ITEM_ON_SCENE = "Use Item on Scene [Needs Param]",
         ACTION_CRAFT_ITEM = "Craft Item [Needs Param]",
-        ACTION_TOGGLE_COOKING_MENU = "Open Cooking List",
+        ACTION_TOGGLE_COOKING_MENU = "Open Cookbook",
         ACTION_TRIGGER_KEY = "Trigger Key [Needs Param]",
         AUTO_CRAFT = "Auto Build",
         SEARCH_AND_BUILD = "Search & Build",
         SEARCH_AND_COOK = "Search & Cook",
-        COOKING_MENU_TITLE = "Cooking List",
-        COOKING_MENU_HINT = "Right stick: select   A: cook   B: close   Left stick: move",
-        COOKING_MENU_STATS = "Health %s   Hunger %s   Sanity %s",
-        COOKING_MENU_EMPTY = "No cookable recipes",
-        COOKING_MENU_PAGE = "%d / %d",
 
         -- 动作详情界面
         DETAIL_TITLE_SUFFIX = " - Action Config",
@@ -266,6 +264,9 @@ local STRINGS_TABLE = {
         LOCATION_STATUS_LOCATED = "已获取",
         LOCATION_STATUS_OTHER_SHARD = "其他分片",
         LOCATION_STATUS_UNAVAILABLE = "无响应",
+        MAP_HELP_CAMERA = "缩放/旋转地图",
+        MAP_HELP_OPEN_LOCATIONS = "打开位置",
+        MAP_HELP_NAVIGATE = "导航",
 
         -- 按钮组合配置
         PRESS_COUNT = "按下:%d  松开:%d",
@@ -333,16 +334,11 @@ local STRINGS_TABLE = {
         ACTION_USE_ITEM_ON_SELF = "对自己使用物品 [需要参数]",
         ACTION_USE_ITEM_ON_SCENE = "对场景使用物品 [需要参数]",
         ACTION_CRAFT_ITEM = "制作物品 [需要参数]",
-        ACTION_TOGGLE_COOKING_MENU = "打开烹饪列表",
+        ACTION_TOGGLE_COOKING_MENU = "打开菜谱书",
         ACTION_TRIGGER_KEY = "触发按键 [需要参数]",
         AUTO_CRAFT = "自动建造",
         SEARCH_AND_BUILD = "搜索并建造",
         SEARCH_AND_COOK = "搜索并烹饪",
-        COOKING_MENU_TITLE = "烹饪列表",
-        COOKING_MENU_HINT = "右摇杆选择  A 烹饪  B 关闭  左摇杆移动",
-        COOKING_MENU_STATS = "生命 %s   饥饿 %s   精神 %s",
-        COOKING_MENU_EMPTY = "没有可烹饪料理",
-        COOKING_MENU_PAGE = "%d / %d",
 
         -- 动作详情界面
         DETAIL_TITLE_SUFFIX = " - 动作配置",

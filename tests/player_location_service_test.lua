@@ -3,7 +3,14 @@ local scheduled = {}
 local sent = {}
 local clients = {
     { userid = "KU_local", name = "本地玩家", prefab = "wilson", colour = { 1, 1, 1, 1 } },
-    { userid = "KU_remote", name = "远端;玩家=一", prefab = "willow", colour = { 1, 0, 0, 1 } },
+    {
+        userid = "KU_remote",
+        name = "远端;玩家=一",
+        prefab = "willow",
+        colour = { 1, 0, 0, 1 },
+        userflags = 4,
+        base_skin = "willow_none",
+    },
 }
 
 package.loaded["dst-controller/global"] = {
@@ -49,8 +56,10 @@ local query = assert(Protocol.Decode(sent[#sent]))
 assert(query.kind == "query_all" and query.request_id == request_id)
 
 local rows = Service.GetPlayers()
-assert(rows[1].local_player and rows[1].status == "located")
-assert(rows[2].status == "querying")
+assert(#rows == 1, "player list should omit the local player")
+assert(rows[1].userid == "KU_remote" and rows[1].status == "querying")
+assert(rows[1].userflags == 4 and rows[1].base_skin == "willow_none",
+    "player rows should include native badge appearance data")
 
 Service.HandlePacket({
     kind = "position",

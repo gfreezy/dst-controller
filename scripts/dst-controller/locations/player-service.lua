@@ -228,42 +228,46 @@ end
 function PlayerService.GetPlayers()
     local rows = {}
     local seen = {}
+    local local_userid = LocalUserId()
     for _, client in ipairs(ClientTable()) do
         if client.userid ~= nil and client.performance == nil then
             local userid = tostring(client.userid)
-            local position = state.positions[userid]
-            if position ~= nil then
-                position.current_shard = Scope.IsCurrentShard(position.shard_id)
-            end
             seen[userid] = true
-            rows[#rows + 1] = {
-                userid = userid,
-                name = client.name or userid,
-                prefab = client.prefab,
-                colour = client.colour,
-                status = state.statuses[userid] or "not_queried",
-                position = position,
-                local_player = userid == LocalUserId(),
-            }
+            if userid ~= local_userid then
+                local position = state.positions[userid]
+                if position ~= nil then
+                    position.current_shard = Scope.IsCurrentShard(position.shard_id)
+                end
+                rows[#rows + 1] = {
+                    userid = userid,
+                    name = client.name or userid,
+                    prefab = client.prefab,
+                    colour = client.colour,
+                    userflags = client.userflags or 0,
+                    base_skin = client.base_skin,
+                    status = state.statuses[userid] or "not_queried",
+                    position = position,
+                    local_player = false,
+                }
+            end
         end
     end
     for userid, position in pairs(state.positions) do
-        if not seen[userid] then
+        if not seen[userid] and userid ~= local_userid then
             rows[#rows + 1] = {
                 userid = userid,
                 name = position.name or userid,
                 prefab = position.prefab,
                 colour = position.colour,
+                userflags = position.userflags or 0,
+                base_skin = position.base_skin,
                 status = state.statuses[userid] or "located",
                 position = position,
-                local_player = userid == LocalUserId(),
+                local_player = false,
             }
         end
     end
     table.sort(rows, function(a, b)
-        if a.local_player ~= b.local_player then
-            return a.local_player
-        end
         return string.lower(a.name) < string.lower(b.name)
     end)
     return rows

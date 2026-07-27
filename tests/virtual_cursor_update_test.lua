@@ -34,9 +34,13 @@ package.loaded["dst-controller/utils/config_manager"] = {
         }
     end,
 }
-package.loaded["dst-controller/utils/helpers"] = {}
+package.loaded["dst-controller/utils/helpers"] = {
+    DebugPrint = function() end,
+    DebugPrintf = function() end,
+}
 package.loaded["dst-controller/actions/helpers"] = {
     GetPlayerController = function() return nil end,
+    GetInventory = function() return nil end,
 }
 package.loaded["dst-controller/virtual-cursor/core"] = nil
 
@@ -82,3 +86,14 @@ state.smoothed_stick_intensity = 0
 VirtualCursor.UpdateCursorPositionDelta(1 / 60, 0.05, 0)
 assert(state.cursor_screen_pos.x > before_small_input,
     "a small non-zero stick value must not be blocked by the saved mod dead zone")
+
+VirtualCursor.SetModeBlocked("map-test", true)
+assert(VirtualCursor.IsModeBlocked() and
+    not VirtualCursor.IsCursorModeActive(),
+    "a map blocker must immediately suspend virtual cursor mode")
+VirtualCursor.ToggleCursorMode(true)
+assert(not VirtualCursor.IsCursorModeActive(),
+    "cursor mode must not be enabled while MapScreen owns a blocker")
+VirtualCursor.SetModeBlocked("map-test", false)
+assert(not VirtualCursor.IsModeBlocked(),
+    "removing the map blocker must allow later cursor restoration")

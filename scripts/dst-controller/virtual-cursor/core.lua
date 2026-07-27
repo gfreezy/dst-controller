@@ -72,6 +72,7 @@ local STATE = {
     ui_idle_state = false,
     ui_idle_wait_time = 0,
     magnetism_suppressors = {},  -- Named temporary suppressors (drag selection, etc.)
+    mode_blockers = {},  -- Screens that temporarily forbid cursor mode
 }
 
 local CONFIG_CACHE = {
@@ -259,6 +260,10 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
         new_state = not STATE.cursor_mode_active  -- Toggle if not provided
     end
 
+    if new_state and next(STATE.mode_blockers) ~= nil then
+        return false
+    end
+
     -- No-op if already in desired state
     if STATE.cursor_mode_active == new_state then
         return
@@ -374,11 +379,32 @@ function VirtualCursor.ToggleCursorMode(force_state, auto_activate)
 
         Helpers.DebugPrint("Cursor mode deactivated")
     end
+    return true
 end
 
 -- Check if cursor mode is active
 function VirtualCursor.IsCursorModeActive()
     return STATE.cursor_mode_active
+end
+
+-- Screens such as MapScreen use native controller focus and temporarily block
+-- virtual cursor activation. Named blockers keep nested UI lifetimes safe.
+function VirtualCursor.SetModeBlocked(source, blocked)
+    if type(source) ~= "string" or source == "" then
+        return
+    end
+    if blocked then
+        STATE.mode_blockers[source] = true
+        if STATE.cursor_mode_active then
+            VirtualCursor.ToggleCursorMode(false)
+        end
+    else
+        STATE.mode_blockers[source] = nil
+    end
+end
+
+function VirtualCursor.IsModeBlocked()
+    return next(STATE.mode_blockers) ~= nil
 end
 
 -- Temporarily suppress entity magnetism for interactions that require an exact

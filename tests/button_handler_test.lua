@@ -55,6 +55,11 @@ pressed.LB = true
 assert(ButtonHandler.HandleButtonCombination(player, 3, true, Execute))
 assert(calls[3] == "press_action", "combo should be reusable after either release order")
 
+ButtonHandler.ClearPressedStates(player)
+assert(ButtonHandler.HandleButtonCombination(player, 3, true, Execute))
+assert(calls[4] == "press_action",
+    "a modal screen should be able to clear a swallowed combo release")
+
 pressed.LB = false
 ButtonHandler.HandleButtonCombination(player, 3, false, Execute)
 
@@ -69,4 +74,3 @@ onremove()
 -- Cleanup is idempotent and the next input recreates fresh state.
 ButtonHandler.RemovePlayer(player)
 assert(ButtonHandler.HandleButtonCombination(player, 3, true, Execute))
-

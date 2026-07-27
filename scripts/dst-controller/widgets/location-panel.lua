@@ -1,90 +1,165 @@
--- Enhanced Controller - Player and favorite locations panel for MapScreen
+-- Enhanced Controller - player and favorite location content for its modal screen
 
 local G = require("dst-controller/global")
 local PlayerService = require("dst-controller/locations/player-service")
 local FavoritesStore = require("dst-controller/locations/favorites-store")
-local MapNavigation = require("dst-controller/utils/map-navigation")
 local L = require("dst-controller/localization").L
 
 local Widget = require("widgets/widget")
 local Text = require("widgets/text")
+local PlayerBadge = require("widgets/playerbadge")
 local TEMPLATES = require("widgets/redux/templates")
+local HeaderTabs = require("widgets/redux/headertabs")
 local InputDialogScreen = require("screens/redux/inputdialog")
 
-local PANEL_WIDTH = 440
-local PANEL_HEIGHT = 590
-local ROW_COUNT = 7
+local PANEL_WIDTH = 700
+local PANEL_HEIGHT = 560
+local ROW_WIDTH = 620
+local ROW_HEIGHT = 52
+local VISIBLE_ROWS = 7
 
-local LocationPanel = G.Class(Widget, function(self)
+local LocationPanel = G.Class(Widget, function(self, on_close, on_navigate)
     Widget._ctor(self, "EnhancedLocationPanel")
     self.active_tab = "players"
-    self.player_page = 1
-    self.favorite_page = 1
     self.rows_data = {}
+    self.on_close = on_close
+    self.on_navigate = on_navigate
 
-    self:SetScaleMode(G.SCALEMODE_PROPORTIONAL)
-    self:SetHAnchor(G.ANCHOR_LEFT)
-    self:SetVAnchor(G.ANCHOR_MIDDLE)
-    self:SetPosition(PANEL_WIDTH / 2 + 18, 0)
-
-    self.frame = self:AddChild(TEMPLATES.RectangleWindow(
-        PANEL_WIDTH, PANEL_HEIGHT, L("LOCATION_PANEL_TITLE")))
+    self.frame = self:AddChild(TEMPLATES.RectangleWindow(PANEL_WIDTH,
+        PANEL_HEIGHT, nil, {
+            {
+                text = L("BUTTON_CLOSE"),
+                cb = function()
+                    if self.on_close ~= nil then
+                        self.on_close()
+                    end
+                end,
+            },
+        }))
     self.frame:SetScale(1, 1)
+    self.close_button = self.frame.actions.items[1]
+    -- HeaderTabs supplies the top edge, matching native Redux windows.
+    if self.frame.top ~= nil then
+        self.frame.top:Hide()
+    end
     self.frame:MoveToBack()
 
-    self.players_tab = self:AddChild(TEMPLATES.StandardButton(function()
-        self:SetTab("players")
-    end, L("LOCATION_TAB_PLAYERS"), { 190, 42 }))
-    self.players_tab:SetPosition(-100, 235)
-    self.favorites_tab = self:AddChild(TEMPLATES.StandardButton(function()
-        self:SetTab("favorites")
-    end, L("LOCATION_TAB_FAVORITES"), { 190, 42 }))
-    self.favorites_tab:SetPosition(100, 235)
+    self.header_tabs = self:AddChild(HeaderTabs({
+        {
+            text = L("LOCATION_TAB_PLAYERS"),
+            cb = function() self:SetTab("players") end,
+        },
+        {
+            text = L("LOCATION_TAB_FAVORITES"),
+            cb = function() self:SetTab("favorites") end,
+        },
+    }, true))
+    self.header_tabs:SetPosition(0, PANEL_HEIGHT / 2 + 25)
 
     self.action_button = self:AddChild(TEMPLATES.StandardButton(function()
         self:RunPrimaryAction()
     end, "", { 260, 42 }))
-    self.action_button:SetPosition(0, 185)
+    self.action_button:SetPosition(0, 218)
 
-    self.rows = {}
-    local first_y = 125
-    for index = 1, ROW_COUNT do
-        local y = first_y - (index - 1) * 55
-        local row = {
-            main = self:AddChild(TEMPLATES.StandardButton(function()
-                self:ActivateRow(index)
-            end, "", { 270, 46 })),
-            secondary = self:AddChild(TEMPLATES.StandardButton(function()
-                self:SecondaryRowAction(index)
-            end, "", { 70, 42 })),
-            tertiary = self:AddChild(TEMPLATES.StandardButton(function()
-                self:TertiaryRowAction(index)
-            end, "", { 70, 42 })),
-        }
-        row.main:SetPosition(-72, y)
-        row.main:SetTextSize(18)
-        row.secondary:SetPosition(105, y)
-        row.secondary:SetTextSize(17)
-        row.tertiary:SetPosition(180, y)
-        row.tertiary:SetTextSize(17)
-        self.rows[index] = row
+    local function MakeRow(_, index)
+        local row = Widget("enhanced_location_row_" .. tostring(index))
+        row.main = row:AddChild(TEMPLATES.StandardButton(function()
+            self:ActivateRow(row.data)
+        end, "", { 390, 46 }))
+        row.secondary = row:AddChild(TEMPLATES.StandardButton(function()
+            self:SecondaryRowAction(row.data)
+        end, "", { 105, 42 }))
+        row.tertiary = row:AddChild(TEMPLATES.StandardButton(function()
+            self:TertiaryRowAction(row.data)
+        end, "", { 105, 42 }))
+        row.player_badge = row:AddChild(PlayerBadge(
+            "", G.DEFAULT_PLAYER_COLOUR, false, 0))
+        row.player_badge:SetScale(0.45)
+        row.player_badge:SetPosition(-276, 0)
+        row.player_badge:Hide()
+        row.main:SetPosition(-55, 0)
+        row.main:SetTextSize(22)
+        row.secondary:SetPosition(230, 0)
+        row.secondary:SetTextSize(19)
+        row.tertiary:SetPosition(230, 0)
+        row.tertiary:SetTextSize(19)
+
+        row.main:SetFocusChangeDir(G.MOVE_RIGHT, row.secondary)
+        row.secondary:SetFocusChangeDir(G.MOVE_LEFT, row.main)
+        row.secondary:SetFocusChangeDir(G.MOVE_RIGHT, row.tertiary)
+        row.tertiary:SetFocusChangeDir(G.MOVE_LEFT, row.secondary)
+        row.focus_forward = function()
+            return row.main:IsEnabled() and row.main or row.secondary
+        end
+        row:SetOnGainFocus(function()
+            if self.scroll_list ~= nil then
+                self.scroll_list:OnWidgetFocus(row)
+            end
+        end)
+        return row
+    end
+
+    local function ApplyRow(_, row, data)
+        self:ApplyRow(row, data)
+    end
+
+    self.scroll_list = self:AddChild(TEMPLATES.ScrollingGrid({}, {
+        scroll_context = { panel = self },
+        widget_width = ROW_WIDTH,
+        widget_height = ROW_HEIGHT,
+        num_visible_rows = VISIBLE_ROWS,
+        num_columns = 1,
+        item_ctor_fn = MakeRow,
+        apply_fn = ApplyRow,
+        scrollbar_offset = 18,
+        scrollbar_height_offset = -35,
+        peek_percent = 0,
+        scroll_per_click = 1,
+    }))
+    self.scroll_list:SetPosition(-2, -25)
+
+    -- Move directly from the final data row to the window action. Letting
+    -- TrueScrollList perform its normal boundary traversal can briefly focus
+    -- one of its hidden recycled rows, which looks like focus was lost.
+    local old_scroll_onfocusmove = self.scroll_list.OnFocusMove
+    self.scroll_list.OnFocusMove = function(scroll_list, dir, down)
+        if down and dir == G.MOVE_DOWN and #scroll_list.items > 0 then
+            local focused_item_index = scroll_list.itemfocus or
+                (scroll_list.focused_widget_index +
+                    scroll_list.displayed_start_index)
+            if focused_item_index >= #scroll_list.items then
+                self.close_button:SetFocus()
+                return true
+            end
+        end
+        return old_scroll_onfocusmove(scroll_list, dir, down)
     end
 
     self.empty_text = self:AddChild(Text(
         G.BODYTEXTFONT, 22, "", G.UICOLOURS.GOLD_UNIMPORTANT))
-    self.empty_text:SetPosition(0, -10)
+    self.empty_text:SetPosition(0, -25)
 
-    self.previous_button = self:AddChild(TEMPLATES.StandardButton(function()
-        self:ChangePage(-1)
-    end, "<", { 55, 38 }))
-    self.previous_button:SetPosition(-100, -265)
-    self.page_text = self:AddChild(Text(
-        G.BODYTEXTFONT, 20, "", G.UICOLOURS.GOLD_UNIMPORTANT))
-    self.page_text:SetPosition(0, -265)
-    self.next_button = self:AddChild(TEMPLATES.StandardButton(function()
-        self:ChangePage(1)
-    end, ">", { 55, 38 }))
-    self.next_button:SetPosition(100, -265)
+    self.header_tabs:SetFocusChangeDir(G.MOVE_DOWN, function()
+        return self:GetFirstContentFocus()
+    end)
+    self.action_button:SetFocusChangeDir(G.MOVE_UP, self.header_tabs)
+    self.action_button:SetFocusChangeDir(G.MOVE_DOWN, function()
+        return #self.rows_data > 0 and
+            self:GetListFocusTarget(1) or self.close_button
+    end)
+    self.scroll_list:SetFocusChangeDir(G.MOVE_UP, function()
+        return self.action_button:IsEnabled() and
+            self.action_button or self.header_tabs
+    end)
+    self.scroll_list:SetFocusChangeDir(G.MOVE_DOWN, self.close_button)
+    self.close_button:SetFocusChangeDir(G.MOVE_UP, function()
+        if #self.rows_data > 0 then
+            return self:GetListFocusTarget(#self.rows_data)
+        end
+        return self.action_button:IsEnabled() and
+            self.action_button or self.header_tabs
+    end)
+    self.focus_forward = self.header_tabs
 
     self.remove_player_subscription = PlayerService.Subscribe(function()
         self:Refresh()
@@ -99,21 +174,6 @@ local LocationPanel = G.Class(Widget, function(self)
     end)
     self:SetTab("players")
 end)
-
-local function PositionLabel(position)
-    return string.format("(%.1f, %.1f)", position.x, position.z)
-end
-
-local function StatusLabel(status)
-    local keys = {
-        not_queried = "LOCATION_STATUS_NOT_QUERIED",
-        querying = "LOCATION_STATUS_QUERYING",
-        located = "LOCATION_STATUS_LOCATED",
-        other_shard = "LOCATION_STATUS_OTHER_SHARD",
-        unavailable = "LOCATION_STATUS_UNAVAILABLE",
-    }
-    return L(keys[status] or "LOCATION_STATUS_NOT_QUERIED")
-end
 
 local function PromptName(title, initial_value, on_confirm)
     local dialog
@@ -140,14 +200,41 @@ end
 
 function LocationPanel:SetTab(tab)
     self.active_tab = tab
-    if tab == "players" then
-        self.players_tab:Select()
-        self.favorites_tab:Unselect()
-    else
-        self.players_tab:Unselect()
-        self.favorites_tab:Select()
+    if self.header_tabs ~= nil then
+        self.header_tabs:SelectButton(tab == "players" and 1 or 2)
     end
     self:Refresh()
+    if self.scroll_list ~= nil then
+        self.scroll_list:ResetScroll()
+    end
+end
+
+function LocationPanel:CycleTab(direction)
+    local index = self.active_tab == "players" and 1 or 2
+    index = ((index - 1 + direction) % 2) + 1
+    self:SetTab(index == 1 and "players" or "favorites")
+end
+
+function LocationPanel:GetFirstContentFocus()
+    if self.action_button:IsEnabled() then
+        return self.action_button
+    end
+    if #self.rows_data > 0 then
+        return self:GetListFocusTarget(1)
+    end
+    return self.close_button
+end
+
+function LocationPanel:GetListFocusTarget(data_index)
+    local item_count = #self.rows_data
+    if item_count == 0 then
+        return self.close_button
+    end
+
+    data_index = math.max(1, math.min(data_index, item_count))
+    self.scroll_list:ScrollToDataIndex(data_index)
+    local widget_index = data_index - self.scroll_list.displayed_start_index
+    return self.scroll_list.widgets_to_update[widget_index] or self.scroll_list
 end
 
 function LocationPanel:RunPrimaryAction()
@@ -163,6 +250,8 @@ function LocationPanel:RunPrimaryAction()
 end
 
 function LocationPanel:Refresh()
+    local list_had_focus = self.scroll_list.focus == true
+
     if self.active_tab == "players" then
         self.action_button:SetText(L("LOCATION_QUERY_ALL"))
         self.action_button:Enable()
@@ -177,95 +266,92 @@ function LocationPanel:Refresh()
         self.rows_data = FavoritesStore.GetCurrentWorld()
     end
 
-    local current_page = self.active_tab == "players" and
-        self.player_page or self.favorite_page
-    local page_count = math.max(1, math.ceil(#self.rows_data / ROW_COUNT))
-    current_page = math.max(1, math.min(current_page, page_count))
-    if self.active_tab == "players" then
-        self.player_page = current_page
-    else
-        self.favorite_page = current_page
-    end
-
-    local first_index = (current_page - 1) * ROW_COUNT + 1
-    for slot, row in ipairs(self.rows) do
-        local data = self.rows_data[first_index + slot - 1]
-        if data == nil then
-            row.main:Hide()
-            row.secondary:Hide()
-            row.tertiary:Hide()
-        else
-            row.main:Show()
-            row.secondary:Show()
-            if self.active_tab == "players" then
-                local position = data.position
-                local detail = position ~= nil and
-                    (position.current_shard and PositionLabel(position) or
-                        (position.world_type or position.shard_id)) or
-                    StatusLabel(data.status)
-                local label = string.format("%s  %s", data.name, detail)
-                row.main:SetText(label)
-                row.main.text:SetTruncatedString(label, 250, 32, true)
-                row.main:SetTooltip(label .. "\n" .. data.userid)
-                if position ~= nil and position.current_shard then
-                    row.main:Enable()
-                else
-                    row.main:Disable()
-                end
-                row.secondary:SetText(data.status == "not_queried" and
-                    L("LOCATION_QUERY") or L("LOCATION_REFRESH"))
-                row.secondary:Enable()
-                row.tertiary:Hide()
-            else
-                local detail = data.current_shard and PositionLabel(data) or
-                    (data.world_type or data.shard_id)
-                local label = string.format("%s  %s", data.name, detail)
-                row.main:SetText(label)
-                row.main.text:SetTruncatedString(label, 250, 32, true)
-                row.main:SetTooltip(label .. "\n" .. data.shard_id)
-                if data.current_shard then
-                    row.main:Enable()
-                else
-                    row.main:Disable()
-                end
-                row.secondary:SetText(L("BUTTON_EDIT"))
-                row.tertiary:SetText(L("BUTTON_DELETE"))
-                row.secondary:Enable()
-                row.tertiary:Enable()
-                row.tertiary:Show()
-            end
-        end
-    end
+    self.scroll_list:SetItemsData(self.rows_data)
 
     if #self.rows_data == 0 then
         self.empty_text:SetString(self.active_tab == "players" and
             L("LOCATION_NO_PLAYERS") or L("LOCATION_NO_FAVORITES"))
         self.empty_text:Show()
+        if list_had_focus then
+            self:GetFirstContentFocus():SetFocus()
+        end
     else
         self.empty_text:Hide()
     end
-    self.page_text:SetString(string.format("%d / %d", current_page, page_count))
-    if current_page > 1 then self.previous_button:Enable() else self.previous_button:Disable() end
-    if current_page < page_count then self.next_button:Enable() else self.next_button:Disable() end
 end
 
-function LocationPanel:GetRowData(slot)
-    local page = self.active_tab == "players" and
-        self.player_page or self.favorite_page
-    return self.rows_data[(page - 1) * ROW_COUNT + slot]
-end
+function LocationPanel:ApplyRow(row, data)
+    row.data = data
+    if data == nil then
+        row:Hide()
+        return
+    end
+    row:Show()
+    row.main:Show()
+    row.secondary:Show()
 
-function LocationPanel:ActivateRow(slot)
-    local data = self:GetRowData(slot)
-    local position = data ~= nil and
-        (self.active_tab == "players" and data.position or data) or nil
-    if position ~= nil and position.current_shard then
-        MapNavigation.Start(position.x, position.z)
+    if self.active_tab == "players" then
+        local position = data.position
+        row.player_badge:Set(
+            data.prefab or "",
+            data.colour or G.DEFAULT_PLAYER_COLOUR,
+            false,
+            data.userflags or 0,
+            data.base_skin)
+        row.player_badge:Show()
+        row.main:ForceImageSize(400, 46)
+        row.main:SetPosition(-55, 0)
+        row.secondary:ForceImageSize(120, 42)
+        row.secondary:SetPosition(230, 0)
+        local label = data.name
+        row.main:SetText(label)
+        row.main.text:SetTruncatedString(label, 360, 32, true)
+        row.main:SetTooltip(label)
+        if position ~= nil and position.current_shard then
+            row.main:Enable()
+        else
+            row.main:Disable()
+        end
+        row.secondary:SetText(data.status == "not_queried" and
+            L("LOCATION_QUERY") or L("LOCATION_REFRESH"))
+        row.secondary:Enable()
+        row.tertiary:Hide()
+    else
+        row.player_badge:Hide()
+        row.main:ForceImageSize(400, 46)
+        row.main:SetPosition(-100, 0)
+        row.secondary:ForceImageSize(90, 42)
+        row.secondary:SetPosition(160, 0)
+        row.tertiary:ForceImageSize(90, 42)
+        row.tertiary:SetPosition(260, 0)
+        local label = data.name
+        row.main:SetText(label)
+        row.main.text:SetTruncatedString(label, 360, 32, true)
+        row.main:SetTooltip(label)
+        if data.current_shard then
+            row.main:Enable()
+        else
+            row.main:Disable()
+        end
+        row.secondary:SetText(L("BUTTON_EDIT"))
+        row.tertiary:SetText(L("BUTTON_DELETE"))
+        row.secondary:Enable()
+        row.secondary:Show()
+        row.tertiary:Enable()
+        row.tertiary:Show()
     end
 end
 
-function LocationPanel:SecondaryRowAction(slot)
-    local data = self:GetRowData(slot)
+function LocationPanel:ActivateRow(data)
+    local position = data ~= nil and
+        (self.active_tab == "players" and data.position or data) or nil
+    if position ~= nil and position.current_shard and
+        self.on_navigate ~= nil then
+        self.on_navigate(position)
+    end
+end
+
+function LocationPanel:SecondaryRowAction(data)
     if data == nil then
         return
     end
@@ -278,31 +364,14 @@ function LocationPanel:SecondaryRowAction(slot)
     end
 end
 
-function LocationPanel:TertiaryRowAction(slot)
-    local data = self:GetRowData(slot)
+function LocationPanel:TertiaryRowAction(data)
     if self.active_tab == "favorites" and data ~= nil then
         FavoritesStore.Remove(data.id)
     end
 end
 
-function LocationPanel:ChangePage(delta)
-    if self.active_tab == "players" then
-        self.player_page = self.player_page + delta
-    else
-        self.favorite_page = self.favorite_page + delta
-    end
-    self:Refresh()
-end
-
-function LocationPanel:IsPointerOver()
-    if not self:IsVisible() or G.TheSim == nil then
-        return false
-    end
-    local x, y = G.TheSim:GetPosition()
-    local _, height = G.TheSim:GetScreenSize()
-    return x <= PANEL_WIDTH + 36 and
-        y >= (height - PANEL_HEIGHT) / 2 and
-        y <= (height + PANEL_HEIGHT) / 2
+function LocationPanel:GetDefaultFocus()
+    return self.header_tabs
 end
 
 function LocationPanel:Shutdown()

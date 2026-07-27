@@ -4,14 +4,58 @@
 
 local G = require("dst-controller/global")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
-local Helpers = require("dst-controller/utils/helpers")
 
 local InputSystemHook = {}
 local installed = false
 
 -- Store original Input methods
 local original_input_methods = {}
-local original_profile_methods = {}
+local original_profile_methods = setmetatable({}, { __mode = "k" })
+
+local function IsInventoryNavigationControl(control)
+    return control == G.VIRTUAL_CONTROL_INV_UP or
+        control == G.VIRTUAL_CONTROL_INV_DOWN or
+        control == G.VIRTUAL_CONTROL_INV_LEFT or
+        control == G.VIRTUAL_CONTROL_INV_RIGHT
+end
+
+-- Virtual cursor mode deliberately makes DST believe no controller is
+-- attached. Mod features that still consume physical gamepad input must use
+-- this accessor instead of the overridden TheInput:ControllerAttached().
+function InputSystemHook.IsControllerPhysicallyAttached()
+    local controller_attached = original_input_methods.ControllerAttached or
+        (G.TheInput ~= nil and G.TheInput.ControllerAttached)
+    return controller_attached ~= nil and
+        controller_attached(G.TheInput) == true
+end
+
+function InputSystemHook.GetPhysicalControllerID()
+    local get_controller_id = original_input_methods.GetControllerID or
+        (G.TheInput ~= nil and G.TheInput.GetControllerID)
+    return get_controller_id ~= nil and get_controller_id(G.TheInput) or 0
+end
+
+-- Profile is not guaranteed to exist when client mods are first loaded. Some
+-- native HUD widgets read it directly instead of using TheInput, so install
+-- the runtime scheme override both eagerly and again at late lifecycle points.
+function InputSystemHook.EnsureProfileControlSchemeOverride()
+    local profile = G.Profile
+    if profile == nil or type(profile.GetControlScheme) ~= "function" then
+        return false
+    elseif original_profile_methods[profile] ~= nil then
+        return true
+    end
+
+    local old_GetControlScheme = profile.GetControlScheme
+    original_profile_methods[profile] = old_GetControlScheme
+    profile.GetControlScheme = function(self, scheme_id, ...)
+        if scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
+            return 2
+        end
+        return old_GetControlScheme(self, scheme_id, ...)
+    end
+    return true
+end
 
 -- Install TheInput hooks
 function InputSystemHook.Install()
@@ -33,10 +77,7 @@ function InputSystemHook.Install()
                 local button_states = VirtualCursor.GetButtonStates()
                 -- print("[InputSystemHook] IsControlPressed", control, "secondary", button_states.secondary)
                 return button_states.secondary
-            elseif control == G.VIRTUAL_CONTROL_INV_UP or
-                control == G.VIRTUAL_CONTROL_INV_DOWN or
-                control == G.VIRTUAL_CONTROL_INV_LEFT or
-                control == G.VIRTUAL_CONTROL_INV_RIGHT then
+            elseif IsInventoryNavigationControl(control) then
                 -- Return false to prevent right analog stick from triggering focus navigation in inventory and crafting menus
                 return false
             end
@@ -52,6 +93,7 @@ function InputSystemHook.Install()
     -- Scheme 2: modified R.Stick for camera, plain R.Stick for inventory.
     original_input_methods.GetActiveControlScheme = G.TheInput.GetActiveControlScheme
     G.TheInput.GetActiveControlScheme = function(self, scheme_id, ...)
+        InputSystemHook.EnsureProfileControlSchemeOverride()
         if scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
             return 2
         end
@@ -59,17 +101,11 @@ function InputSystemHook.Install()
             self, scheme_id, ...)
     end
 
-    -- A few native widgets bypass TheInput and read Profile directly. Mirror
-    -- the runtime override there to prevent behavior/help-text mismatches.
-    if G.Profile ~= nil and type(G.Profile.GetControlScheme) == "function" then
-        original_profile_methods.GetControlScheme = G.Profile.GetControlScheme
-        G.Profile.GetControlScheme = function(self, scheme_id, ...)
-            if scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
-                return 2
-            end
-            return original_profile_methods.GetControlScheme(
-                self, scheme_id, ...)
-        end
+    InputSystemHook.EnsureProfileControlSchemeOverride()
+    if G.AddGamePostInit ~= nil then
+        G.AddGamePostInit(function()
+            InputSystemHook.EnsureProfileControlSchemeOverride()
+        end)
     end
 
     -- Hook GetControllerID to return 0 (keyboard/mouse) when virtual cursor is active

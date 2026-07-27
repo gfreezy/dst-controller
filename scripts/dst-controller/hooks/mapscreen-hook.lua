@@ -1,5 +1,5 @@
 -- Enhanced Controller - MapScreen Hook
--- Hook MapScreen to draw pathfinding paths and handle virtual cursor clicks
+-- Hook MapScreen to draw pathfinding paths and navigate from the center reticle.
 
 local G = require("dst-controller/global")
 local MapPathDrawer = require("dst-controller/utils/map_path_drawer")
@@ -8,10 +8,13 @@ local Helpers = require("dst-controller/utils/helpers")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local WormholeMapVisualizer = require("dst-controller/wormhole-tracker/map_visualizer")
 local LocationMapVisualizer = require("dst-controller/locations/map-visualizer")
-local LocationPanel = require("dst-controller/widgets/location-panel")
+local LocationScreen = require("dst-controller/screens/location-screen")
 local MapNavigation = require("dst-controller/utils/map-navigation")
+local InputSystemHook = require("dst-controller/hooks/input-system-hook")
+local L = require("dst-controller/localization").L
 
 local MapScreenHook = {}
+local CURSOR_BLOCK_SOURCE = "enhanced_map_screen"
 
 -- Hook MapScreen constructor
 function MapScreenHook.Install()
@@ -21,19 +24,86 @@ function MapScreenHook.Install()
         MapPathDrawer.SetMapScreen(self)
         WormholeMapVisualizer.SetMapScreen(self)
         LocationMapVisualizer.SetMapScreen(self)
-        self.enhanced_location_panel = self:AddChild(LocationPanel())
+        self.enhanced_location_screen = nil
+
+        self.OpenEnhancedLocationScreen = function(self, ignore_opening_release)
+            if self.enhanced_location_screen ~= nil then
+                return false
+            end
+            local screen
+            screen = LocationScreen(self, function(closed_screen)
+                if self.enhanced_location_screen == closed_screen then
+                    self.enhanced_location_screen = nil
+                end
+            end, ignore_opening_release == true)
+            self.enhanced_location_screen = screen
+            G.TheFrontEnd:PushScreen(screen)
+            return true
+        end
+
+        -- Native MapScreen help is hard-coded to the classic scheme (separate
+        -- rotate buttons and trigger zoom). Replace it with the controls this
+        -- mod actually owns under scheme 2.
+        local old_GetHelpText = self.GetHelpText
+        self.GetHelpText = function(self)
+            if not InputSystemHook.IsControllerPhysicallyAttached() then
+                return old_GetHelpText(self)
+            end
+
+            local input = G.TheInput
+            local controller_id =
+                InputSystemHook.GetPhysicalControllerID()
+            local localized = function(control)
+                return input:GetLocalizedControl(controller_id, control)
+            end
+            local right_stick = input:GetLocalizedVirtualDirectionalControl(
+                controller_id, "rstick",
+                G.CONTROL_CAM_AND_INV_MODIFIER, false)
+            local hints = {
+                localized(G.CONTROL_CAM_AND_INV_MODIFIER) .. " + " ..
+                    right_stick .. " " .. L("MAP_HELP_CAMERA"),
+            }
+
+            table.insert(hints,
+                localized(G.CONTROL_OPEN_CRAFTING) .. " " ..
+                    L("MAP_HELP_OPEN_LOCATIONS"))
+            table.insert(hints,
+                localized(G.CONTROL_CONTROLLER_ACTION) .. " " ..
+                    L("MAP_HELP_NAVIGATE"))
+
+            local native_back = G.STRINGS ~= nil and G.STRINGS.UI ~= nil and
+                G.STRINGS.UI.HELP ~= nil and G.STRINGS.UI.HELP.BACK or
+                L("BUTTON_CLOSE")
+            table.insert(hints,
+                localized(G.CONTROL_CANCEL) .. " " .. native_back)
+            return table.concat(hints, "  ")
+        end
 
         -- Hook OnBecomeActive - 地图打开时
         local old_OnBecomeActive = self.OnBecomeActive
         self.OnBecomeActive = function(self)
+            if not self.enhanced_map_cursor_blocked and
+                InputSystemHook.IsControllerPhysicallyAttached() then
+                self.enhanced_restore_cursor_mode =
+                    VirtualCursor.IsCursorModeActive()
+                self.enhanced_restore_cursor_auto =
+                    self.enhanced_restore_cursor_mode and
+                    VirtualCursor.IsAutoActivated()
+                VirtualCursor.SetModeBlocked(CURSOR_BLOCK_SOURCE, true)
+                self.enhanced_map_cursor_blocked = true
+            end
             old_OnBecomeActive(self)
+            -- MapScreen can construct mouse zoom controls before its first
+            -- OnBecomeActive. Hide that stale layer after switching back to
+            -- native controller focus.
+            if self.enhanced_map_cursor_blocked and self.mapcontrols ~= nil then
+                self.mapcontrols:Hide()
+                self.mapcontrols:Disable()
+            end
             MapPathDrawer.SetMapScreen(self)
             WormholeMapVisualizer.SetMapScreen(self)
             LocationMapVisualizer.SetMapScreen(self)
             LocationMapVisualizer.Refresh()
-            if self.enhanced_location_panel ~= nil then
-                self.enhanced_location_panel:Refresh()
-            end
 
             -- 绘制已知虫洞连接
             WormholeMapVisualizer.DrawConnections()
@@ -66,9 +136,7 @@ function MapScreenHook.Install()
                 Helpers.DebugPrint("No active pathfinding")
             end
 
-            -- Auto-enable virtual cursor for map mode
-            VirtualCursor.AutoEnable()
-            Helpers.DebugPrint("Virtual cursor enabled for map mode")
+            Helpers.DebugPrint("Map mode uses native controller focus")
         end
 
         -- Hook OnDestroy - 地图关闭时清理
@@ -79,23 +147,28 @@ function MapScreenHook.Install()
             WormholeMapVisualizer.ClearDecorations()
             WormholeMapVisualizer.SetMapScreen(nil)
             LocationMapVisualizer.SetMapScreen(nil)
-            if self.enhanced_location_panel ~= nil then
-                self.enhanced_location_panel:Shutdown()
-            end
 
             -- 注意：关闭地图不停止寻路，让角色继续自动走到目标
             -- 只有用户主动移动时才停止（在 playercontroller-hook 中处理）
 
-            -- Auto-disable virtual cursor if it was auto-activated
-            VirtualCursor.AutoDisable()
-            Helpers.DebugPrint("Virtual cursor disabled after closing map")
-
             old_OnDestroy(self)
+
+            if self.enhanced_map_cursor_blocked then
+                VirtualCursor.SetModeBlocked(CURSOR_BLOCK_SOURCE, false)
+                self.enhanced_map_cursor_blocked = false
+                if self.enhanced_restore_cursor_mode then
+                    VirtualCursor.ToggleCursorMode(
+                        true, self.enhanced_restore_cursor_auto)
+                end
+            end
         end
 
         -- Hook DoZoomIn/DoZoomOut - 缩放时更新装饰位置
         local old_DoZoomIn = self.DoZoomIn
         self.DoZoomIn = function(self, ...)
+            if self.enhanced_block_trigger_zoom then
+                return
+            end
             old_DoZoomIn(self, ...)
             MapPathDrawer.UpdateDecorations()
             WormholeMapVisualizer.UpdateDecorations()
@@ -104,6 +177,9 @@ function MapScreenHook.Install()
 
         local old_DoZoomOut = self.DoZoomOut
         self.DoZoomOut = function(self, ...)
+            if self.enhanced_block_trigger_zoom then
+                return
+            end
             old_DoZoomOut(self, ...)
             MapPathDrawer.UpdateDecorations()
             WormholeMapVisualizer.UpdateDecorations()
@@ -126,7 +202,34 @@ function MapScreenHook.Install()
         -- preserved. Add only the controller extensions owned by this mod.
         local old_OnUpdate = self.OnUpdate
         self.OnUpdate = function(self, dt)
+            local input = G.TheInput
+            local function IsTriggerZoomPressed(control)
+                -- GetControlIsMouseWheel is not a reliable source discriminator
+                -- here: DST can report controller-bound map zoom controls as
+                -- mouse-wheel controls. With a controller attached, disable the
+                -- native map zoom controls completely; this mod's LB + right
+                -- stick zoom is applied separately below.
+                return InputSystemHook.IsControllerPhysicallyAttached() and
+                    input:IsControlPressed(control)
+            end
+
+            self.enhanced_block_trigger_zoom =
+                IsTriggerZoomPressed(G.CONTROL_MAP_ZOOM_IN) or
+                IsTriggerZoomPressed(G.CONTROL_MAP_ZOOM_OUT)
+            if self.enhanced_block_trigger_zoom then
+                local zoom = self.minimap:GetZoom()
+                self.zoom_target = zoom
+                self.zoom_old = zoom
+                self.zoom_target_time = 0
+            end
             local result = old_OnUpdate(self, dt)
+            if self.enhanced_block_trigger_zoom then
+                local zoom = self.minimap:GetZoom()
+                self.zoom_target = zoom
+                self.zoom_old = zoom
+                self.zoom_target_time = 0
+            end
+            self.enhanced_block_trigger_zoom = false
             local deadzone = G.TUNING.CONTROLLER_DEADZONE_RADIUS
 
             if Helpers.IsButtonPressed("LB") then
@@ -178,34 +281,37 @@ function MapScreenHook.Install()
             return result
         end
 
-        -- Hook OnControl - 检测虚拟光标点击启动寻路
+        -- Hook OnControl - A navigates to the world position under the center
+        -- reticle. Map mode always uses native controller focus.
         local old_OnControl = self.OnControl
         self.OnControl = function(self, control, down)
-            if self.enhanced_location_panel ~= nil and
-                self.enhanced_location_panel:IsPointerOver() then
-                return old_OnControl(self, control, down)
+            local controller_attached =
+                InputSystemHook.IsControllerPhysicallyAttached()
+            if controller_attached and
+                Helpers.IsControlNamedButton(control, "LT") then
+                if down then
+                    self:OpenEnhancedLocationScreen(true)
+                end
+                return true
             end
-            -- 如果按下的是LB或RB，跳过
-            if Helpers.IsControlAnyOf(control, {"LB", "RB", "LT", "RT"}) then
+            -- LT/RT are reserved by this mod in map mode and must never fall
+            -- through to native map zoom.
+            if Helpers.IsControlAnyOf(control, { "LT", "RT" }) then
+                return true
+            end
+            if Helpers.IsControlAnyOf(control, { "LB", "RB" }) then
                 return false
             end
 
             Helpers.DebugPrintf("Map control: %s, down: %s",
                 tostring(control), tostring(down))
-            -- 检查是否是虚拟光标模式下的左键点击
-            if VirtualCursor.IsCursorModeActive() then
-                if control == G.CONTROL_ACCEPT and down then
-                -- 获取光标位置的世界坐标
-                    local wx, wy, wz = self:GetWorldPositionAtCursor()
-
-                    if wx and wz then
+            if controller_attached and
+                Helpers.IsControlNamedButton(control, "A") then
+                if down then
+                    local wx, wz = self.minimap:MapPosToWorldPos(0, 0, 0)
+                    if wx ~= nil and wz ~= nil then
                         Helpers.DebugPrintf(
-                            "Map target selected at (%.1f, %.1f, %.1f)", wx, wy, wz)
-
-                        -- 关闭地图
-                        -- G.TheFrontEnd:PopScreen()
-
-                        -- 启动寻路
+                            "Map center selected at (%.1f, %.1f)", wx, wz)
                         local success = MapNavigation.Start(wx, wz)
                         if not success then
                             Helpers.DebugPrint("Unable to start pathfinding")
@@ -215,10 +321,9 @@ function MapScreenHook.Install()
                         MapPathDrawer.UpdateDecorations()
                         WormholeMapVisualizer.UpdateDecorations()
                         LocationMapVisualizer.UpdateDecorations()
-
-                        return true
                     end
                 end
+                return true
             end
 
             -- 调用原方法

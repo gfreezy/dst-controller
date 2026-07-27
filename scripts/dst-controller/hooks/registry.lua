@@ -44,6 +44,9 @@ function HookRegistry.InstallAll()
     -- 6. CraftingMenu Widget (hide bottom layer and block RSTICK)
     require("dst-controller/hooks/craftingmenu-hook").Install()
 
+    -- 6b. Native Cookbook (Search & Cook button and focus routing)
+    require("dst-controller/hooks/cookbook-hook").Install()
+
     -- 7. Controls Widget (cursor widget injection)
     require("dst-controller/hooks/controls-hook").Install()
 

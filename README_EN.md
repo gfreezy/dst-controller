@@ -11,7 +11,7 @@ A powerful controller enhancement mod for Don't Starve Together with custom butt
 - 🎮 **12 Custom Button Combos** - Fully configurable gamepad button mapping
 - 🖱️ **Virtual Cursor System** - Gamepad-controlled mouse cursor, full screen interaction
 - 🧰 **Automatic Crafting** - Find nearby materials/containers and craft intermediates
-- 🍲 **Half-Screen Cooking List** - Select dishes while moving, then find ingredients and an idle cooker
+- 🍲 **Cookbook Search & Cook** - Start verified ingredient and cooker search from native recipe details
 - 📋 **ActionQueue Integration** - Use controller drag selection from the virtual cursor
 - 🗺️ **Map Auto-Pathfinding** - Click map to auto-navigate, intelligent path planning
 - 📍 **Player & Favorite Locations** - Manually query player snapshots, save positions, and navigate from the panel
@@ -72,18 +72,13 @@ Recipes satisfiable from nearby materials are labeled “Auto Build” in the cr
 
 ### 🍲 Search & Cook
 
-The Cookbook entry now opens a half-screen HUD cooking list. You can also assign “Open Cooking List” to any mod button combination:
+The configurable “Open Cookbook” action opens DST's native Cookbook directly and does not require a Cookbook item in the inventory. Unlocked dishes with a valid discovered four-slot recipe show a “Search & Cook” button in their detail page:
 
-- Does not pause or enter native crafting navigation; the left stick keeps moving the character
-- Use the right stick to select, A to Search & Cook, and B to close
-- Reads cooker recipes registered by the game and other mods without Cookbook unlock data
-- Dynamically plans a four-slot combination from actual nearby ingredients
-- Rejects combinations that may randomly produce another same-priority dish
 - Finds a nearby empty compatible cookpot, archive cookpot, or portable cookpot
 - Collects ingredients from personal inventory, the ground, and verified nearby containers
 - Revalidates every cooker slot before invoking the native Cook button
 - Shares Auto Build's radius, smart/thorough search mode, and container limit
-- Supports mouse and controller focus navigation and stops safely on manual input or changed state
+- Stops safely on manual input or changed state
 
 ### 📋 ActionQueue Controller Integration
 
@@ -235,7 +230,7 @@ Automatically record wormhole pair connections - no manual marking needed!
 ### Crafting
 
 - **craft_item**: Find nearby materials/containers and craft the requested item; later sequence actions wait for completion or interruption
-- **toggle_cooking_menu**: Open or close the half-screen cooking list without blocking movement
+- **toggle_cooking_menu**: Open the native Cookbook (legacy action ID retained for saved-config compatibility)
 
 ### System
 
@@ -462,9 +457,8 @@ A: Path visualization only shows when the map is open. After closing the map, th
 ## 📝 Changelog
 
 ### v2.7.0
-- ✨ Replaced the Cookbook entry with a half-screen HUD cooking list usable while moving
-- ✨ Added an assignable Open Cooking List action and right-stick list navigation
-- ✨ Cooking no longer requires discovered Cookbook recipes and dynamically plans deterministic four-slot combinations from nearby ingredients
+- ✨ Restored DST's native Cookbook and an assignable Open Cookbook action
+- ✨ Kept Search & Cook on unlocked recipe detail pages
 
 ### v2.6.0
 - ✨ Added Cookbook “Search & Cook” to find nearby ingredients, containers, and an empty compatible cooker
