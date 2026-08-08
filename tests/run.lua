@@ -23,6 +23,7 @@ local test_files = {
     "tests/virtual_cursor_update_test.lua",
     "tests/virtual_cursor_magnetism_runtime_test.lua",
     "tests/input_system_hook_test.lua",
+    "tests/controller_mode_gate_test.lua",
     "tests/material_planner_test.lua",
     "tests/container_cache_scope_test.lua",
     "tests/storage_access_policy_test.lua",

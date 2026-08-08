@@ -22,13 +22,16 @@ function MapScreenHook.Install()
     LocationMapVisualizer.InstallSubscriptions()
     G.AddClassPostConstruct("screens/mapscreen", function(self)
         -- 设置当前地图屏幕
-        MapPathDrawer.SetMapScreen(self)
-        WormholeMapVisualizer.SetMapScreen(self)
-        LocationMapVisualizer.SetMapScreen(self)
+        if InputSystemHook.IsControllerPhysicallyAttached() then
+            MapPathDrawer.SetMapScreen(self)
+            WormholeMapVisualizer.SetMapScreen(self)
+            LocationMapVisualizer.SetMapScreen(self)
+        end
         self.enhanced_location_screen = nil
 
         self.OpenEnhancedLocationScreen = function(self, ignore_opening_release)
-            if self.enhanced_location_screen ~= nil then
+            if not InputSystemHook.IsControllerPhysicallyAttached() or
+                self.enhanced_location_screen ~= nil then
                 return false
             end
             PlayerService.ClearPositions()
@@ -84,6 +87,9 @@ function MapScreenHook.Install()
         -- Hook OnBecomeActive - 地图打开时
         local old_OnBecomeActive = self.OnBecomeActive
         self.OnBecomeActive = function(self)
+            if not InputSystemHook.IsControllerPhysicallyAttached() then
+                return old_OnBecomeActive(self)
+            end
             if not self.enhanced_map_cursor_blocked and
                 InputSystemHook.IsControllerPhysicallyAttached() then
                 self.enhanced_restore_cursor_mode =
@@ -194,9 +200,11 @@ function MapScreenHook.Install()
             local old_Offset = self.minimap.Offset
             self.minimap.Offset = function(minimap_self, ...)
                 old_Offset(minimap_self, ...)
-                MapPathDrawer.UpdateDecorations()
-                WormholeMapVisualizer.UpdateDecorations()
-                LocationMapVisualizer.UpdateDecorations()
+                if InputSystemHook.IsControllerPhysicallyAttached() then
+                    MapPathDrawer.UpdateDecorations()
+                    WormholeMapVisualizer.UpdateDecorations()
+                    LocationMapVisualizer.UpdateDecorations()
+                end
             end
         end
 
@@ -204,6 +212,9 @@ function MapScreenHook.Install()
         -- preserved. Add only the controller extensions owned by this mod.
         local old_OnUpdate = self.OnUpdate
         self.OnUpdate = function(self, dt)
+            if not InputSystemHook.IsControllerPhysicallyAttached() then
+                return old_OnUpdate(self, dt)
+            end
             local input = G.TheInput
             local function IsTriggerZoomPressed(control)
                 -- GetControlIsMouseWheel is not a reliable source discriminator
@@ -289,6 +300,9 @@ function MapScreenHook.Install()
         self.OnControl = function(self, control, down)
             local controller_attached =
                 InputSystemHook.IsControllerPhysicallyAttached()
+            if not controller_attached then
+                return old_OnControl(self, control, down)
+            end
             if controller_attached and
                 Helpers.IsControlNamedButton(control, "LT") then
                 if down then

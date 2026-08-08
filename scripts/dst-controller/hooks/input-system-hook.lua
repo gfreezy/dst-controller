@@ -4,6 +4,7 @@
 
 local G = require("dst-controller/global")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local InputSystemHook = {}
 local installed = false
@@ -30,10 +31,7 @@ end
 -- attached. Mod features that still consume physical gamepad input must use
 -- this accessor instead of the overridden TheInput:ControllerAttached().
 function InputSystemHook.IsControllerPhysicallyAttached()
-    local controller_attached = original_input_methods.ControllerAttached or
-        (G.TheInput ~= nil and G.TheInput.ControllerAttached)
-    return controller_attached ~= nil and
-        controller_attached(G.TheInput) == true
+    return ControlMode.IsControllerActive()
 end
 
 function InputSystemHook.GetPhysicalControllerID()
@@ -56,7 +54,8 @@ function InputSystemHook.EnsureProfileControlSchemeOverride()
     local old_GetControlScheme = profile.GetControlScheme
     original_profile_methods[profile] = old_GetControlScheme
     profile.GetControlScheme = function(self, scheme_id, ...)
-        if scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
+        if ControlMode.IsControllerActive() and
+            scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
             return 2
         end
         return old_GetControlScheme(self, scheme_id, ...)
@@ -115,7 +114,8 @@ function InputSystemHook.Install()
     original_input_methods.GetActiveControlScheme = G.TheInput.GetActiveControlScheme
     G.TheInput.GetActiveControlScheme = function(self, scheme_id, ...)
         InputSystemHook.EnsureProfileControlSchemeOverride()
-        if scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
+        if ControlMode.IsControllerActive() and
+            scheme_id == G.CONTROL_SCHEME_CAM_AND_INV then
             return 2
         end
         return original_input_methods.GetActiveControlScheme(
@@ -144,6 +144,8 @@ function InputSystemHook.Install()
     -- This is THE KEY to switching to mouse mode!
     -- When ControllerAttached() returns false, the entire game switches to mouse/keyboard mode
     original_input_methods.ControllerAttached = G.TheInput.ControllerAttached
+    ControlMode.SetOriginalControllerAttached(
+        original_input_methods.ControllerAttached)
     G.TheInput.ControllerAttached = function(self)
         if VirtualCursor.IsCursorModeActive() then
             return false -- Pretend no controller is attached → mouse mode
@@ -173,6 +175,7 @@ end
 
 function InputSystemHook._ResetForTests()
     installed = false
+    ControlMode._ResetForTests()
 end
 
 return InputSystemHook

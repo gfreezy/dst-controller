@@ -4,12 +4,15 @@ local G = require("dst-controller/global")
 local ChatTransport = require("dst-controller/locations/chat-transport")
 local PlayerService = require("dst-controller/locations/player-service")
 local FavoritesStore = require("dst-controller/locations/favorites-store")
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local NetworkingHook = {}
 
 local function InstallChatTransport()
     return ChatTransport.Install(function(packet, sender)
-        PlayerService.HandlePacket(packet, sender)
+        if ControlMode.IsControllerActive() then
+            PlayerService.HandlePacket(packet, sender)
+        end
     end)
 end
 

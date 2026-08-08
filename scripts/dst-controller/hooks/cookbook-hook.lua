@@ -5,6 +5,7 @@ local ContainerCache = require("dst-controller/crafting/container-cache")
 local Planner = require("dst-controller/cooking/planner")
 local Coordinator = require("dst-controller/cooking/coordinator")
 local L = require("dst-controller/localization").L
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local CookbookHook = {}
 
@@ -34,7 +35,8 @@ local function ApplyFocus(page)
 end
 
 local function CanAddButton(page, data, cooker_prefabs)
-    return G.ThePlayer ~= nil and G.TheWorld ~= nil and
+    return ControlMode.IsControllerActive() and
+        G.ThePlayer ~= nil and G.TheWorld ~= nil and
         page.parent_screen == G.ThePlayer and
         data ~= nil and data.unlocked and
         type(data.recipes) == "table" and #data.recipes > 0 and
@@ -64,6 +66,9 @@ function CookbookHook.Install()
                     }
                     local button
                     button = root:AddChild(TEMPLATES.StandardButton(function()
+                        if not ControlMode.IsControllerActive() then
+                            return
+                        end
                         if button ~= nil then
                             button:Disable()
                         end

@@ -1,6 +1,7 @@
 local component_postinit = nil
 local handled_calls = 0
 local active_screen = nil
+local controller_mode = true
 local hud = {}
 local player = {
     GUID = 901,
@@ -61,6 +62,9 @@ package.loaded["dst-controller/crafting/coordinator"] = {
 package.loaded["dst-controller/cooking/coordinator"] = {
     OnUserControl = function() end,
 }
+package.loaded["dst-controller/utils/control-mode"] = {
+    IsControllerActive = function() return controller_mode end,
+}
 package.loaded["dst-controller/hooks/playercontroller-hook"] = nil
 
 require("dst-controller/hooks/playercontroller-hook").Install()
@@ -90,3 +94,9 @@ assert(controller:OnControl(46, true) == true and handled_calls == 1,
     "shortcuts should execute on the gameplay PlayerHud")
 assert(native_calls == 1,
     "a handled gameplay shortcut should not reach native controller behavior")
+
+controller_mode = false
+assert(controller:OnControl(46, true) == "native" and handled_calls == 1,
+    "keyboard/mouse mode must bypass every gameplay shortcut")
+assert(native_calls == 2,
+    "keyboard/mouse input should retain native controller behavior unchanged")

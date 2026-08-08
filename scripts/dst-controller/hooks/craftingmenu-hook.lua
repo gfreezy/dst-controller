@@ -8,6 +8,7 @@ local MenuPolicy = require("dst-controller/crafting/menu-policy")
 local Coordinator = require("dst-controller/crafting/coordinator")
 local Helpers = require("dst-controller/utils/helpers")
 local L = require("dst-controller/localization").L
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local CraftingMenuHook = {}
 
@@ -63,7 +64,8 @@ function CraftingMenuHook.Install()
         if old_DoRecipeClick ~= nil then
             G.SetGlobal("ENHANCED_CONTROLLER_RECIPE_CLICK_INSTALLED", true)
             G.SetGlobal("DoRecipeClick", function(owner, recipe, skin)
-                if recipe ~= nil and owner ~= nil and owner.replica ~= nil and
+                if ControlMode.IsControllerActive() and
+                    recipe ~= nil and owner ~= nil and owner.replica ~= nil and
                     owner.replica.builder ~= nil and
                     not owner.replica.builder:HasIngredients(recipe) and
                     MenuPolicy.CanSearchAndBuild(owner, recipe) then
@@ -85,20 +87,38 @@ function CraftingMenuHook.Install()
             -- native recipe states.
             MenuPolicy.RestoreRecipeStates(self.valid_recipes)
             local result = old_RebuildRecipes(self, ...)
-            MenuPolicy.ApplyToRecipeStates(self.owner, self.valid_recipes)
-            RefreshCachedColours(self)
+            if ControlMode.IsControllerActive() then
+                MenuPolicy.ApplyToRecipeStates(self.owner, self.valid_recipes)
+                RefreshCachedColours(self)
+            end
             return result
         end
 
         -- The constructor builds once before post construction is installed.
-        MenuPolicy.ApplyToRecipeStates(hud.owner, hud.valid_recipes)
-        RefreshCachedColours(hud)
+        if ControlMode.IsControllerActive() then
+            MenuPolicy.ApplyToRecipeStates(hud.owner, hud.valid_recipes)
+            RefreshCachedColours(hud)
+        end
 
         local old_OnUpdate = hud.OnUpdate
         hud._enhanced_cache_refresh_time = 0
         hud._enhanced_cache_position = nil
+        hud._enhanced_controller_features_active =
+            ControlMode.IsControllerActive()
         hud.OnUpdate = function(self, dt)
             old_OnUpdate(self, dt)
+            if not ControlMode.IsControllerActive() then
+                if self._enhanced_controller_features_active then
+                    self._enhanced_controller_features_active = false
+                    MenuPolicy.RestoreRecipeStates(self.valid_recipes)
+                    RefreshCachedColours(self)
+                end
+                return
+            end
+            if not self._enhanced_controller_features_active then
+                self._enhanced_controller_features_active = true
+                self:UpdateRecipes()
+            end
             self._enhanced_cache_refresh_time = self._enhanced_cache_refresh_time + dt
             if self._enhanced_cache_refresh_time >= Policy.MENU_REFRESH_INTERVAL then
                 self._enhanced_cache_refresh_time = 0
@@ -117,7 +137,9 @@ function CraftingMenuHook.Install()
         hud.Open = function(self, search)
             -- If pinbar has focus in controller mode, move focus back to inventory first
             -- This makes behavior consistent with when pinbar doesn't have focus
-            if G.TheInput:ControllerAttached() and self.pinbar and self.pinbar.focus then
+            if ControlMode.IsControllerActive() and
+                G.TheInput:ControllerAttached() and
+                self.pinbar and self.pinbar.focus then
                 -- Access inventorybar through owner.HUD.controls.inv
                 local inv = self.owner and self.owner.HUD and self.owner.HUD.controls and self.owner.HUD.controls.inv
                 if inv and inv.SelectDefaultSlot then
@@ -137,7 +159,8 @@ function CraftingMenuHook.Install()
         local old_UpdateBuildButton = details.UpdateBuildButton
         details.UpdateBuildButton = function(self, ...)
             local result = old_UpdateBuildButton(self, ...)
-            if self.data ~= nil and self.data.meta._enhanced_search_enabled then
+            if ControlMode.IsControllerActive() and self.data ~= nil and
+                self.data.meta._enhanced_search_enabled then
                 local button = self.build_button_root and self.build_button_root.button
                 local teaser = self.build_button_root and self.build_button_root.teaser
                 local label = L("SEARCH_AND_BUILD")
@@ -163,7 +186,16 @@ function CraftingMenuHook.Install()
         self.Refresh = function (self, ...)
             local data = self.craftingmenu:GetRecipeState(self.recipe_name)
             ApplyCachedColour(data, Refresh_Old, self, ...)
-            self.craft_button.GetHelpText = function (_self, ...) return "" end
+            if not self._enhanced_help_hooked then
+                self._enhanced_help_hooked = true
+                local old_GetHelpText = self.craft_button.GetHelpText
+                self.craft_button.GetHelpText = function (_self, ...)
+                    if ControlMode.IsControllerActive() then
+                        return ""
+                    end
+                    return old_GetHelpText(_self, ...)
+                end
+            end
         end
 
     end)

@@ -4,6 +4,7 @@
 local G = require("dst-controller/global")
 local WormholeTracker = require("dst-controller/wormhole-tracker/core")
 local Helpers = require("dst-controller/utils/helpers")
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local WormholeTrackerHook = {}
 
@@ -21,6 +22,9 @@ local function InstallPlayerListeners(player)
     -- Listen for wormholespit event (when player exits a wormhole)
     -- Note: This may not work on pure clients as the event is server-side
     player:ListenForEvent("wormholespit", function()
+        if not ControlMode.IsControllerActive() then
+            return
+        end
         Helpers.DebugPrint("Wormhole exit event received")
         WormholeTracker.OnExitWormhole(player)
     end)
@@ -28,7 +32,8 @@ local function InstallPlayerListeners(player)
     -- Alternative: Listen for stategraph state change to "jumpout"
     -- This fires when player exits a wormhole
     player:ListenForEvent("newstate", function(inst, data)
-        if data and data.statename == "jumpout" then
+        if ControlMode.IsControllerActive() and data and
+            data.statename == "jumpout" then
             Helpers.DebugPrint("Wormhole jumpout state detected")
             -- Delay slightly to ensure player position is updated
             player:DoTaskInTime(0.5, function()
@@ -94,7 +99,8 @@ local function HookPlayerController()
 
         self.DoAction = function(self, bufferedaction)
             -- Check if this is a JUMPIN action on a wormhole
-            if bufferedaction and bufferedaction.action then
+            if ControlMode.IsControllerActive() and
+                bufferedaction and bufferedaction.action then
                 local action_id = bufferedaction.action.id
                 if (action_id == "JUMPIN" or action_id == "JUMPIN_MAP") and
                    bufferedaction.target and

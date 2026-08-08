@@ -8,13 +8,19 @@
 
 local G = require("dst-controller/global")
 local InventoryBarHook = require("dst-controller/inventory/core")
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local InventorybarHook = {}
 
 -- Install inventorybar hook
 function InventorybarHook.Install()
     G.AddClassPostConstruct("widgets/inventorybar", function(self)
+        local old_OpenControllerInventory = self.OpenControllerInventory
+        local old_OnUpdate = self.OnUpdate
         function self:OpenControllerInventory()
+            if not ControlMode.IsControllerActive() then
+                return old_OpenControllerInventory(self)
+            end
             if not self.open then
                 self.open = true
                 self.force_single_drop = false --reset the flag
@@ -39,6 +45,9 @@ function InventorybarHook.Install()
         end
 
         self.OnUpdate = function(self, dt)
+            if not ControlMode.IsControllerActive() then
+                return old_OnUpdate(self, dt)
+            end
             InventoryBarHook.OnUpdate(self, dt)
         end
     end)

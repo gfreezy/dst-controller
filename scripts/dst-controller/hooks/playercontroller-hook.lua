@@ -13,6 +13,7 @@ local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local CraftingCoordinator = require("dst-controller/crafting/coordinator")
 local CookingCoordinator = require("dst-controller/cooking/coordinator")
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local PlayerControllerHook = {}
 
@@ -36,22 +37,35 @@ end
 
 -- Hook: UpdateControllerTargets (override)
 local function InstallUpdateControllerTargets(self)
+    local old_UpdateControllerTargets = self.UpdateControllerTargets
     self.UpdateControllerTargets = function(self, dt)
+        if not ControlMode.IsControllerActive() then
+            return old_UpdateControllerTargets(self, dt)
+        end
         -- Delegate to target selection module
         TargetSelection.UpdateControllerTargets(self, dt)
     end
 
     self.GetControllerAlternativeTarget = function(self)
+        if not ControlMode.IsControllerActive() then
+            return nil
+        end
         local target = self.controller_alternative_target
         return IsUsableControllerTarget(self, target) and target or nil
     end
 
     self.GetControllerExamineTarget = function(self)
+        if not ControlMode.IsControllerActive() then
+            return nil
+        end
         local target = self.controller_examine_target
         return IsUsableControllerTarget(self, target) and target or nil
     end
 
     self.GetControllerItemUseTarget = function(self)
+        if not ControlMode.IsControllerActive() then
+            return nil
+        end
         local target = self.controller_item_use_target
         return IsUsableControllerTarget(self, target) and target or nil
     end
@@ -64,6 +78,9 @@ local function InstallGetItemUseAction(self)
     local old_GetItemUseAction = self.GetItemUseAction
 
     self.GetItemUseAction = function(self, active_item, target)
+        if not ControlMode.IsControllerActive() then
+            return old_GetItemUseAction(self, active_item, target)
+        end
         if target ~= nil then
             return old_GetItemUseAction(self, active_item, target)
         end
@@ -93,6 +110,9 @@ local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(self, control, down)
+        if not ControlMode.IsControllerActive() then
+            return old_OnControl(self, control, down)
+        end
         -- print("[PlayerControllerHook] OnControl: " .. control, "down: " .. tostring(down))
 
         -- Any new user command takes ownership away from automatic crafting.
@@ -189,6 +209,9 @@ local function InstallIsEnabled(self)
     local old_IsEnabled = self.IsEnabled
     self.IsEnabled = function(self)
         local enabled, limited_gameplay = old_IsEnabled(self)
+        if not ControlMode.IsControllerActive() then
+            return enabled, limited_gameplay
+        end
         if not enabled and self.inst.HUD ~= nil and self.inst.HUD:HasInputFocus() and
             self.inst.HUD.IsControllerInventoryOpen ~= nil and
             self.inst.HUD:IsControllerInventoryOpen() then
@@ -216,6 +239,9 @@ local function InstallDoControllerAttackButton(self)
     local old_DoControllerAttackButton = self.DoControllerAttackButton
 
     self.DoControllerAttackButton = function(self, target)
+        if not ControlMode.IsControllerActive() then
+            return old_DoControllerAttackButton(self, target)
+        end
         -- Check if air attack is disabled
         local settings = ConfigManager.GetRuntimeSettings()
         if settings and settings.allow_air_attack == false then

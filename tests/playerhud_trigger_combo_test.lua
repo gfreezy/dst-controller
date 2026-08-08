@@ -3,6 +3,7 @@ local combo_owns_trigger = false
 local native_calls = 0
 local player = { GUID = 801 }
 local active_screen = nil
+local controller_mode = true
 
 package.loaded["dst-controller/global"] = {
     AddClassPostConstruct = function(path, fn)
@@ -21,6 +22,9 @@ package.loaded["dst-controller/executor/button-handler"] = {
         assert(routed_player == player)
         return combo_owns_trigger
     end,
+}
+package.loaded["dst-controller/utils/control-mode"] = {
+    IsControllerActive = function() return controller_mode end,
 }
 package.loaded["dst-controller/hooks/playerhud-hook"] = nil
 
@@ -53,3 +57,9 @@ active_screen = { name = "MapScreen" }
 combo_owns_trigger = true
 assert(hud:OnControl(46, true) == true and native_calls == 2,
     "an inactive PlayerHud must not intercept map trigger controls")
+
+active_screen = hud
+controller_mode = false
+combo_owns_trigger = true
+assert(hud:OnControl(46, true) == true and native_calls == 3,
+    "keyboard/mouse mode must bypass PlayerHud trigger shortcuts")

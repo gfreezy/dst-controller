@@ -4,6 +4,7 @@
 local G = require("dst-controller/global")
 local TaskConfigHook = require("dst-controller.screens.taskconfig-actions")
 local ButtonHandler = require("dst-controller/executor/button-handler")
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local PlayerHudHook = {}
 
@@ -18,6 +19,9 @@ local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(hud_self, control, down)
+        if not ControlMode.IsControllerActive() then
+            return old_OnControl(hud_self, control, down)
+        end
         local is_gameplay_hud = IsGameplayHudActive(hud_self)
 
         -- Check task config screen shortcut (LB+RB+Y)

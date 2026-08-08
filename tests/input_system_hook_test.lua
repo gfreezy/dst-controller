@@ -7,6 +7,7 @@ local position_calls = 0
 local pressed_controls = {}
 local prioritize_cursor_stick = false
 local game_postinit
+local controller_attached = true
 local profile = {
     GetControlScheme = function(_, scheme_id)
         return scheme_id == 99 and 7 or 1
@@ -20,7 +21,7 @@ local input = {
     GetAnalogControlValue = function(_, control) return control / 10 end,
     GetActiveControlScheme = function() return 1 end,
     GetControllerID = function() return 1 end,
-    ControllerAttached = function() return true end,
+    ControllerAttached = function() return controller_attached end,
     OnMouseMove = function()
         mouse_move_calls = mouse_move_calls + 1
     end,
@@ -128,6 +129,15 @@ assert(position_calls == 2, "an external position event must still reach DST")
 cursor_active = false
 assert(input:GetActiveControlScheme(10) == 2,
     "normal gameplay should keep using the mod's required scheme")
+
+controller_attached = false
+assert(not InputSystemHook.IsControllerPhysicallyAttached(),
+    "keyboard/mouse mode should disable physical controller features")
+assert(input:GetActiveControlScheme(10) == 1 and
+       profile:GetControlScheme(10) == 1 and
+       late_profile:GetControlScheme(10) == 1,
+    "keyboard/mouse mode must preserve native input and profile schemes")
+controller_attached = true
 
 pressed_controls[3] = true
 pressed_controls[20] = true

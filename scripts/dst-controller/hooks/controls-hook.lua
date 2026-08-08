@@ -3,6 +3,7 @@
 -- Note: cursor_widget is now created in TheFrontEnd hook
 
 local G = require("dst-controller/global")
+local ControlMode = require("dst-controller/utils/control-mode")
 
 local ControlsHook = {}
 
@@ -15,7 +16,14 @@ local function HookOnUpdate(self)
         old_OnUpdate(controls, dt)
 
         -- Only handle in controller mode
-        if not G.TheInput:ControllerAttached() then
+        if not ControlMode.IsControllerActive() or
+            not G.TheInput:ControllerAttached() then
+            if controls.alternative_actionhint then
+                controls.alternative_actionhint:Hide()
+            end
+            if controls.examine_actionhint then
+                controls.examine_actionhint:Hide()
+            end
             return
         end
 

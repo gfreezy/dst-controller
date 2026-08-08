@@ -8,6 +8,11 @@ local ActionQueueIntegration = require("dst-controller/integrations/actionqueue"
 local ShoulderModifiers = require("dst-controller/integrations/shoulder-modifiers")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local Helpers = require("dst-controller/utils/helpers")
+local ControlMode = require("dst-controller/utils/control-mode")
+local CraftingCoordinator = require("dst-controller/crafting/coordinator")
+local CookingCoordinator = require("dst-controller/cooking/coordinator")
+local InputHook = require("dst-controller/hooks/input-hook")
+local ButtonHandler = require("dst-controller/executor/button-handler")
 
 local TheFrontEndHook = {}
 
@@ -28,8 +33,31 @@ function TheFrontEndHook.Install()
 
         -- Hook OnUpdate - 处理虚拟光标的位置更新
         local old_Update = self.Update
+        local controller_mode_was_active = nil
 
         self.Update = function(self, dt)
+            if not ControlMode.IsControllerActive() then
+                if controller_mode_was_active ~= false then
+                    if VirtualCursor.IsCursorModeActive() then
+                        VirtualCursor.ToggleCursorMode(false)
+                    end
+                    ShoulderModifiers.OnCursorModeChanged(false)
+                    ActionQueueIntegration.OnCursorModeChanged(false)
+                    InputHook.ClearAllVirtualModifiers()
+                    InputHook.ClearAllVirtualKeys()
+                    if ClientPathfinder.IsActive() then
+                        ClientPathfinder.Stop()
+                    end
+                    if G.ThePlayer ~= nil then
+                        ButtonHandler.ClearPressedStates(G.ThePlayer)
+                        CraftingCoordinator.Interrupt(G.ThePlayer)
+                        CookingCoordinator.Interrupt(G.ThePlayer)
+                    end
+                end
+                controller_mode_was_active = false
+                return old_Update(self, dt)
+            end
+            controller_mode_was_active = true
             -- 更新虚拟光标（如果启用）
             VirtualCursor.OnUpdate(self, dt)
             ShoulderModifiers.OnUpdate()
@@ -44,6 +72,9 @@ function TheFrontEndHook.Install()
         local old_OnControl = self.OnControl
 
         self.OnControl = function(self, control, down)
+            if not ControlMode.IsControllerActive() then
+                return old_OnControl(self, control, down)
+            end
             -- 处理虚拟光标模式切换
             if VirtualCursor.ToggleOnControl(control, down) then
                 local cursor_active = VirtualCursor.IsCursorModeActive()
@@ -84,7 +115,8 @@ function TheFrontEndHook.Install()
             local result = old_PushScreen(self, screen)
 
             -- 将 cursor_widget 移到最前面（在所有 screen 之上）
-            if cursor_widget and cursor_widget.inst:IsValid() then
+            if ControlMode.IsControllerActive() and cursor_widget and
+                cursor_widget.inst:IsValid() then
                 cursor_widget:MoveToFront()
             end
             return result

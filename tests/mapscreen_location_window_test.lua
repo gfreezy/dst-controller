@@ -291,6 +291,36 @@ assert(cursor_active == false and disabled_cursor_states.open == false and
     disabled_cursor_states.close == false,
     "MapScreen should also preserve a disabled virtual cursor")
 
+controller_attached = false
+local keyboard_native_controls = 0
+local keyboard_native_updates = 0
+local keyboard_map_screen = {
+    OnBecomeActive = function() end,
+    OnDestroy = function() end,
+    GetHelpText = function() return "keyboard help" end,
+    minimap = {
+        GetZoom = function() return 5 end,
+        Offset = function() end,
+    },
+    DoZoomIn = function() end,
+    DoZoomOut = function() end,
+    OnUpdate = function()
+        keyboard_native_updates = keyboard_native_updates + 1
+    end,
+    OnControl = function()
+        keyboard_native_controls = keyboard_native_controls + 1
+        return "keyboard native"
+    end,
+}
+postconstruct(keyboard_map_screen)
+keyboard_map_screen:OnBecomeActive()
+keyboard_map_screen:OnUpdate(0.016)
+assert(keyboard_map_screen:OnControl(10, true) == "keyboard native" and
+       keyboard_native_controls == 1 and keyboard_native_updates == 1 and
+       keyboard_map_screen:GetHelpText() == "keyboard help",
+    "keyboard/mouse map mode must preserve native update, controls, and help")
+keyboard_map_screen:OnDestroy()
+
 for _, name in ipairs(module_names) do
     package.loaded[name] = original_modules[name]
 end
