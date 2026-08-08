@@ -6,14 +6,15 @@ local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
 local ConfigManager = require("dst-controller/utils/config_manager")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
+local ShoulderModifiers = require("dst-controller/integrations/shoulder-modifiers")
+local ActionQueueConfig = require("dst-controller/integrations/actionqueue-config")
 
 local ActionQueueIntegration = {}
 
 local MAGNETISM_SOURCE = "actionqueue_selection"
 
 local STATE = {
-    modifier_down = false,
-    modifier_owned = false,
+    modifier_owned_buttons = {},
     captured_button = nil,
     captured_rightclick = false,
     selection_owner = nil,
@@ -138,8 +139,7 @@ local function ResetInputState(cancel_selection)
     else
         ResetCapturedState()
     end
-    STATE.modifier_down = false
-    STATE.modifier_owned = false
+    STATE.modifier_owned_buttons = {}
     STATE.cancel_button_owned = false
 end
 
@@ -223,10 +223,24 @@ local function HasQueueWork(actionqueuer)
 end
 
 local function IsModifierDown()
-    -- FrontEnd does not consistently emit a dedicated RB OnControl event after
-    -- virtual cursor mode switches the game to the mouse input scheme. Poll the
-    -- physical state as a fallback so RB+LT/RT still reaches ActionQueue.
-    return STATE.modifier_down or Helpers.IsButtonPressed("RB")
+    -- FrontEnd does not consistently emit dedicated shoulder OnControl events
+    -- after virtual cursor mode switches to the mouse input scheme. Resolve the
+    -- queue modifier from both mods' configuration and poll physical state.
+    local queue_modifier = ActionQueueConfig.GetModifier()
+    for button in pairs(STATE.modifier_owned_buttons) do
+        if ShoulderModifiers.IsButtonQueueModifier(button, queue_modifier) then
+            return true
+        end
+    end
+    return ShoulderModifiers.IsQueueModifierDown(queue_modifier)
+end
+
+local function GetShoulderButton(control)
+    for _, button in ipairs({ "LB", "RB" }) do
+        if Helpers.IsControlNamedButton(control, button) then
+            return button
+        end
+    end
 end
 
 -- Called before the normal virtual mouse button handler.
@@ -235,15 +249,14 @@ function ActionQueueIntegration.OnControl(control, down)
         if STATE.captured_button ~= nil then
             CancelOwnedSelection()
         end
-        STATE.modifier_down = false
-        STATE.modifier_owned = false
+        STATE.modifier_owned_buttons = {}
         return false
     end
 
     local button, rightclick = GetClickButton(control)
 
-    -- A captured click owns its matching release even if RB was released or
-    -- the gameplay context changed in the meantime.
+    -- A captured click owns its matching release even if the configured
+    -- shoulder was released or the gameplay context changed in the meantime.
     if STATE.captured_button ~= nil and button ~= nil then
         if not down and button == STATE.captured_button then
             if IsWorldGameplayContext() then
@@ -258,14 +271,15 @@ function ActionQueueIntegration.OnControl(control, down)
     local actionqueuer = GetActionQueuer()
     local valid_context = actionqueuer ~= nil and IsWorldGameplayContext()
 
-    if Helpers.IsControlNamedButton(control, "RB") then
-        if down and valid_context then
-            STATE.modifier_down = true
-            STATE.modifier_owned = true
+    local shoulder_button = GetShoulderButton(control)
+    if shoulder_button ~= nil then
+        local is_queue_modifier = ShoulderModifiers.IsButtonQueueModifier(
+            shoulder_button, ActionQueueConfig.GetModifier())
+        if down and valid_context and is_queue_modifier then
+            STATE.modifier_owned_buttons[shoulder_button] = true
             return true
-        elseif not down and STATE.modifier_owned then
-            STATE.modifier_down = false
-            STATE.modifier_owned = false
+        elseif not down and STATE.modifier_owned_buttons[shoulder_button] then
+            STATE.modifier_owned_buttons[shoulder_button] = nil
             return true
         end
         return false
@@ -273,7 +287,7 @@ function ActionQueueIntegration.OnControl(control, down)
 
     if Helpers.IsControlNamedButton(control, "B") then
         -- Keep normal B/alternate actions available. Queue cancellation belongs
-        -- to the same RB modifier namespace as selection: RB+B.
+        -- to whichever configured shoulder currently matches ActionQueue's key.
         if down and IsModifierDown() and valid_context and HasQueueWork(actionqueuer) then
             CancelQueue(actionqueuer)
             STATE.cancel_button_owned = true
@@ -308,8 +322,7 @@ function ActionQueueIntegration.OnUpdate()
     end
 
     if not valid_context then
-        STATE.modifier_down = false
-        STATE.modifier_owned = false
+        STATE.modifier_owned_buttons = {}
         STATE.cancel_button_owned = false
     end
 end

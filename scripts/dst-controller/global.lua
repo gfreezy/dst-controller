@@ -180,6 +180,30 @@ function G.Init(global_arg, env_arg)
         RSTICK_LEFT = { G.CONTROL_PRESET_RSTICK_LEFT, G.CONTROL_INVENTORY_LEFT, G.CONTROL_PREVVALUE },
         RSTICK_UP = { G.CONTROL_PRESET_RSTICK_UP, G.CONTROL_INVENTORY_UP },
         RSTICK_DOWN = { G.CONTROL_PRESET_RSTICK_DOWN, G.CONTROL_INVENTORY_DOWN },
+        -- Scheme 2 emits the classic inventory-action controls in gameplay,
+        -- while menus and other schemes can emit focus/preset controls. Keep
+        -- all physical D-pad aliases together without including left-stick
+        -- CONTROL_MOVE_* values.
+        DPAD_UP = {
+            G.CONTROL_FOCUS_UP,
+            G.CONTROL_INVENTORY_EXAMINE,
+            G.CONTROL_PRESET_DPAD_UP,
+        },
+        DPAD_DOWN = {
+            G.CONTROL_FOCUS_DOWN,
+            G.CONTROL_INVENTORY_DROP,
+            G.CONTROL_PRESET_DPAD_DOWN,
+        },
+        DPAD_LEFT = {
+            G.CONTROL_FOCUS_LEFT,
+            G.CONTROL_INVENTORY_USEONSCENE,
+            G.CONTROL_PRESET_DPAD_LEFT,
+        },
+        DPAD_RIGHT = {
+            G.CONTROL_FOCUS_RIGHT,
+            G.CONTROL_INVENTORY_USEONSELF,
+            G.CONTROL_PRESET_DPAD_RIGHT,
+        },
     }
 end
 

@@ -137,7 +137,8 @@ end
 --   dirx, dirz: 玩家面向方向向量
 -- ============================================================================
 
-local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
+local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz,
+                                             force_attack_override)
     -- 获取当前配置
     local CONFIG = GetConfig()
 
@@ -210,7 +211,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
 
             -- 跳过：盟友 且 在冷却中 且 不是首选目标
             -- 跳过：不可攻击的目标
-            if not (isally and
+            if not (not force_attack_override and isally and
                     self.controller_attack_target_ally_cd > 0 and
                     v ~= preferred_target) and
                 combat:CanTarget(v) then
@@ -262,7 +263,7 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
                         -- 普通敌人：1x（不改变score）
 
                         -- ===== 特殊情况加权 =====
-						if v.replica.combat:GetTarget() == self.inst or FunctionOrValue(v.controller_priority_override_is_targeting_player) then
+						if v.replica.combat:GetTarget() == self.inst or G.FunctionOrValue(v.controller_priority_override_is_targeting_player) then
                             score = score * 6     -- 正在攻击玩家：6x（高优先级）
                         end
 
@@ -275,7 +276,8 @@ local function UpdateControllerAttackTarget(self, dt, x, y, z, dirx, dirz)
                         -- FORCE_ATTACK_MODE.FORCE_ATTACK: 可以攻击所有目标（原版行为）
                         -- 特殊：按下 LB 时，可以攻击所有目标
                         local can_attack = true
-                        if CONFIG.force_attack_mode == FORCE_ATTACK_MODE.HOSTILE_ONLY and not Helpers.IsButtonPressed("LB") then
+                        if CONFIG.force_attack_mode == FORCE_ATTACK_MODE.HOSTILE_ONLY and
+                            not force_attack_override and not Helpers.IsButtonPressed("LB") then
                             -- 仅敌对模式：必须是敌对目标才能攻击（除非按下 LB）
                             can_attack = IsHostileTarget(v, self.inst)
                         end
@@ -838,6 +840,23 @@ local function UpdateControllerConflictingTargets(self)
     end
 
     self.controller_target, self.controller_attack_target = target, attacktarget
+end
+
+-- Refresh just the attack target outside the periodic controller scan. This is
+-- used by the configurable force-attack command immediately before it submits
+-- DST's native controller attack action.
+function TargetSelection.RefreshControllerAttackTarget(controller, force_attack_override)
+    if controller == nil or controller.inst == nil then
+        return nil
+    end
+    local x, y, z = controller.inst.Transform:GetWorldPosition()
+    local heading_angle = -controller.inst.Transform:GetRotation()
+    local dirx = math.cos(heading_angle * G.DEGREES)
+    local dirz = math.sin(heading_angle * G.DEGREES)
+    UpdateControllerAttackTarget(
+        controller, 0, x, y, z, dirx, dirz, force_attack_override == true)
+    UpdateControllerConflictingTargets(controller)
+    return controller.controller_attack_target
 end
 
 -- ============================================================================

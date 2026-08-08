@@ -7,7 +7,7 @@ local G = require("dst-controller/global")
 local Helpers = {}
 local debug_enabled = false
 
----@alias ButtonName "LB"|"RB"|"LT"|"RT"|"A"|"B"|"X"|"Y"|"RSTICK_RIGHT"|"RSTICK_LEFT"|"RSTICK_UP"|"RSTICK_DOWN"
+---@alias ButtonName "LB"|"RB"|"LT"|"RT"|"A"|"B"|"X"|"Y"|"RSTICK_RIGHT"|"RSTICK_LEFT"|"RSTICK_UP"|"RSTICK_DOWN"|"DPAD_UP"|"DPAD_DOWN"|"DPAD_LEFT"|"DPAD_RIGHT"
 
 -- Check if a specific button (logical name) is currently pressed
 ---@param button_name ButtonName Logical button name (e.g., "LB", "RB", "A", "B", "X", "Y", "RSTICK_RIGHT", "RSTICK_LEFT", "RSTICK_UP", "RSTICK_DOWN")

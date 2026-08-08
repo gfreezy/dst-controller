@@ -10,7 +10,9 @@ local L = L10N.L
 local RecipeCatalog = require("dst-controller/crafting/recipe-catalog")
 local RecipeAliases = require("dst-controller/crafting/recipe-aliases")
 local ItemCatalog = require("dst-controller/items/item-catalog")
+local SkillCatalog = require("dst-controller/skills/skill-catalog")
 local ActionCatalog = require("dst-controller/actions/catalog")
+local ButtonCombos = require("dst-controller/config/button-combos")
 
 local Screen = require("widgets/screen")
 local Widget = require("widgets/widget")
@@ -30,10 +32,16 @@ local SEARCHABLE_ITEM_ACTIONS = {
     use_item_on_self = true,
     use_item_on_scene = true,
 }
+local SEARCHABLE_SKILL_ACTIONS = {
+    cast_skill = true,
+}
 local SEARCH_RESULT_LIMIT = 50
 local PRIMARY_PARAM_Y = 30
 local SECONDARY_PARAM_Y = -50
 local CUSTOM_INPUT_Y = -40
+local SKILL_CHARACTER_Y = 45
+local SKILL_SEARCH_Y = -20
+local SKILL_RESULT_Y = -95
 
 local function SetTextEntryVerticalFocus(panel, root, textbox, up_target, down_target)
     -- DST forwards focus into the textbox, but directional links do not always
@@ -48,18 +56,13 @@ local function SetTextEntryVerticalFocus(panel, root, textbox, up_target, down_t
 end
 
 -- 按钮组合列表
-local BUTTON_COMBOS = {
-    "LB_A", "LB_B", "LB_X", "LB_Y", "LB_LT", "LB_RT",
-    "RB_A", "RB_B", "RB_X", "RB_Y", "RB_LT", "RB_RT",
-}
+local BUTTON_COMBOS = ButtonCombos.GetKeys()
 
 -- 按钮组合的显示名称
-local BUTTON_NAMES = {
-    LB_A = "LB + A", LB_B = "LB + B", LB_X = "LB + X",
-    LB_Y = "LB + Y", LB_LT = "LB + LT", LB_RT = "LB + RT",
-    RB_A = "RB + A", RB_B = "RB + B", RB_X = "RB + X",
-    RB_Y = "RB + Y", RB_LT = "RB + LT", RB_RT = "RB + RT",
-}
+local BUTTON_NAMES = {}
+for _, definition in ipairs(ButtonCombos.GetDefinitions()) do
+    BUTTON_NAMES[definition.key] = definition.label
+end
 
 local function GetItemPresets()
     return {
@@ -312,8 +315,7 @@ function TaskConfigScreen:BuildConfigWidgets(mode)
     local data_source = mode == "virtual_cursor" and self.virtual_cursor_tasks_data or self.tasks_data
 
     for _, combo_key in ipairs(BUTTON_COMBOS) do
-        -- 如果是 HOSTILE_ONLY 模式，跳过 LB_X（用于强制攻击）
-        if not (self.settings_data.force_attack_mode == "hostile_only" and combo_key == "LB_X") then
+        if ButtonCombos.IsAvailableInMode(combo_key, mode) then
             -- 创建容器 widget，宽度等于 ScrollableList (650)
             local container = Widget("combo_container_" .. combo_key)
 
@@ -419,6 +421,7 @@ function TaskConfigScreen:BuildSettingsContent()
             magnetism_range = 2,
             target_priority = false,
             actionqueue_integration = true,
+            modifier_keys = { LB = "shift", RB = "shift" },
         }
     end
     if not self.settings_data.auto_crafting_settings then
@@ -436,6 +439,9 @@ function TaskConfigScreen:BuildSettingsContent()
     if vc_settings.magnetism_range == nil then vc_settings.magnetism_range = 2 end
     if vc_settings.target_priority == nil then vc_settings.target_priority = false end
     if vc_settings.actionqueue_integration == nil then vc_settings.actionqueue_integration = true end
+    if type(vc_settings.modifier_keys) ~= "table" then
+        vc_settings.modifier_keys = { LB = "shift", RB = "shift" }
+    end
 
     -- 创建临时设置副本（用于编辑，只有点击应用时才保存）
     self.temp_settings = {
@@ -457,6 +463,10 @@ function TaskConfigScreen:BuildSettingsContent()
             magnetism_range = vc_settings.magnetism_range,
             target_priority = vc_settings.target_priority,
             actionqueue_integration = vc_settings.actionqueue_integration,
+            modifier_keys = {
+                LB = vc_settings.modifier_keys.LB or "shift",
+                RB = vc_settings.modifier_keys.RB or "shift",
+            },
         }
     }
 
@@ -516,6 +526,27 @@ function TaskConfigScreen:BuildSettingsContent()
             {{text = L("OPT_OFF"), data = false}, {text = L("OPT_ON"), data = true}},
             temp_vc.actionqueue_integration,
             function(data) temp_vc.actionqueue_integration = data end,
+            240
+        ))
+
+        local modifier_options = {
+            {text = L("OPT_MOD_SHIFT"), data = "shift"},
+            {text = L("OPT_MOD_ALT"), data = "alt"},
+            {text = L("OPT_MOD_CTRL"), data = "ctrl"},
+            {text = L("OPT_MOD_CMD"), data = "cmd"},
+        }
+        table.insert(items, CreateSettingItem(
+            L("SETTING_LB_MODIFIER"),
+            modifier_options,
+            temp_vc.modifier_keys.LB,
+            function(data) temp_vc.modifier_keys.LB = data end,
+            240
+        ))
+        table.insert(items, CreateSettingItem(
+            L("SETTING_RB_MODIFIER"),
+            modifier_options,
+            temp_vc.modifier_keys.RB,
+            function(data) temp_vc.modifier_keys.RB = data end,
             240
         ))
 
@@ -719,6 +750,7 @@ function TaskConfigScreen:Apply()
         vc_settings.magnetism_range = temp_vc.magnetism_range
         vc_settings.target_priority = temp_vc.target_priority
         vc_settings.actionqueue_integration = temp_vc.actionqueue_integration
+        vc_settings.modifier_keys = ConfigManager.DeepCopy(temp_vc.modifier_keys)
 
         self.is_dirty = true
     end
@@ -1294,6 +1326,8 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     self.custom_input_cache = {}
     self.recipe_search_text = ""
     self.updating_param_ui = false
+    self.updating_skill_character_ui = false
+    self.skill_character = ""
 
     -- Build from the live registry so character, event, and third-party mod
     -- recipes are included. The validity check mirrors craft_item itself.
@@ -1340,7 +1374,7 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
         {text = L("BUTTON_CANCEL"), cb = function() self:Close() end},
     }
     self.bg = self.root:AddChild(TEMPLATES.CurlyWindow(
-        600, 400,
+        600, 460,
         L("EDITOR_TITLE"),  -- title_text：显示在顶部装饰区
         bottom_buttons,
         nil,  -- button_spacing：使用默认间距
@@ -1407,6 +1441,48 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
         start_y = 0,
         anchor = "center"
     })
+
+    -- Character selector shown only for the cast-skill action.
+    self.skill_character_panel = self.root:AddChild(Widget("skill_character"))
+    self.skill_character_panel:SetPosition(0, SKILL_CHARACTER_Y, 0)
+    self.skill_character_panel:Hide()
+
+    local skill_character_label = self.skill_character_panel:AddChild(
+        Text(G.NEWFONT, 28, L("LABEL_SKILL_CHARACTER"))
+    )
+    skill_character_label:SetColour(1, 1, 1, 1)
+
+    self.skill_character_spinner = self.skill_character_panel:AddChild(
+        Spinner({ { data = "", text = L("SKILL_CHARACTER_EMPTY") } },
+            280, 45, {font=G.NEWFONT, size=28}, nil, nil, nil, true)
+    )
+
+    Layout.HorizontalRow({
+        {widget = skill_character_label, width = 140},
+        {widget = self.skill_character_spinner, width = 300},
+    }, {
+        spacing = 20,
+        start_x = 0,
+        start_y = 0,
+        anchor = "center"
+    })
+
+    self.skill_character_spinner.onchangedfn = function(selected_data)
+        if self.updating_skill_character_ui or selected_data == nil or
+           selected_data == "" then
+            return
+        end
+        self.skill_character = selected_data
+        self.action_param = ""
+        self.custom_input_cache[self.action_name] = ""
+        self.updating_skill_character_ui = true
+        self.recipe_search_text = ""
+        self.recipe_search_box:SetString("")
+        self.updating_skill_character_ui = false
+        self:UpdateSkillSearch("", "")
+    end
+
+    self.skill_character_panel.focus_forward = self.skill_character_spinner
 
     -- 自定义参数输入框（初始隐藏）
     -- 必须在 ShowCustomInput/HideCustomInput 调用之前初始化
@@ -1493,14 +1569,19 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
 
     self.validation_text = self.root:AddChild(Text(G.NEWFONT, 22, ""))
     self.validation_text:SetColour(1, 0.45, 0.35, 1)
-    self.validation_text:SetPosition(0, -112, 0)
+    self.validation_text:SetPosition(0, -140, 0)
     self.validation_text:Hide()
 
     self.recipe_search_box.OnTextInputted = function()
+        if self.updating_skill_character_ui then
+            return
+        end
         self.recipe_search_text = self.recipe_search_box:GetString() or ""
         self.validation_text:Hide()
         if SEARCHABLE_ITEM_ACTIONS[self.action_name] then
             self:UpdateItemSearch(self.recipe_search_text, self.action_param)
+        elseif SEARCHABLE_SKILL_ACTIONS[self.action_name] then
+            self:UpdateSkillSearch(self.recipe_search_text, self.action_param)
         else
             self:UpdateRecipeSearch(self.recipe_search_text, self.action_param)
         end
@@ -1524,7 +1605,8 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
             return
         end
 
-        if self.action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[self.action_name] then
+        if self.action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[self.action_name] or
+            SEARCHABLE_SKILL_ACTIONS[self.action_name] then
             if selected_data and selected_data ~= "" then
                 self.action_param = selected_data
                 self.custom_input_cache[self.action_name] = selected_data
@@ -1569,6 +1651,8 @@ ActionEditorDialog = G.Class(Screen, function(self, action, on_save_cb)
     -- 设置 spinners、文本输入框和底部按钮的导航关系
     -- 注意：这些是初始设置，会在 OnActionChanged 中根据显示状态动态调整
     self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.param_spinner)
+    self.skill_character_spinner:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
+    self.skill_character_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.recipe_search_box)
     self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.action_spinner)
     self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.custom_textbox)
     SetTextEntryVerticalFocus(self.custom_input_panel, self.custom_textbox_root,
@@ -1687,32 +1771,107 @@ function ActionEditorDialog:UpdateItemSearch(query, preferred_item)
     )
 end
 
+function ActionEditorDialog:GetSkillCatalog()
+    if not self.skill_catalog then
+        self.skill_catalog = SkillCatalog.BuildAll({
+            player = G.ThePlayer,
+            names = (G.STRINGS and G.STRINGS.NAMES) or {},
+            strings = G.STRINGS or {},
+        })
+    end
+    return self.skill_catalog
+end
+
+function ActionEditorDialog:SetupSkillCharacter(preferred_skill)
+    local catalog = self:GetSkillCatalog()
+    local options = SkillCatalog.GetCharacterOptions(catalog)
+    if #options == 0 then
+        options = { { data = "", text = L("SKILL_CHARACTER_EMPTY") } }
+    end
+
+    local selected = SkillCatalog.GetCharacterForSkill(catalog, preferred_skill)
+    if selected == nil then
+        local current_character = G.ThePlayer and G.ThePlayer.prefab or nil
+        for _, option in ipairs(options) do
+            if option.data == current_character then
+                selected = current_character
+                break
+            end
+        end
+    end
+    selected = selected or options[1].data
+
+    self.updating_skill_character_ui = true
+    self.skill_character_spinner:SetOptions(options)
+    self.skill_character_spinner:SetSelected(selected)
+    self.skill_character = selected
+    self.updating_skill_character_ui = false
+end
+
+function ActionEditorDialog:UpdateSkillSearch(query, preferred_skill)
+    local catalog = SkillCatalog.FilterByCharacter(
+        self:GetSkillCatalog(), self.skill_character)
+    self:UpdateSearchResults(
+        catalog,
+        SkillCatalog,
+        query,
+        preferred_skill,
+        "SKILL_SEARCH_RESULTS",
+        "SKILL_SEARCH_EMPTY",
+        "SKILL_UNAVAILABLE"
+    )
+end
+
 function ActionEditorDialog:OnActionChanged(action_name)
     local needs_param = ActionNeedsParameter(action_name)
 
     if needs_param then
         self.validation_text:Hide()
-        if action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[action_name] then
+        if action_name == "craft_item" or SEARCHABLE_ITEM_ACTIONS[action_name] or
+            SEARCHABLE_SKILL_ACTIONS[action_name] then
             local is_recipe = action_name == "craft_item"
-            self.param_label:SetString(L(is_recipe and "LABEL_RECIPE_RESULT" or "LABEL_ITEM_RESULT"))
-            self.search_label:SetString(L(is_recipe and "LABEL_RECIPE_SEARCH" or "LABEL_ITEM_SEARCH"))
+            local is_skill = SEARCHABLE_SKILL_ACTIONS[action_name] == true
+            self.param_label:SetString(L(is_recipe and "LABEL_RECIPE_RESULT" or
+                (is_skill and "LABEL_SKILL_RESULT" or "LABEL_ITEM_RESULT")))
+            self.search_label:SetString(L(is_recipe and "LABEL_RECIPE_SEARCH" or
+                (is_skill and "LABEL_SKILL_SEARCH" or "LABEL_ITEM_SEARCH")))
             self.custom_input_panel:Hide()
-            -- Search is the first parameter row; its selected result sits below.
-            self.recipe_search_panel:SetPosition(0, PRIMARY_PARAM_Y, 0)
-            self.param_panel:SetPosition(0, SECONDARY_PARAM_Y, 0)
+            self.skill_character_panel:Hide()
+            self.recipe_search_panel:SetPosition(0,
+                is_skill and SKILL_SEARCH_Y or PRIMARY_PARAM_Y, 0)
+            self.param_panel:SetPosition(0,
+                is_skill and SKILL_RESULT_Y or SECONDARY_PARAM_Y, 0)
             self.recipe_search_panel:Show()
+            local preferred_param = self.action_param or ""
+            if is_skill then
+                self:SetupSkillCharacter(preferred_param)
+                self.skill_character_panel:Show()
+                self.updating_skill_character_ui = true
+            end
             self.recipe_search_box:SetString("")
+            self.updating_skill_character_ui = false
             self.recipe_search_text = ""
             if is_recipe then
-                self:UpdateRecipeSearch("", self.action_param or "")
+                self:UpdateRecipeSearch("", preferred_param)
+            elseif is_skill then
+                self:UpdateSkillSearch("", preferred_param)
             else
-                self:UpdateItemSearch("", self.action_param or "")
+                self:UpdateItemSearch("", preferred_param)
             end
 
             self.param_panel:Show()
-            self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.recipe_search_box)
+            self.action_spinner:SetFocusChangeDir(G.MOVE_DOWN,
+                is_skill and self.skill_character_spinner or self.recipe_search_box)
             SetTextEntryVerticalFocus(self.recipe_search_panel, self.recipe_search_root,
-                self.recipe_search_box, self.action_spinner, self.param_spinner)
+                self.recipe_search_box,
+                is_skill and self.skill_character_spinner or self.action_spinner,
+                self.param_spinner)
+            if is_skill then
+                self.skill_character_spinner:SetFocusChangeDir(
+                    G.MOVE_UP, self.action_spinner)
+                self.skill_character_spinner:SetFocusChangeDir(
+                    G.MOVE_DOWN, self.recipe_search_box)
+            end
             self.param_spinner:SetFocusChangeDir(G.MOVE_UP, self.recipe_search_box)
             self.param_spinner:SetFocusChangeDir(G.MOVE_DOWN, self.save_button)
             self.save_button:SetFocusChangeDir(G.MOVE_UP, self.param_spinner)
@@ -1722,6 +1881,7 @@ function ActionEditorDialog:OnActionChanged(action_name)
 
         self.param_label:SetString(L("LABEL_PARAM"))
         self.recipe_search_panel:Hide()
+        self.skill_character_panel:Hide()
         self.param_panel:SetPosition(0, PRIMARY_PARAM_Y, 0)
 
         -- 根据动作类型更新参数选择器的选项
@@ -1803,6 +1963,7 @@ function ActionEditorDialog:OnActionChanged(action_name)
         self.param_panel:Hide()
         self.custom_input_panel:Hide()
         self.recipe_search_panel:Hide()
+        self.skill_character_panel:Hide()
         self.param_label:SetString(L("LABEL_PARAM"))
         self.action_param = ""
         -- 无参数时，action_spinner 直接向下到 save_button

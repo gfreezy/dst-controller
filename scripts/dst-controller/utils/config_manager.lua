@@ -2,16 +2,14 @@
 -- 处理TASKS配置的加载、保存和运行时更新
 local G = require("dst-controller/global")
 local Helpers = require("dst-controller/utils/helpers")
+local ButtonCombos = require("dst-controller/config/button-combos")
 local ConfigManager = {}
 
 -- 配置文件名（保存在客户端数据目录）
 local PERSISTENT_FILE_NAME = "enhanced_controller_config.json"
-local CONFIG_VERSION = "2.0.0"
+local CONFIG_VERSION = "2.3.0"
 
-local COMBO_KEYS = {
-    "LB_A", "LB_B", "LB_X", "LB_Y", "LB_LT", "LB_RT",
-    "RB_A", "RB_B", "RB_X", "RB_Y", "RB_LT", "RB_RT",
-}
+local COMBO_KEYS = ButtonCombos.GetKeys()
 
 -- 运行时缓存
 local RUNTIME_TASKS = nil  -- 默认模式的按键配置
@@ -74,6 +72,10 @@ function ConfigManager.LoadDefaultSettings()
             magnetism_range = 2,            -- 磁吸范围 (1=近, 2=中, 3=远)
             target_priority = false,        -- 是否优先吸附玩家附近目标（而不是光标附近）
             actionqueue_integration = true, -- ActionQueue RB3 手柄适配（安装后自动生效）
+            modifier_keys = {
+                LB = "shift",
+                RB = "shift",
+            },
         }
     }
 end
@@ -97,6 +99,46 @@ end
 local function IsFiniteNumber(value)
     return type(value) == "number" and value == value and
         value ~= math.huge and value ~= -math.huge
+end
+
+local function IsVersionBefore(version, target_major, target_minor, target_patch)
+    local major, minor, patch = tostring(version or ""):match(
+        "^(%d+)%.(%d+)%.(%d+)$")
+    if major == nil then
+        return true
+    end
+    major, minor, patch = tonumber(major), tonumber(minor), tonumber(patch)
+    return major < target_major or
+        (major == target_major and minor < target_minor) or
+        (major == target_major and minor == target_minor and patch < target_patch)
+end
+
+local function IsEmptyTask(task)
+    return type(task) ~= "table" or
+        ((type(task.on_press) ~= "table" or #task.on_press == 0) and
+         (type(task.on_release) ~= "table" or #task.on_release == 0))
+end
+
+local function IsSingleActionTask(task, action_name)
+    return type(task) == "table" and type(task.on_press) == "table" and
+        #task.on_press == 1 and task.on_press[1] == action_name and
+        (type(task.on_release) ~= "table" or #task.on_release == 0)
+end
+
+local function ApplyDefaultPresetMigration(migrated, saved_version)
+    if not IsVersionBefore(saved_version, 2, 3, 0) then
+        return
+    end
+    local tasks = migrated.tasks
+    if IsEmptyTask(tasks.LB_X) then
+        tasks.LB_X = { on_press = { "force_attack" }, on_release = {} }
+    end
+    if IsEmptyTask(tasks.LB_RT) then
+        tasks.LB_RT = { on_press = { "open_skill_wheel" }, on_release = {} }
+    end
+    if IsEmptyTask(tasks.LB_Y) or IsSingleActionTask(tasks.LB_Y, "examine") then
+        tasks.LB_Y = { on_press = { "open_skill_panel" }, on_release = {} }
+    end
 end
 
 local function NormalizeAction(action)
@@ -150,6 +192,15 @@ function ConfigManager.NormalizeTasks(tasks, defaults)
         }
     end
     return normalized
+end
+
+local function ClearReservedVirtualCursorTasks(tasks)
+    for _, combo_key in ipairs(COMBO_KEYS) do
+        if not ButtonCombos.IsAvailableInMode(combo_key, "virtual_cursor") then
+            tasks[combo_key] = { on_press = {}, on_release = {} }
+        end
+    end
+    return tasks
 end
 
 local function MergeDefaults(defaults, saved)
@@ -228,6 +279,16 @@ function ConfigManager.NormalizeSettings(settings)
     end
     cursor.magnetism_range = math.floor(math.max(1, math.min(3, cursor.magnetism_range)) + 0.5)
 
+    local modifier_defaults = cursor_defaults.modifier_keys
+    if type(cursor.modifier_keys) ~= "table" then
+        cursor.modifier_keys = ConfigManager.DeepCopy(modifier_defaults)
+    end
+    local valid_modifiers = { shift = true, alt = true, ctrl = true, cmd = true }
+    cursor.modifier_keys.LB = UseEnum(cursor.modifier_keys.LB,
+        valid_modifiers, modifier_defaults.LB)
+    cursor.modifier_keys.RB = UseEnum(cursor.modifier_keys.RB,
+        valid_modifiers, modifier_defaults.RB)
+
     local valid_buttons = { LB = true, RB = true, LT = true, RT = true, A = true,
         B = true, X = true, Y = true }
     if not valid_buttons[cursor.left_click_key] then
@@ -263,6 +324,7 @@ function ConfigManager.MigrateData(data)
         return nil
     end
     local migrated = ConfigManager.DeepCopy(data)
+    local saved_version = migrated.version
 
     -- Very early backups stored the combo table directly at the root.
     if migrated.tasks == nil and migrated.LB_A ~= nil then
@@ -271,6 +333,7 @@ function ConfigManager.MigrateData(data)
     if type(migrated.tasks) ~= "table" then
         return nil
     end
+    ApplyDefaultPresetMigration(migrated, saved_version)
     if type(migrated.virtual_cursor_tasks) ~= "table" then
         migrated.virtual_cursor_tasks = ConfigManager.DeepCopy(migrated.tasks)
     end
@@ -287,8 +350,9 @@ function ConfigManager.NormalizeConfig(data)
     return {
         version = CONFIG_VERSION,
         tasks = ConfigManager.NormalizeTasks(migrated.tasks, default_tasks),
-        virtual_cursor_tasks = ConfigManager.NormalizeTasks(
-            migrated.virtual_cursor_tasks, default_vc_tasks),
+        virtual_cursor_tasks = ClearReservedVirtualCursorTasks(
+            ConfigManager.NormalizeTasks(
+                migrated.virtual_cursor_tasks, default_vc_tasks)),
         settings = ConfigManager.NormalizeSettings(migrated.settings),
         timestamp = IsFiniteNumber(migrated.timestamp) and migrated.timestamp or os.time(),
     }
@@ -452,12 +516,7 @@ function ConfigManager.GenerateLuaCode(tasks)
         "local TASKS = {"
     }
 
-    local combo_order = {
-        "LB_A", "LB_B", "LB_X", "LB_Y", "LB_LT", "LB_RT",
-        "RB_A", "RB_B", "RB_X", "RB_Y", "RB_LT", "RB_RT"
-    }
-
-    for _, combo_key in ipairs(combo_order) do
+    for _, combo_key in ipairs(COMBO_KEYS) do
         local task = tasks[combo_key]
         if task then
             table.insert(lines, "    " .. combo_key .. " = {")
@@ -562,8 +621,9 @@ end
 function ConfigManager.UpdateRuntimeTasks(tasks, virtual_cursor_tasks)
     local default_tasks, default_vc_tasks = ConfigManager.LoadDefaultTasks()
     RUNTIME_TASKS = ConfigManager.NormalizeTasks(tasks, default_tasks)
-    RUNTIME_VIRTUAL_CURSOR_TASKS = ConfigManager.NormalizeTasks(
-        virtual_cursor_tasks or tasks, default_vc_tasks)
+    RUNTIME_VIRTUAL_CURSOR_TASKS = ClearReservedVirtualCursorTasks(
+        ConfigManager.NormalizeTasks(
+            virtual_cursor_tasks or tasks, default_vc_tasks))
 end
 
 -- 获取虚拟光标模式的TASKS配置

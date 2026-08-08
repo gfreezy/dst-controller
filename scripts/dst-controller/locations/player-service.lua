@@ -108,6 +108,9 @@ local function FinishRequest(request_id)
         end
     end
     Notify()
+    if request.on_complete ~= nil then
+        request.on_complete(nil, "unavailable")
+    end
 end
 
 local function BeginRequest(request)
@@ -143,14 +146,18 @@ function PlayerService.QueryAll()
     return request_id
 end
 
-function PlayerService.QueryPlayer(userid, name)
+function PlayerService.QueryPlayer(userid, name, on_complete)
     userid = tostring(userid or "")
     if userid == "" then
         return nil
     end
     if userid == LocalUserId() then
-        CaptureLocalPosition()
+        local position = CaptureLocalPosition()
         Notify()
+        if on_complete ~= nil then
+            on_complete(position, position ~= nil and "located" or
+                "unavailable")
+        end
         return "local"
     end
     local request_id = GenerateRequestId()
@@ -161,6 +168,7 @@ function PlayerService.QueryPlayer(userid, name)
         kind = "single",
         target_userid = userid,
         created_at = Now(),
+        on_complete = on_complete,
     })
     ChatTransport.Send(Protocol.EncodeQueryPlayer(request_id, userid, name))
     Notify()
@@ -201,7 +209,7 @@ function PlayerService.HandlePacket(packet, sender)
             return true
         end
         local current_shard = Scope.IsCurrentShard(packet.shard_id)
-        state.positions[sender_userid] = {
+        local position = {
             userid = sender_userid,
             name = sender.name or sender_userid,
             prefab = sender.prefab,
@@ -214,12 +222,16 @@ function PlayerService.HandlePacket(packet, sender)
             current_shard = current_shard,
             local_player = false,
         }
+        state.positions[sender_userid] = position
         state.statuses[sender_userid] = current_shard and
             "located" or "other_shard"
         if request.kind == "single" then
             state.pending[packet.request_id] = nil
         end
         Notify()
+        if request.kind == "single" and request.on_complete ~= nil then
+            request.on_complete(position, state.statuses[sender_userid])
+        end
         return true
     end
     return false
@@ -275,13 +287,25 @@ end
 
 function PlayerService.GetCurrentShardPositions()
     local result = {}
+    local local_userid = LocalUserId()
     for _, record in pairs(state.positions) do
         record.current_shard = Scope.IsCurrentShard(record.shard_id)
-        if record.current_shard then
+        if record.current_shard and not record.local_player and
+            tostring(record.userid or "") ~= local_userid then
             result[#result + 1] = record
         end
     end
     return result
+end
+
+function PlayerService.ClearPositions()
+    -- Opening the location window starts a fresh lookup session. Discarding
+    -- pending requests also prevents a late reply from restoring stale map
+    -- markers after the window has been reopened.
+    state.pending = {}
+    state.positions = {}
+    state.statuses = {}
+    Notify()
 end
 
 function PlayerService.Subscribe(listener)

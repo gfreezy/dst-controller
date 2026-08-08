@@ -22,6 +22,7 @@ for index = 2, #options do
 end
 
 assert(Catalog.NeedsParameter("craft_item"), "craft_item requires a recipe")
+assert(Catalog.NeedsParameter("cast_skill"), "cast_skill requires a selected skill")
 assert(Catalog.NeedsParameter("delay"), "delay requires a duration")
 assert(not Catalog.NeedsParameter("attack"), "attack does not require a parameter")
 assert(Catalog.Get("unknown") == nil, "unknown actions must not have metadata")

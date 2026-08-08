@@ -8,6 +8,7 @@ local Helpers = require("dst-controller/utils/helpers")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local WormholeMapVisualizer = require("dst-controller/wormhole-tracker/map_visualizer")
 local LocationMapVisualizer = require("dst-controller/locations/map-visualizer")
+local PlayerService = require("dst-controller/locations/player-service")
 local LocationScreen = require("dst-controller/screens/location-screen")
 local MapNavigation = require("dst-controller/utils/map-navigation")
 local InputSystemHook = require("dst-controller/hooks/input-system-hook")
@@ -30,6 +31,7 @@ function MapScreenHook.Install()
             if self.enhanced_location_screen ~= nil then
                 return false
             end
+            PlayerService.ClearPositions()
             local screen
             screen = LocationScreen(self, function(closed_screen)
                 if self.enhanced_location_screen == closed_screen then

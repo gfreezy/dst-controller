@@ -6,6 +6,7 @@ local ActionCatalog = {}
 
 local DEFINITIONS = {
     { id = "attack", module = "combat", label = "ACTION_ATTACK", exposed = true },
+    { id = "force_attack", module = "combat", label = "ACTION_FORCE_ATTACK", exposed = true },
     { id = "examine", module = "inspection", label = "ACTION_EXAMINE", exposed = true },
     { id = "inspect_self", module = "inspection", label = "ACTION_INSPECT_SELF", exposed = true },
 
@@ -35,6 +36,9 @@ local DEFINITIONS = {
 
     { id = "craft_item", module = "crafting", label = "ACTION_CRAFT_ITEM", exposed = true, has_param = true },
     { id = "toggle_cooking_menu", module = "cooking", label = "ACTION_TOGGLE_COOKING_MENU", exposed = true },
+    { id = "open_skill_wheel", module = "skills", label = "ACTION_OPEN_SKILL_WHEEL", exposed = true },
+    { id = "cast_skill", module = "skills", label = "ACTION_CAST_SKILL", exposed = true, has_param = true },
+    { id = "open_skill_panel", module = "skills", label = "ACTION_OPEN_SKILL_PANEL", exposed = true },
     { id = "willow_cast_spell", module = "character" },
     { id = "trigger_key", module = "keyboard", label = "ACTION_TRIGGER_KEY", exposed = true, has_param = true },
     { id = "enable_virtual_cursor", module = "system", label = "ACTION_ENABLE_VIRTUAL_CURSOR", exposed = true },

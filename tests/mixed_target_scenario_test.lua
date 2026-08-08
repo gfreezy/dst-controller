@@ -155,3 +155,18 @@ assert(ghost_search_radius == 8,
     "ghost resurrection targeting should keep the full interaction scan radius")
 assert(controller.controller_target == postern,
     "a usable Florid Postern must outrank a closer player for ghost resurrection")
+
+-- Explicit force-attack commands must bypass both hostile filtering and the
+-- short ally-protection cooldown, even when they are rebound away from LB+X.
+local neutral = MakeEntity("friendly_creature", 1)
+neutral.replica.combat = { GetTarget = function() return nil end }
+function player:HasTag(tag) return tag == "idle" end
+player.replica.combat.IsAlly = function(_, target) return target == neutral end
+player.replica.combat.CanTarget = function(_, target) return target == neutral end
+controller.controller_attack_target = nil
+controller.controller_attack_target_ally_cd = 1
+controller.controller_targeting_lock_target = false
+G.TheSim.FindEntities_Registered = function() return { neutral } end
+TargetSelection.RefreshControllerAttackTarget(controller, true)
+assert(controller.controller_attack_target == neutral,
+    "force attack should select a non-hostile ally despite the safety cooldown")

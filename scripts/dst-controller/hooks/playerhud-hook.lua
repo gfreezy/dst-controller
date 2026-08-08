@@ -7,11 +7,26 @@ local ButtonHandler = require("dst-controller/executor/button-handler")
 
 local PlayerHudHook = {}
 
+local function IsGameplayHudActive(hud)
+    return hud ~= nil and G.TheFrontEnd ~= nil and
+        G.TheFrontEnd.GetActiveScreen ~= nil and
+        G.TheFrontEnd:GetActiveScreen() == hud
+end
+
 -- Hook: PlayerHud:OnControl (wrap)
 local function InstallOnControl(self)
     local old_OnControl = self.OnControl
 
     self.OnControl = function(hud_self, control, down)
+        local is_gameplay_hud = IsGameplayHudActive(hud_self)
+
+        -- Track shoulders at the same UI layer that owns the crafting and
+        -- inventory triggers. This makes LB/RB+LT/RT reliable across control
+        -- schemes before the native HUD can consume the trigger.
+        if is_gameplay_hud then
+            ButtonHandler.ObserveModifierControl(hud_self.owner, control, down)
+        end
+
         -- Check task config screen shortcut (LB+RB+Y)
         if TaskConfigHook.OnControl(hud_self, control, down) then
             return true
@@ -19,8 +34,8 @@ local function InstallOnControl(self)
 
         -- Check if this control is part of a button combination that can be handled
         -- If so, block it from default PlayerHud handling to avoid conflicts
-        local _, need_handle = ButtonHandler.GetButtonCombinationActions(control, down)
-        if need_handle then
+        if is_gameplay_hud and
+            ButtonHandler.ShouldHandleControl(hud_self.owner, control, down) then
             -- print("[PlayerHudHook] Blocking control: " .. control)
             return false
         end

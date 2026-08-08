@@ -5,6 +5,7 @@ local G = require("dst-controller/global")
 local VirtualCursor = require("dst-controller/virtual-cursor/core")
 local CursorWidget = require("dst-controller/virtual-cursor/cursor_widget")
 local ActionQueueIntegration = require("dst-controller/integrations/actionqueue")
+local ShoulderModifiers = require("dst-controller/integrations/shoulder-modifiers")
 local ClientPathfinder = require("dst-controller/utils/client_pathfinder")
 local Helpers = require("dst-controller/utils/helpers")
 
@@ -31,6 +32,7 @@ function TheFrontEndHook.Install()
         self.Update = function(self, dt)
             -- 更新虚拟光标（如果启用）
             VirtualCursor.OnUpdate(self, dt)
+            ShoulderModifiers.OnUpdate()
             ActionQueueIntegration.OnUpdate()
             ClientPathfinder.UpdateSearch()
 
@@ -44,9 +46,16 @@ function TheFrontEndHook.Install()
         self.OnControl = function(self, control, down)
             -- 处理虚拟光标模式切换
             if VirtualCursor.ToggleOnControl(control, down) then
-                ActionQueueIntegration.OnCursorModeChanged(VirtualCursor.IsCursorModeActive())
+                local cursor_active = VirtualCursor.IsCursorModeActive()
+                ShoulderModifiers.OnCursorModeChanged(cursor_active)
+                ActionQueueIntegration.OnCursorModeChanged(cursor_active)
                 return true
             end
+
+            -- Publish the configured virtual keyboard state before integrations
+            -- inspect this control. Consumption is deferred so ActionQueue and
+            -- normal virtual mouse handling can still see the same event.
+            local shoulder_handled = ShoulderModifiers.OnControl(control, down)
 
             -- ActionQueue must run before normal virtual mouse clicks so a
             -- captured selection is not also sent to the game as a click.
@@ -56,6 +65,10 @@ function TheFrontEndHook.Install()
 
             -- 尝试处理虚拟光标控制
             if VirtualCursor.OnControl(control, down) then
+                return true
+            end
+
+            if shoulder_handled then
                 return true
             end
 

@@ -1458,6 +1458,33 @@ function VirtualCursor.GetButtonStates()
     return STATE.button_states
 end
 
+local function IsGameplayHudActive()
+    local player = G.ThePlayer
+    local frontend = G.TheFrontEnd
+    if player == nil or player.HUD == nil or frontend == nil or
+       frontend.GetActiveScreen == nil or
+       frontend:GetActiveScreen() ~= player.HUD then
+        return false
+    end
+    if player.HUD.HasInputFocus ~= nil and player.HUD:HasInputFocus() then
+        return false
+    end
+    return true
+end
+
+-- LB normally gives its right stick to native camera controls. While either
+-- reserved cursor click is held, cursor dragging takes priority instead. Poll
+-- the physical triggers as well as simulated mouse state because ActionQueue
+-- can capture LT/RT before the normal virtual-mouse handler sees the event.
+function VirtualCursor.ShouldPrioritizeCursorRightStick()
+    if not STATE.cursor_mode_active or not IsGameplayHudActive() or
+       not Helpers.IsButtonPressed("LB") then
+        return false
+    end
+    return STATE.button_states.primary or STATE.button_states.secondary or
+        Helpers.IsButtonPressed("LT") or Helpers.IsButtonPressed("RT")
+end
+
 -- Get state (for debugging)
 function VirtualCursor.GetState()
     return STATE
@@ -1524,11 +1551,12 @@ function VirtualCursor.OnUpdate(self, dt)
         return false
     end
 
-    -- Check if LB is pressed
+    -- LB + right stick normally controls the camera. A held LT/RT click raises
+    -- cursor movement above that gesture so modifier-click dragging works.
     local lb_pressed = Helpers.IsButtonPressed("LB")
+    local cursor_has_priority = VirtualCursor.ShouldPrioritizeCursorRightStick()
 
-    -- Only move cursor if LB is NOT pressed
-    if not lb_pressed then
+    if not lb_pressed or cursor_has_priority then
         -- Read right stick input
         local stick_x = G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_RIGHT)
                         - G.TheInput:GetAnalogControlValue(G.CONTROL_PRESET_RSTICK_LEFT)

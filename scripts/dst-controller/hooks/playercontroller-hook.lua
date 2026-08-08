@@ -16,6 +16,15 @@ local CookingCoordinator = require("dst-controller/cooking/coordinator")
 
 local PlayerControllerHook = {}
 
+local function IsGameplayHudActive(player)
+    local frontend = G.TheFrontEnd
+    if player == nil or player.HUD == nil or frontend == nil or
+        frontend.GetActiveScreen == nil then
+        return false
+    end
+    return frontend:GetActiveScreen() == player.HUD
+end
+
 local function IsUsableControllerTarget(controller, target)
     return target ~= nil and
         target:IsValid() and
@@ -110,14 +119,17 @@ local function InstallOnControl(self)
         end
 
         -- Try to handle as button combination
-        local handled = ButtonHandler.HandleButtonCombination(
-            self.inst,
-            control,
-            down,
-            function(p, action_list)
-                ActionExecutor.ExecuteTaskActions(p, action_list, ACTIONS)
-            end
-        )
+        local handled = false
+        if IsGameplayHudActive(self.inst) then
+            handled = ButtonHandler.HandleButtonCombination(
+                self.inst,
+                control,
+                down,
+                function(p, action_list)
+                    ActionExecutor.ExecuteTaskActions(p, action_list, ACTIONS)
+                end
+            )
+        end
 
         -- If handled, block default behavior
         if handled then

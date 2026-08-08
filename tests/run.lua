@@ -16,6 +16,8 @@ local test_files = {
     "tests/target_selection_policy_test.lua",
     "tests/mixed_target_scenario_test.lua",
     "tests/actionqueue_integration_test.lua",
+    "tests/actionqueue_config_test.lua",
+    "tests/modifier_keys_test.lua",
     "tests/virtual_cursor_motion_test.lua",
     "tests/virtual_cursor_magnetism_test.lua",
     "tests/virtual_cursor_update_test.lua",
@@ -35,6 +37,10 @@ local test_files = {
     "tests/favorite_locations_test.lua",
     "tests/player_location_service_test.lua",
     "tests/mapscreen_location_window_test.lua",
+    "tests/skill_catalog_test.lua",
+    "tests/skill_actions_test.lua",
+    "tests/playerhud_trigger_combo_test.lua",
+    "tests/gameplay_shortcut_scope_test.lua",
 }
 
 for _, path in ipairs(test_files) do

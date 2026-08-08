@@ -6,6 +6,7 @@ local module_names = {
     "dst-controller/utils/client_pathfinder",
     "dst-controller/wormhole-tracker/map_visualizer",
     "dst-controller/locations/map-visualizer",
+    "dst-controller/locations/player-service",
     "dst-controller/screens/location-screen",
     "dst-controller/utils/map-navigation",
     "dst-controller/hooks/input-system-hook",
@@ -25,6 +26,7 @@ local cursor_active = true
 local cursor_blocked = false
 local cursor_restored_as_auto
 local navigation_target
+local cleared_player_positions = 0
 package.loaded["dst-controller/global"] = {
     AddClassPostConstruct = function(path, fn)
         assert(path == "screens/mapscreen")
@@ -104,6 +106,11 @@ package.loaded["dst-controller/utils/client_pathfinder"] = NoopModule({
 })
 package.loaded["dst-controller/wormhole-tracker/map_visualizer"] = NoopModule()
 package.loaded["dst-controller/locations/map-visualizer"] = NoopModule()
+package.loaded["dst-controller/locations/player-service"] = {
+    ClearPositions = function()
+        cleared_player_positions = cleared_player_positions + 1
+    end,
+}
 package.loaded["dst-controller/utils/map-navigation"] = NoopModule({
     Start = function(x, z)
         navigation_target = { x = x, z = z }
@@ -215,6 +222,8 @@ assert(map_screen.enhanced_location_button == nil,
     "MapScreen must not create a visible location button")
 assert(map_screen:OnControl(10, true) == true and #pushed == 1,
     "LT should open the location window in native map mode")
+assert(cleared_player_positions == 1,
+    "opening the location window should clear cached player map positions")
 assert(pushed[1] == map_screen.enhanced_location_screen and
     pushed[1].map_screen == map_screen and
     pushed[1].ignore_opening_release)
@@ -225,6 +234,8 @@ pushed[1].on_closed(pushed[1])
 assert(map_screen.enhanced_location_screen == nil)
 assert(map_screen:OnControl(10, true) == true and #pushed == 2,
     "LT should reopen the location window after it was closed")
+assert(cleared_player_positions == 2,
+    "reopening the location window should start with fresh player positions")
 assert(pushed[2] == map_screen.enhanced_location_screen and
     pushed[2].ignore_opening_release)
 assert(map_screen:OnControl(10, false) == true and #pushed == 2,

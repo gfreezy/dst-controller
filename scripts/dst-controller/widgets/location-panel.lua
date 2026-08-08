@@ -24,6 +24,7 @@ local LocationPanel = G.Class(Widget, function(self, on_close, on_navigate)
     self.rows_data = {}
     self.on_close = on_close
     self.on_navigate = on_navigate
+    self.navigation_query_generation = 0
 
     self.frame = self:AddChild(TEMPLATES.RectangleWindow(PANEL_WIDTH,
         PANEL_HEIGHT, nil, {
@@ -199,6 +200,7 @@ local function PromptName(title, initial_value, on_confirm)
 end
 
 function LocationPanel:SetTab(tab)
+    self.navigation_query_generation = self.navigation_query_generation + 1
     self.active_tab = tab
     if self.header_tabs ~= nil then
         self.header_tabs:SelectButton(tab == "players" and 1 or 2)
@@ -238,6 +240,7 @@ function LocationPanel:GetListFocusTarget(data_index)
 end
 
 function LocationPanel:RunPrimaryAction()
+    self.navigation_query_generation = self.navigation_query_generation + 1
     if self.active_tab == "players" then
         PlayerService.QueryAll()
     else
@@ -291,7 +294,6 @@ function LocationPanel:ApplyRow(row, data)
     row.secondary:Show()
 
     if self.active_tab == "players" then
-        local position = data.position
         row.player_badge:Set(
             data.prefab or "",
             data.colour or G.DEFAULT_PLAYER_COLOUR,
@@ -307,11 +309,9 @@ function LocationPanel:ApplyRow(row, data)
         row.main:SetText(label)
         row.main.text:SetTruncatedString(label, 360, 32, true)
         row.main:SetTooltip(label)
-        if position ~= nil and position.current_shard then
-            row.main:Enable()
-        else
-            row.main:Disable()
-        end
+        -- Selecting a player always performs a fresh lookup before
+        -- navigation, so the name remains actionable without a cached point.
+        row.main:Enable()
         row.secondary:SetText(data.status == "not_queried" and
             L("LOCATION_QUERY") or L("LOCATION_REFRESH"))
         row.secondary:Enable()
@@ -343,11 +343,25 @@ function LocationPanel:ApplyRow(row, data)
 end
 
 function LocationPanel:ActivateRow(data)
-    local position = data ~= nil and
-        (self.active_tab == "players" and data.position or data) or nil
-    if position ~= nil and position.current_shard and
-        self.on_navigate ~= nil then
-        self.on_navigate(position)
+    if data == nil then
+        return
+    end
+    if self.active_tab == "players" then
+        self.navigation_query_generation =
+            self.navigation_query_generation + 1
+        local generation = self.navigation_query_generation
+        PlayerService.QueryPlayer(data.userid, data.name,
+            function(position)
+                if generation == self.navigation_query_generation and
+                    self.inst:IsValid() and position ~= nil and
+                    position.current_shard and self.on_navigate ~= nil then
+                    self.navigation_query_generation =
+                        self.navigation_query_generation + 1
+                    self.on_navigate(position)
+                end
+            end)
+    elseif data.current_shard and self.on_navigate ~= nil then
+        self.on_navigate(data)
     end
 end
 
@@ -355,6 +369,7 @@ function LocationPanel:SecondaryRowAction(data)
     if data == nil then
         return
     end
+    self.navigation_query_generation = self.navigation_query_generation + 1
     if self.active_tab == "players" then
         PlayerService.QueryPlayer(data.userid, data.name)
     else
@@ -375,6 +390,7 @@ function LocationPanel:GetDefaultFocus()
 end
 
 function LocationPanel:Shutdown()
+    self.navigation_query_generation = self.navigation_query_generation + 1
     if self.remove_player_subscription ~= nil then
         self.remove_player_subscription()
         self.remove_player_subscription = nil

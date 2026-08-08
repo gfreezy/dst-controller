@@ -3,14 +3,25 @@ local mouse_move_calls = 0
 local position_calls = 0
 local widget_shows = 0
 local widget_hides = 0
+local pressed_buttons = {}
+local analog_values = {}
+local gameplay_hud = {
+    HasInputFocus = function() return false end,
+}
+local active_screen = gameplay_hud
 
 package.loaded["dst-controller/global"] = {
-    ThePlayer = nil,
-    TheFrontEnd = nil,
+    ThePlayer = { HUD = gameplay_hud },
+    TheFrontEnd = {
+        GetActiveScreen = function() return active_screen end,
+    },
     TheSim = {
         GetScreenSize = function() return 1920, 1080 end,
     },
     TheInput = {
+        GetAnalogControlValue = function(_, control)
+            return analog_values[control] or 0
+        end,
         OnMouseMove = function(_, x, y, from_touch)
             mouse_move_calls = mouse_move_calls + 1
             assert(type(x) == "number" and type(y) == "number", "mouse notification needs coordinates")
@@ -22,6 +33,10 @@ package.loaded["dst-controller/global"] = {
             assert(from_touch == true, "virtual position notification must be marked synthetic")
         end,
     },
+    CONTROL_PRESET_RSTICK_RIGHT = 31,
+    CONTROL_PRESET_RSTICK_LEFT = 32,
+    CONTROL_PRESET_RSTICK_UP = 33,
+    CONTROL_PRESET_RSTICK_DOWN = 34,
 }
 package.loaded["dst-controller/utils/config_manager"] = {
     GetRuntimeSettings = function()
@@ -37,6 +52,9 @@ package.loaded["dst-controller/utils/config_manager"] = {
 package.loaded["dst-controller/utils/helpers"] = {
     DebugPrint = function() end,
     DebugPrintf = function() end,
+    IsButtonPressed = function(button)
+        return pressed_buttons[button] == true
+    end,
 }
 package.loaded["dst-controller/actions/helpers"] = {
     GetPlayerController = function() return nil end,
@@ -80,6 +98,37 @@ assert(not VirtualCursor.IsDispatchingInputPosition(), "input dispatch guard mus
 assert(state.cursor_screen_pos.x > 96 and state.cursor_screen_pos.x < 97 and
     state.cursor_screen_pos.y == 90,
     "the normal setting must use the reduced full-stick speed baseline")
+
+analog_values[31] = 1
+pressed_buttons.LB = true
+local camera_only_x = state.cursor_screen_pos.x
+assert(not VirtualCursor.OnUpdate(nil, 1 / 60) and
+       state.cursor_screen_pos.x == camera_only_x,
+    "LB+right stick without a trigger must remain owned by the camera")
+
+pressed_buttons.LT = true
+assert(VirtualCursor.ShouldPrioritizeCursorRightStick(),
+    "LB+LT in gameplay should give right-stick priority to the cursor")
+assert(VirtualCursor.OnUpdate(nil, 1 / 60) and
+       state.cursor_screen_pos.x > camera_only_x,
+    "LB+LT+right stick should move the virtual cursor")
+
+pressed_buttons.LT = false
+pressed_buttons.RT = true
+local right_click_x = state.cursor_screen_pos.x
+assert(VirtualCursor.ShouldPrioritizeCursorRightStick() and
+       VirtualCursor.OnUpdate(nil, 1 / 60) and
+       state.cursor_screen_pos.x > right_click_x,
+    "LB+RT+right stick should also move the virtual cursor")
+
+active_screen = { name = "MapScreen" }
+assert(not VirtualCursor.ShouldPrioritizeCursorRightStick(),
+    "the cursor priority chord must not alter map controls")
+assert(not VirtualCursor.OnUpdate(nil, 1 / 60),
+    "LB+RT+right stick must retain map ownership outside PlayerHUD")
+active_screen = gameplay_hud
+pressed_buttons.LB = false
+pressed_buttons.RT = false
 
 local before_small_input = state.cursor_screen_pos.x
 state.smoothed_stick_intensity = 0

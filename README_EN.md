@@ -159,9 +159,10 @@ Use virtual cursor on the map screen to quickly navigate to target locations:
 - **RB**: Right click (cancel/other actions)
 
 **Player and Favorite Locations**:
-- Use the map's left-side Locations panel to manually query one player or everyone; there is no background polling
+- The Locations window opens on Players and clears old player markers each time
+- Selecting a player queries their latest position first, then starts navigation after the reply; querying everyone remains available
 - Mod users automatically reply once to a query, with surface and cave shards kept separate
-- Player snapshots and favorites appear as read-only map markers; navigation starts from panel entries
+- The map shows other players and favorites, but never marks your own position
 - “Favorite Current Position” supports naming, renaming, deletion, and per-world/per-shard persistence
 - Queries use readable world-chat messages, which players without this mod may see
 

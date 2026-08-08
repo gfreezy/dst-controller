@@ -19,6 +19,13 @@ local function IsInventoryNavigationControl(control)
         control == G.VIRTUAL_CONTROL_INV_RIGHT
 end
 
+local function IsCameraRightStickControl(control)
+    return control == G.VIRTUAL_CONTROL_CAMERA_ZOOM_IN or
+        control == G.VIRTUAL_CONTROL_CAMERA_ZOOM_OUT or
+        control == G.VIRTUAL_CONTROL_CAMERA_ROTATE_LEFT or
+        control == G.VIRTUAL_CONTROL_CAMERA_ROTATE_RIGHT
+end
+
 -- Virtual cursor mode deliberately makes DST believe no controller is
 -- attached. Mod features that still consume physical gamepad input must use
 -- this accessor instead of the overridden TheInput:ControllerAttached().
@@ -66,8 +73,10 @@ function InputSystemHook.Install()
     original_input_methods.IsControlPressed = G.TheInput.IsControlPressed
     G.TheInput.IsControlPressed = function(self, control)
         if VirtualCursor.IsCursorModeActive() then
-            -- Check if it's primary/secondary control
-            if control == G.CONTROL_PRIMARY then
+            if VirtualCursor.ShouldPrioritizeCursorRightStick() and
+               IsCameraRightStickControl(control) then
+                return false
+            elseif control == G.CONTROL_PRIMARY then
                 ---@type {primary: boolean, secondary: boolean}
                 local button_states = VirtualCursor.GetButtonStates()
                 -- print("[InputSystemHook] IsControlPressed", control, "primary", button_states.primary)
@@ -83,6 +92,18 @@ function InputSystemHook.Install()
             end
         end
         return original_input_methods.IsControlPressed(self, control)
+    end
+
+    -- Camera code reads the scheme-2 virtual axes, while the cursor reads the
+    -- physical preset axes. Suppress only the former during LB+LT/RT dragging
+    -- so the same stick cannot move both the cursor and the camera.
+    original_input_methods.GetAnalogControlValue = G.TheInput.GetAnalogControlValue
+    G.TheInput.GetAnalogControlValue = function(self, control, ...)
+        if VirtualCursor.ShouldPrioritizeCursorRightStick() and
+           IsCameraRightStickControl(control) then
+            return 0
+        end
+        return original_input_methods.GetAnalogControlValue(self, control, ...)
     end
 
     -- Enhanced Controller consistently owns the LB + right-stick camera

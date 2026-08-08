@@ -60,6 +60,8 @@ assert(#rows == 1, "player list should omit the local player")
 assert(rows[1].userid == "KU_remote" and rows[1].status == "querying")
 assert(rows[1].userflags == 4 and rows[1].base_skin == "willow_none",
     "player rows should include native badge appearance data")
+assert(#Service.GetCurrentShardPositions() == 0,
+    "the local player's captured position must not become a map marker")
 
 Service.HandlePacket({
     kind = "position",
@@ -74,12 +76,53 @@ Service.HandlePacket({
     prefab = "willow",
     colour = { 1, 0, 0, 1 },
 })
-assert(#Service.GetCurrentShardPositions() == 2)
+local map_positions = Service.GetCurrentShardPositions()
+assert(#map_positions == 1 and map_positions[1].userid == "KU_remote",
+    "only remote players should be exposed as map positions")
 
-Service.QueryPlayer("KU_remote", "远端;玩家=一")
+local completed_position
+local completed_status
+local targeted_request_id = Service.QueryPlayer(
+    "KU_remote", "远端;玩家=一", function(position, status)
+        completed_position = position
+        completed_status = status
+    end)
 local targeted = assert(Protocol.Decode(sent[#sent]))
 assert(targeted.kind == "query_player")
 assert(targeted.target_name == "远端;玩家=一")
+
+Service.HandlePacket({
+    kind = "position",
+    request_id = targeted_request_id,
+    shard_id = "Master",
+    world_type = "地表",
+    x = 40,
+    z = 50,
+}, {
+    userid = "KU_remote",
+    name = "远端;玩家=一",
+    prefab = "willow",
+    colour = { 1, 0, 0, 1 },
+})
+assert(completed_position ~= nil and completed_position.x == 40 and
+    completed_position.z == 50 and completed_status == "located",
+    "a targeted lookup should complete with the fresh position")
+
+local stale_request_id = Service.QueryPlayer("KU_remote", "远端;玩家=一")
+Service.ClearPositions()
+assert(#Service.GetCurrentShardPositions() == 0 and
+    Service.GetPlayers()[1].status == "not_queried",
+    "clearing positions should reset map markers and lookup state")
+Service.HandlePacket({
+    kind = "position",
+    request_id = stale_request_id,
+    shard_id = "Master",
+    world_type = "地表",
+    x = 60,
+    z = 70,
+}, { userid = "KU_remote", name = "远端;玩家=一" })
+assert(#Service.GetCurrentShardPositions() == 0,
+    "late replies from a cleared lookup session must be ignored")
 
 Service.HandlePacket({
     kind = "query_all",

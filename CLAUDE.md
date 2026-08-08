@@ -106,9 +106,10 @@ G.AddComponentPostInit -- Mod API (from env)
 - [scripts/dst-controller/executor/button-handler.lua](scripts/dst-controller/executor/button-handler.lua)
 - [scripts/dst-controller/hooks/controller-hook.lua](scripts/dst-controller/hooks/controller-hook.lua)
 
-Supports 12 button combinations:
+Supports 20 button combinations:
 - LB + A/B/X/Y/LT/RT
 - RB + A/B/X/Y/LT/RT
+- LB/RB + D-pad up/down/left/right
 
 Each combination supports:
 - `on_press`: Actions when combination is pressed
@@ -125,7 +126,7 @@ Each combination supports:
 **Features**:
 - 3-layer UI: Main screen → Detail screen → Action editor
 - Full gamepad support (A/B for select/cancel, LB/RB for tab switching)
-- 16 available actions with parameter support
+- 25 available actions with parameter support
 - Real-time preview and editing
 - Hotkeys:
   - Keyboard: `Ctrl+K`
@@ -134,7 +135,7 @@ Each combination supports:
 **UI Flow**:
 ```
 TaskConfigScreen (Main)
-  → Shows 12 button combinations
+  → Shows 20 button combinations
   → Click to configure
     ↓
 ActionDetailScreen (Detail)
@@ -186,6 +187,7 @@ Actions are organized by category:
 - **Equipment**: equip_item, cycle_head/hand/body
 - **Items**: use_item, use_item_on_self, save_hand_item, restore_hand_item
 - **Crafting**: craft_item
+- **Skills**: open_skill_wheel, cast_skill, open_skill_panel
 - **Character**: (character-specific actions)
 - **Utility**: start_channeling, stop_channeling
 

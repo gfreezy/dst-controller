@@ -5,6 +5,7 @@ local physical_move_calls = 0
 local mouse_move_calls = 0
 local position_calls = 0
 local pressed_controls = {}
+local prioritize_cursor_stick = false
 local game_postinit
 local profile = {
     GetControlScheme = function(_, scheme_id)
@@ -16,6 +17,7 @@ local input = {
     IsControlPressed = function(_, control)
         return pressed_controls[control] == true
     end,
+    GetAnalogControlValue = function(_, control) return control / 10 end,
     GetActiveControlScheme = function() return 1 end,
     GetControllerID = function() return 1 end,
     ControllerAttached = function() return true end,
@@ -38,6 +40,10 @@ package.loaded["dst-controller/global"] = {
     VIRTUAL_CONTROL_INV_DOWN = 4,
     VIRTUAL_CONTROL_INV_LEFT = 5,
     VIRTUAL_CONTROL_INV_RIGHT = 6,
+    VIRTUAL_CONTROL_CAMERA_ZOOM_IN = 7,
+    VIRTUAL_CONTROL_CAMERA_ZOOM_OUT = 8,
+    VIRTUAL_CONTROL_CAMERA_ROTATE_LEFT = 9,
+    VIRTUAL_CONTROL_CAMERA_ROTATE_RIGHT = 10,
 }
 package.loaded["dst-controller/utils/helpers"] = {}
 package.loaded["dst-controller/virtual-cursor/core"] = {
@@ -49,6 +55,9 @@ package.loaded["dst-controller/virtual-cursor/core"] = {
     end,
     GetButtonStates = function()
         return { primary = false, secondary = false }
+    end,
+    ShouldPrioritizeCursorRightStick = function()
+        return prioritize_cursor_stick
     end,
 }
 package.loaded["dst-controller/hooks/input-system-hook"] = nil
@@ -62,6 +71,19 @@ assert(InputSystemHook.GetPhysicalControllerID() == 1,
     "physical controller id must bypass virtual cursor mouse mode")
 assert(not input:ControllerAttached(),
     "virtual cursor mode should still present mouse mode to native DST UI")
+
+prioritize_cursor_stick = true
+for _, control in ipairs({ 7, 8, 9, 10 }) do
+    pressed_controls[control] = true
+    assert(not input:IsControlPressed(control) and
+           input:GetAnalogControlValue(control) == 0,
+        "LB+LT/RT cursor dragging must suppress every native camera axis")
+end
+assert(input:GetAnalogControlValue(20) == 2,
+    "cursor dragging must preserve physical right-stick and unrelated axes")
+prioritize_cursor_stick = false
+assert(input:IsControlPressed(9) and input:GetAnalogControlValue(9) == 0.9,
+    "LB+right stick without a trigger must retain native camera control")
 
 assert(input:GetActiveControlScheme(10) == 2,
     "the camera and inventory controls should use scheme 2")
