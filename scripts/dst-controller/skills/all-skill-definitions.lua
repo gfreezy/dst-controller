@@ -25,8 +25,35 @@ return {
 
     -- Wendy
     { key = "abigail_flower:unsummon", character = "wendy", label = { "GHOSTCOMMANDS", "UNSUMMON" } },
-    { key = "abigail_flower:rile", character = "wendy", label = { "ACTIONS", "COMMUNEWITHSUMMONED", "MAKE_AGGRESSIVE" } },
-    { key = "abigail_flower:soothe", character = "wendy", label = { "ACTIONS", "COMMUNEWITHSUMMONED", "MAKE_DEFENSIVE" } },
+    {
+        key = "abigail_flower:toggle_behavior",
+        character = "wendy",
+        labels = {
+            { "ACTIONS", "COMMUNEWITHSUMMONED", "MAKE_AGGRESSIVE" },
+            { "ACTIONS", "COMMUNEWITHSUMMONED", "MAKE_DEFENSIVE" },
+        },
+        runtime_keys = {
+            "abigail_flower:rile",
+            "abigail_flower:soothe",
+        },
+        state_tag = "has_aggressive_follower",
+        tagged_key = "abigail_flower:soothe",
+        untagged_key = "abigail_flower:rile",
+    },
+    {
+        key = "abigail_flower:rile",
+        character = "wendy",
+        label = { "ACTIONS", "COMMUNEWITHSUMMONED", "MAKE_AGGRESSIVE" },
+        hidden = true,
+        merged_into = "abigail_flower:toggle_behavior",
+    },
+    {
+        key = "abigail_flower:soothe",
+        character = "wendy",
+        label = { "ACTIONS", "COMMUNEWITHSUMMONED", "MAKE_DEFENSIVE" },
+        hidden = true,
+        merged_into = "abigail_flower:toggle_behavior",
+    },
     { key = "abigail_flower:teleport", character = "wendy", label = { "GHOSTCOMMANDS", "ESCAPE" } },
     { key = "abigail_flower:attack_at", character = "wendy", label = { "GHOSTCOMMANDS", "ATTACK_AT" } },
     { key = "abigail_flower:scare", character = "wendy", label = { "GHOSTCOMMANDS", "SCARE" } },

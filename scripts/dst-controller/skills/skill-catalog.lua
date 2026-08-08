@@ -232,6 +232,23 @@ local function GetDefinitionFallbackLabel(definition)
     return identity:gsub("#%d+$", ""):gsub("%.tex$", ""):gsub("_", " ")
 end
 
+local function GetDefinitionLabel(definition, strings)
+    if definition.labels ~= nil then
+        local labels = {}
+        for _, path in ipairs(definition.labels) do
+            local label = ResolveStringPath(strings, path)
+            if label ~= nil then
+                table.insert(labels, label)
+            end
+        end
+        if #labels > 0 then
+            return table.concat(labels, " / ")
+        end
+    end
+    return ResolveStringPath(strings, definition.label) or
+        GetDefinitionFallbackLabel(definition)
+end
+
 ---Build the configuration-time catalog for every vanilla character skill,
 ---then merge live entries so modded spellbooks remain searchable as well.
 ---@param options table|nil { player, spellbooks, names, strings }
@@ -247,23 +264,28 @@ function SkillCatalog.BuildAll(options)
 
     for _, definition in ipairs(AllSkillDefinitions) do
         local skill_key = definition.key
-        local label = ResolveStringPath(strings, definition.label) or
-            GetDefinitionFallbackLabel(definition)
+        local label = GetDefinitionLabel(definition, strings)
         local character = names[string.upper(definition.character)] or
             definition.character
-        raw_entries[skill_key] = { name = skill_key, product = skill_key }
-        localized_names[string.upper(skill_key)] =
-            string.format("%s (%s)", label, character)
         metadata_by_key[skill_key] = {
             character = definition.character,
             character_label = character,
+            hidden = definition.hidden == true,
         }
+        if not definition.hidden then
+            raw_entries[skill_key] = { name = skill_key, product = skill_key }
+            localized_names[string.upper(skill_key)] =
+                string.format("%s (%s)", label, character)
+        end
     end
 
     for _, entry in ipairs(SkillCatalog.Build(options)) do
         local skill_key = entry.skill_key
-        runtime_by_key[skill_key] = entry
-        if raw_entries[skill_key] == nil then
+        local metadata = metadata_by_key[skill_key]
+        if metadata == nil or not metadata.hidden then
+            runtime_by_key[skill_key] = entry
+        end
+        if metadata == nil then
             local character = options.player and options.player.prefab or
                 (entry.book and entry.book.prefab) or "other"
             raw_entries[skill_key] = { name = skill_key, product = skill_key }
@@ -295,6 +317,41 @@ end
 
 function SkillCatalog.GetAllDefinitions()
     return AllSkillDefinitions
+end
+
+local function GetDefinition(skill_key)
+    for _, definition in ipairs(AllSkillDefinitions) do
+        if definition.key == skill_key then
+            return definition
+        end
+    end
+end
+
+---Return runtime wheel keys in state-aware priority order. Ordinary skills
+---resolve to themselves; virtual skills may resolve to one of several native
+---wheel entries.
+function SkillCatalog.GetRuntimeSkillKeys(skill_key, player)
+    local definition = GetDefinition(skill_key)
+    if definition == nil or definition.runtime_keys == nil then
+        return { skill_key }
+    end
+
+    local keys = {}
+    local seen = {}
+    local function AddKey(key)
+        if type(key) == "string" and key ~= "" and not seen[key] then
+            seen[key] = true
+            table.insert(keys, key)
+        end
+    end
+
+    local tagged = definition.state_tag ~= nil and player ~= nil and
+        player.HasTag ~= nil and player:HasTag(definition.state_tag)
+    AddKey(tagged and definition.tagged_key or definition.untagged_key)
+    for _, key in ipairs(definition.runtime_keys) do
+        AddKey(key)
+    end
+    return keys
 end
 
 function SkillCatalog.GetCharacterOptions(entries)
@@ -330,7 +387,11 @@ end
 
 function SkillCatalog.GetCharacterForSkill(entries, skill_key)
     local entry = SkillCatalog.Find(entries, skill_key)
-    return entry and entry.character or nil
+    if entry ~= nil then
+        return entry.character
+    end
+    local definition = GetDefinition(skill_key)
+    return definition and definition.character or nil
 end
 
 function SkillCatalog.Search(entries, query, limit)

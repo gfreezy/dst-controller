@@ -81,6 +81,44 @@ assert(not SkillActions.cast_skill(player, "willow_ember:fire_burst.tex"),
     "skills on cooldown should not execute")
 skill.checkcooldown = nil
 
+local wendy_aggressive = false
+local behavior_cast = nil
+local rile = {
+    label = "激怒",
+    normal = "rile",
+    execute = function() behavior_cast = "rile" end,
+}
+local soothe = {
+    label = "安抚",
+    normal = "soothe",
+    execute = function() behavior_cast = "soothe" end,
+}
+player.prefab = "wendy"
+player.HasTag = function(_, tag)
+    return tag == "has_aggressive_follower" and wendy_aggressive
+end
+book.prefab = "abigail_flower"
+spellbook.items = { rile, soothe }
+spellbook.SelectSpell = function(_, index)
+    selected = index
+    return true
+end
+
+assert(SkillActions.cast_skill(player, "abigail_flower:toggle_behavior") and
+       selected == 1 and behavior_cast == "rile",
+    "Wendy's merged behavior skill should rile a non-aggressive Abigail")
+wendy_aggressive = true
+assert(SkillActions.cast_skill(player, "abigail_flower:toggle_behavior") and
+       selected == 2 and behavior_cast == "soothe",
+    "Wendy's merged behavior skill should soothe an aggressive Abigail")
+
+spellbook.items = { rile }
+assert(SkillActions.cast_skill(player, "abigail_flower:toggle_behavior") and
+       behavior_cast == "rile",
+    "the live wheel entry should be used when the replicated state lags behind")
+assert(SkillActions.cast_skill(player, "abigail_flower:rile"),
+    "legacy single-skill configurations should remain executable")
+
 local panel_opened = false
 hud.OpenPlayerInfoScreen = function() panel_opened = true end
 assert(SkillActions.open_skill_panel(player) and panel_opened,

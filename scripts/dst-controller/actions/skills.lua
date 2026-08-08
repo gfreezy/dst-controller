@@ -56,7 +56,18 @@ function SkillActions.cast_skill(player, skill_key)
         return false
     end
 
-    local skill = SkillCatalog.Find(BuildCatalog(player), skill_key)
+    local catalog = BuildCatalog(player)
+    local skill = nil
+    local runtime_key = skill_key
+    for _, candidate_key in ipairs(
+            SkillCatalog.GetRuntimeSkillKeys(skill_key, player)) do
+        local candidate = SkillCatalog.Find(catalog, candidate_key)
+        if candidate ~= nil then
+            skill = candidate
+            runtime_key = candidate_key
+            break
+        end
+    end
     if skill == nil then
         Helpers.DebugPrintf("Skill '%s' is not currently available", skill_key)
         return false
@@ -64,15 +75,15 @@ function SkillActions.cast_skill(player, skill_key)
 
     local item = skill.item
     if item.checkenabled ~= nil and not item.checkenabled(player) then
-        Helpers.DebugPrintf("Skill '%s' is currently disabled", skill_key)
+        Helpers.DebugPrintf("Skill '%s' is currently disabled", runtime_key)
         return false
     end
     if item.checkcooldown ~= nil and item.checkcooldown(player) then
-        Helpers.DebugPrintf("Skill '%s' is on cooldown", skill_key)
+        Helpers.DebugPrintf("Skill '%s' is on cooldown", runtime_key)
         return false
     end
     if not skill.spellbook:SelectSpell(skill.index) then
-        Helpers.DebugPrintf("Skill '%s' could not be selected", skill_key)
+        Helpers.DebugPrintf("Skill '%s' could not be selected", runtime_key)
         return false
     end
 
@@ -84,7 +95,7 @@ function SkillActions.cast_skill(player, skill_key)
         hud.CloseSpellWheel ~= nil then
         hud:CloseSpellWheel(true)
     end
-    Helpers.DebugPrintf("Action: Cast Skill (%s)", skill_key)
+    Helpers.DebugPrintf("Action: Cast Skill (%s)", runtime_key)
     return true
 end
 

@@ -94,9 +94,15 @@ local all_entries = SkillCatalog.BuildAll({
     strings = {
         PYROMANCY = { FIRE_THROW = "投掷火焰" },
         GHOSTCOMMANDS = { ESCAPE = "灵体逃脱" },
+        ACTIONS = {
+            COMMUNEWITHSUMMONED = {
+                MAKE_AGGRESSIVE = "激怒",
+                MAKE_DEFENSIVE = "安抚",
+            },
+        },
     },
 })
-assert(#all_entries >= 41,
+assert(#all_entries >= 40,
     "configuration search should include every vanilla character spellbook skill")
 assert(SkillCatalog.Search(all_entries, "薇洛 投掷火焰")[1].skill_key ==
        "willow_ember:fire_throw",
@@ -114,6 +120,15 @@ assert(SkillCatalog.GetCharacterForSkill(
         all_entries, "waxwelljournal:shadow_worker.tex") == "waxwell",
     "an existing skill selection should resolve back to its character")
 local wendy_entries = SkillCatalog.FilterByCharacter(all_entries, "wendy")
-assert(#wendy_entries == 7 and
+assert(#wendy_entries == 6 and
        SkillCatalog.Search(wendy_entries, "投掷火焰")[1] == nil,
     "character filtering should exclude every other character's skills")
+local behavior_matches = SkillCatalog.Search(wendy_entries, "激怒 安抚")
+assert(#behavior_matches == 1 and behavior_matches[1].skill_key ==
+       "abigail_flower:toggle_behavior" and
+       SkillCatalog.Find(wendy_entries, "abigail_flower:rile") == nil and
+       SkillCatalog.Find(wendy_entries, "abigail_flower:soothe") == nil,
+    "Wendy's behavior commands should be exposed as one searchable skill")
+assert(SkillCatalog.GetCharacterForSkill(
+        all_entries, "abigail_flower:rile") == "wendy",
+    "hidden legacy Wendy skill keys should still resolve to their character")
