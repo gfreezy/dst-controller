@@ -20,13 +20,6 @@ local function InstallOnControl(self)
     self.OnControl = function(hud_self, control, down)
         local is_gameplay_hud = IsGameplayHudActive(hud_self)
 
-        -- Track shoulders at the same UI layer that owns the crafting and
-        -- inventory triggers. This makes LB/RB+LT/RT reliable across control
-        -- schemes before the native HUD can consume the trigger.
-        if is_gameplay_hud then
-            ButtonHandler.ObserveModifierControl(hud_self.owner, control, down)
-        end
-
         -- Check task config screen shortcut (LB+RB+Y)
         if TaskConfigHook.OnControl(hud_self, control, down) then
             return true

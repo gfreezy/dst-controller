@@ -18,7 +18,6 @@ local MODIFIER_ORDER = { "LB", "RB" }
 -- Structure: [player_guid][modifier][face_button] =
 --   { pressed = bool, release_actions = table|nil }
 local button_states = {}
-local modifier_states = {}
 
 local function NewButtonState()
     return { pressed = false, release_actions = nil }
@@ -48,32 +47,13 @@ function ButtonHandler.InitializePlayer(player)
         end
         Helpers.DebugPrint("Initialized button states for player " .. guid)
     end
-    modifier_states[guid] = modifier_states[guid] or { LB = false, RB = false }
 end
 
 function ButtonHandler.RemovePlayer(player_or_guid)
     local guid = type(player_or_guid) == "table" and player_or_guid.GUID or player_or_guid
     if guid ~= nil then
         button_states[guid] = nil
-        modifier_states[guid] = nil
     end
-end
-
--- PlayerHud sees crafting/inventory triggers before PlayerController. Remember
--- shoulder transitions there so trigger combo detection does not depend only
--- on the active control scheme's semantic control state.
-function ButtonHandler.ObserveModifierControl(player, control, down)
-    if player == nil or player.GUID == nil then
-        return false
-    end
-    ButtonHandler.InitializePlayer(player)
-    for _, modifier_name in ipairs(MODIFIER_ORDER) do
-        if ButtonHandler.IsButton(control, modifier_name) then
-            modifier_states[player.GUID][modifier_name] = down == true
-            return true
-        end
-    end
-    return false
 end
 
 -- Modal screens can consume the release event that normally clears a combo.
@@ -90,11 +70,6 @@ function ButtonHandler.ClearPressedStates(player_or_guid)
             state.pressed = false
             state.release_actions = nil
         end
-    end
-    local modifiers = modifier_states[guid]
-    if modifiers ~= nil then
-        modifiers.LB = false
-        modifiers.RB = false
     end
 end
 
@@ -140,15 +115,6 @@ end
 -- @param control: the control input
 -- @param down: button state (true=press, false=release)
 -- @return actions, modifier_name, face_button (all nil if not a combination)
-local function IsModifierPressed(player, modifier_name)
-    if Helpers.IsButtonPressed(modifier_name) then
-        return true
-    end
-    local guid = player and player.GUID or nil
-    return guid ~= nil and modifier_states[guid] ~= nil and
-        modifier_states[guid][modifier_name] == true
-end
-
 local function GetButtonCombinationActions(control, down, player)
     -- 检测是否在虚拟光标模式
     local is_virtual_cursor = VirtualCursor.IsCursorModeActive()
@@ -159,7 +125,7 @@ local function GetButtonCombinationActions(control, down, player)
     -- Check if this is a modifier button (LB or RB)
     for _, modifier_name in ipairs(MODIFIER_ORDER) do
         local face_buttons = BUTTON_COMBINATIONS[modifier_name]
-        if IsModifierPressed(player, modifier_name) then
+        if Helpers.IsButtonPressed(modifier_name) then
             -- Modifier is pressed, check if face button event
             for face_button, task_name in pairs(face_buttons) do
                 if ButtonHandler.IsButton(control, face_button) then
@@ -284,7 +250,6 @@ end
 -- Test support: clear module-owned state without touching game input state.
 function ButtonHandler._ResetForTests()
     button_states = {}
-    modifier_states = {}
 end
 
 return ButtonHandler

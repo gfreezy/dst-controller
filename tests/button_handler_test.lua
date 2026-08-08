@@ -85,17 +85,15 @@ assert(calls[4] == "press_action",
 pressed.LB = false
 ButtonHandler.HandleButtonCombination(player, 3, false, Execute)
 
--- PlayerHud observes shoulders before it decides whether LT/RT should open the
--- crafting menu or inventory. This path must work even when the semantic
--- shoulder control is not visible through TheSim polling in that UI layer.
-pressed.LB = false
-assert(ButtonHandler.ObserveModifierControl(player, 1, true))
+-- PlayerHud checks the shoulder's live digital state before deciding whether
+-- LT/RT should open the crafting menu or inventory.
+pressed.LB = true
 assert(ButtonHandler.ShouldHandleControl(player, 7, true),
-    "an observed LB should route configured LB+LT past native HUD handling")
+    "a live LB should route configured LB+LT past native HUD handling")
 assert(ButtonHandler.HandleButtonCombination(player, 7, true, Execute))
 assert(calls[#calls] == "lb_lt_press",
     "the routed LB+LT press should execute its configured action")
-ButtonHandler.ObserveModifierControl(player, 1, false)
+pressed.LB = false
 assert(ButtonHandler.ShouldHandleControl(player, 7, false),
     "captured LT release should route after LB is released first")
 assert(ButtonHandler.HandleButtonCombination(player, 7, false, Execute))
@@ -112,6 +110,10 @@ virtual_cursor_active = false
 pressed.LB = true
 assert(not ButtonHandler.HandleButtonCombination(player, 4, true, Execute),
     "empty combo tasks should not consume controls")
+
+pressed.LB = false
+assert(not ButtonHandler.HandleButtonCombination(player, 3, true, Execute),
+    "a bare A press must not reuse an earlier LB state")
 
 pressed.LB = false
 pressed.RB = false
